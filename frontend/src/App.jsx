@@ -1,11 +1,11 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Box, CircularProgress } from '@mui/material';
 import { NavigationProvider } from './context/NavigationContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import Navigation from './components/common/Navigation';
 import PrivateRoute from './components/common/PrivateRoute';
 
@@ -46,131 +46,7 @@ import EventQuizSubmissionView from './components/event/EventQuizSubmissionView'
 import CollegeSettings from './components/admin/CollegeSettings';
 import AdminQuizzes from './components/admin/AdminQuizzes';
 
-// Create theme
-const theme = createTheme({
-  palette: {
-    mode: 'light',
-    primary: {
-      main: '#1e3a8a', // Deep blue for professional look
-      light: '#2563eb',
-      dark: '#1e40af',
-    },
-    secondary: {
-      main: '#0f766e', // Teal for accent
-      light: '#0d9488',
-      dark: '#115e59',
-    },
-    background: {
-      default: '#f8fafc', // Light gray background
-      paper: '#ffffff',
-    },
-    error: {
-      main: '#dc2626',
-    },
-    success: {
-      main: '#16a34a',
-    },
-    warning: {
-      main: '#d97706',
-    },
-  },
-  typography: {
-    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
-    h1: {
-      fontSize: '2.5rem',
-      fontWeight: 600,
-      lineHeight: 1.2,
-    },
-    h2: {
-      fontSize: '2rem',
-      fontWeight: 600,
-      lineHeight: 1.3,
-    },
-    h3: {
-      fontSize: '1.75rem',
-      fontWeight: 600,
-      lineHeight: 1.3,
-    },
-    h4: {
-      fontSize: '1.5rem',
-      fontWeight: 500,
-      lineHeight: 1.4,
-    },
-    h5: {
-      fontSize: '1.25rem',
-      fontWeight: 500,
-      lineHeight: 1.4,
-    },
-    h6: {
-      fontSize: '1rem',
-      fontWeight: 500,
-      lineHeight: 1.4,
-    },
-    button: {
-      textTransform: 'none', // Prevents all-caps buttons
-      fontWeight: 500,
-    },
-  },
-  shape: {
-    borderRadius: 8,
-  },
-  components: {
-    MuiContainer: {
-      styleOverrides: {
-        root: {
-          height: '100%',
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          paddingTop: '2rem',
-          paddingBottom: '2rem',
-        },
-      },
-    },
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          borderRadius: '6px',
-          padding: '0.5rem 1.5rem',
-          boxShadow: 'none',
-          '&:hover': {
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-          },
-        },
-        contained: {
-          '&:hover': {
-            boxShadow: '0 4px 6px rgba(0,0,0,0.12)',
-          },
-        },
-      },
-    },
-    MuiPaper: {
-      styleOverrides: {
-        root: {
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-          borderRadius: '12px',
-        },
-        elevation1: {
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-        },
-        elevation2: {
-          boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
-        },
-      },
-    },
-    MuiCard: {
-      styleOverrides: {
-        root: {
-          borderRadius: '12px',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-          '&:hover': {
-            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
-          },
-        },
-      },
-    },
-  },
-});
+
 
 // Root level routing component that handles auth state
 const AppRoutes = () => {
@@ -277,7 +153,7 @@ const AppRoutes = () => {
 
 function App() {
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeProvider>
       <LocalizationProvider dateAdapter={AdapterDayjs}>
         <CssBaseline />
         <Router>

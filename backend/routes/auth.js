@@ -373,6 +373,131 @@ router.put('/update-profile', auth, async (req, res) => {
   }
 });
 
+// Enhanced profile update with role-based permissions
+router.put('/profile', auth, async (req, res) => {
+  try {
+    const { name, email, department, departments } = req.body;
+    const userId = req.user._id;
+
+    // Get current user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Role-based validation and updates
+    if (user.role === 'admin') {
+      // Admin can update all fields
+      if (name) user.name = name;
+      if (email) {
+        // Validate email format
+        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+        if (!emailRegex.test(email)) {
+          return res.status(400).json({ message: 'Invalid email format' });
+        }
+
+        // Check if email is already taken by another user
+        const existingUser = await User.findOne({ email, _id: { $ne: userId } });
+        if (existingUser) {
+          return res.status(400).json({ message: 'Email is already in use' });
+        }
+        user.email = email;
+      }
+      if (department) user.department = department;
+      if (departments) user.departments = departments;
+    }
+    else if (user.role === 'faculty') {
+      // Faculty can update name, email, and departments
+      if (name) user.name = name;
+      if (email) {
+        const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+        if (!emailRegex.test(email)) {
+          return res.status(400).json({ message: 'Invalid email format' });
+        }
+
+        const existingUser = await User.findOne({ email, _id: { $ne: userId } });
+        if (existingUser) {
+          return res.status(400).json({ message: 'Email is already in use' });
+        }
+        user.email = email;
+      }
+      if (departments && Array.isArray(departments)) {
+        user.departments = departments;
+      }
+    }
+    else {
+      // Students and event users cannot update profile info (only password)
+      return res.status(403).json({
+        message: 'Students and event users can only update their password'
+      });
+    }
+
+    await user.save();
+
+    // Return updated user data
+    const userData = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      department: user.department,
+      departments: user.departments
+    };
+
+    // Add role-specific fields
+    if (user.role === 'student') {
+      userData.year = user.year;
+      userData.semester = user.semester;
+      userData.section = user.section;
+      userData.admissionNumber = user.admissionNumber;
+      userData.isLateral = user.isLateral;
+    }
+
+    res.json({ user: userData });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Change password endpoint
+router.put('/change-password', auth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user._id;
+
+    // Validation
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current password and new password are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters long' });
+    }
+
+    // Get current user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Verify current password
+    const isCurrentPasswordValid = await user.comparePassword(currentPassword);
+    if (!isCurrentPasswordValid) {
+      return res.status(400).json({ message: 'Current password is incorrect' });
+    }
+
+    // Update password
+    user.password = newPassword; // This will be hashed by the pre-save hook
+    await user.save();
+
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Error changing password:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Create admin user if not exists
 const createAdminIfNotExists = async () => {
   try {

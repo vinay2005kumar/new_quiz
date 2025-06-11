@@ -13,8 +13,22 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Divider
+  Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
+  Tooltip,
+  Chip
 } from '@mui/material';
+import {
+  Edit as EditIcon,
+  Save as SaveIcon,
+  Cancel as CancelIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon
+} from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../config/axios';
 
@@ -23,9 +37,22 @@ const Profile = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [editMode, setEditMode] = useState(false);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [departments, setDepartments] = useState([]);
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    department: '',
+    departments: [],
+    year: '',
+    semester: '',
+    section: '',
+    admissionNumber: '',
     currentPassword: '',
     newPassword: '',
     confirmPassword: ''
@@ -36,10 +63,26 @@ const Profile = () => {
       setFormData(prev => ({
         ...prev,
         name: user.name || '',
-        email: user.email || ''
+        email: user.email || '',
+        department: user.department || '',
+        departments: user.departments || [],
+        year: user.year || '',
+        semester: user.semester || '',
+        section: user.section || '',
+        admissionNumber: user.admissionNumber || ''
       }));
     }
+    fetchDepartments();
   }, [user]);
+
+  const fetchDepartments = async () => {
+    try {
+      const response = await api.get('/api/admin/departments');
+      setDepartments(response.data);
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -56,13 +99,36 @@ const Profile = () => {
     setSuccess('');
 
     try {
-      const response = await api.put('/api/auth/profile', {
-        name: formData.name,
-        email: formData.email
-      });
+      let updateData = {};
 
-      updateUser(response.data);
+      // Admin can update all fields
+      if (user.role === 'admin') {
+        updateData = {
+          name: formData.name,
+          email: formData.email,
+          department: formData.department,
+          departments: formData.departments
+        };
+      }
+      // Faculty can update name, email, and departments
+      else if (user.role === 'faculty') {
+        updateData = {
+          name: formData.name,
+          email: formData.email,
+          departments: formData.departments
+        };
+      }
+      // Students and event users can only update password (handled separately)
+      else {
+        setError('Students and event users can only update their password');
+        setLoading(false);
+        return;
+      }
+
+      const response = await api.put('/api/auth/profile', updateData);
+      updateUser(response.data.user || response.data);
       setSuccess('Profile updated successfully');
+      setEditMode(false);
     } catch (error) {
       setError(error.response?.data?.message || 'Failed to update profile');
     } finally {
@@ -82,6 +148,12 @@ const Profile = () => {
       return;
     }
 
+    if (formData.newPassword.length < 6) {
+      setError('New password must be at least 6 characters long');
+      setLoading(false);
+      return;
+    }
+
     try {
       await api.put('/api/auth/change-password', {
         currentPassword: formData.currentPassword,
@@ -95,6 +167,7 @@ const Profile = () => {
         newPassword: '',
         confirmPassword: ''
       }));
+      setPasswordDialogOpen(false);
     } catch (error) {
       setError(error.response?.data?.message || 'Failed to change password');
     } finally {
@@ -102,29 +175,87 @@ const Profile = () => {
     }
   };
 
+  // Helper functions
+  const canEditProfile = () => {
+    return user?.role === 'admin' || user?.role === 'faculty';
+  };
+
+  const canEditAllFields = () => {
+    return user?.role === 'admin';
+  };
+
+  const handleEditToggle = () => {
+    if (editMode) {
+      // Cancel edit - reset form data
+      setFormData(prev => ({
+        ...prev,
+        name: user.name || '',
+        email: user.email || '',
+        department: user.department || '',
+        departments: user.departments || []
+      }));
+      setError('');
+    }
+    setEditMode(!editMode);
+  };
+
+  const handleDepartmentChange = (event) => {
+    const value = event.target.value;
+    setFormData(prev => ({
+      ...prev,
+      departments: typeof value === 'string' ? value.split(',') : value
+    }));
+  };
+
   return (
     <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
       <Paper sx={{ p: 3 }}>
-        <Typography variant="h4" gutterBottom>
-          Profile Settings
-        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h4">
+            Profile Settings
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            <Chip
+              label={user?.role?.toUpperCase()}
+              color="primary"
+              variant="outlined"
+              size="small"
+            />
+            {canEditProfile() && (
+              <Tooltip title={editMode ? "Cancel Edit" : "Edit Profile"}>
+                <IconButton
+                  onClick={handleEditToggle}
+                  className={editMode ? "delete-icon" : "edit-icon"}
+                >
+                  {editMode ? <CancelIcon /> : <EditIcon />}
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
+        </Box>
 
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
         {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
-        <Box component="form" onSubmit={handleProfileUpdate}>
+        {/* Profile Information Section */}
+        <Typography variant="h5" gutterBottom>
+          Profile Information
+        </Typography>
+
+        <Box component="form" onSubmit={handleProfileUpdate} sx={{ mb: 4 }}>
           <Grid container spacing={3}>
-            <Grid item xs={12}>
+            <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
                 label="Name"
                 name="name"
                 value={formData.name}
                 onChange={handleChange}
-                disabled={loading}
+                disabled={!editMode || !canEditProfile()}
+                required
               />
             </Grid>
-            <Grid item xs={12}>
+            <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
                 label="Email"
@@ -132,81 +263,110 @@ const Profile = () => {
                 type="email"
                 value={formData.email}
                 onChange={handleChange}
-                disabled={loading}
+                disabled={!editMode || !canEditProfile()}
+                required
               />
             </Grid>
-            <Grid item xs={12}>
-              <Button
-                type="submit"
-                variant="contained"
-                disabled={loading}
-                sx={{ mt: 2 }}
-              >
-                {loading ? <CircularProgress size={24} /> : 'Update Profile'}
-              </Button>
-            </Grid>
+
+            {/* Admin-only fields */}
+            {canEditAllFields() && (
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Department"
+                  name="department"
+                  value={formData.department}
+                  onChange={handleChange}
+                  disabled={!editMode}
+                />
+              </Grid>
+            )}
+
+            {/* Faculty departments */}
+            {user?.role === 'faculty' && (
+              <Grid item xs={12}>
+                <FormControl fullWidth disabled={!editMode}>
+                  <InputLabel>Departments</InputLabel>
+                  <Select
+                    multiple
+                    value={formData.departments}
+                    onChange={handleDepartmentChange}
+                    label="Departments"
+                    renderValue={(selected) => (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {selected.map((value) => (
+                          <Chip key={value} label={value} size="small" />
+                        ))}
+                      </Box>
+                    )}
+                  >
+                    {departments.map((dept) => (
+                      <MenuItem key={dept} value={dept}>
+                        {dept}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            )}
+
+            {editMode && canEditProfile() && (
+              <Grid item xs={12}>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  disabled={loading}
+                  startIcon={<SaveIcon />}
+                  className="add-icon"
+                  sx={{ mr: 2 }}
+                >
+                  {loading ? <CircularProgress size={24} /> : 'Save Changes'}
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={handleEditToggle}
+                  disabled={loading}
+                >
+                  Cancel
+                </Button>
+              </Grid>
+            )}
           </Grid>
         </Box>
 
         <Divider sx={{ my: 4 }} />
 
-        <Typography variant="h5" gutterBottom>
-          Change Password
-        </Typography>
-
-        <Box component="form" onSubmit={handlePasswordChange}>
-          <Grid container spacing={3}>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Current Password"
-                name="currentPassword"
-                type="password"
-                value={formData.currentPassword}
-                onChange={handleChange}
-                disabled={loading}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="New Password"
-                name="newPassword"
-                type="password"
-                value={formData.newPassword}
-                onChange={handleChange}
-                disabled={loading}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Confirm New Password"
-                name="confirmPassword"
-                type="password"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                disabled={loading}
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <Button
-                type="submit"
-                variant="contained"
-                disabled={loading}
-                sx={{ mt: 2 }}
-              >
-                {loading ? <CircularProgress size={24} /> : 'Change Password'}
-              </Button>
-            </Grid>
-          </Grid>
+        {/* Password Change Section */}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h5">
+            Security Settings
+          </Typography>
+          <Button
+            variant="outlined"
+            onClick={() => setPasswordDialogOpen(true)}
+            startIcon={<EditIcon />}
+            className="settings-icon"
+          >
+            Change Password
+          </Button>
         </Box>
 
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+          {user?.role === 'student' || user?.role === 'event'
+            ? 'As a student/event user, you can only update your password. Contact admin for other changes.'
+            : 'You can change your password anytime for security purposes.'
+          }
+        </Typography>
+
+        {/* Academic Information for Students */}
         {user?.role === 'student' && (
           <>
             <Divider sx={{ my: 4 }} />
             <Typography variant="h5" gutterBottom>
               Academic Information
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              This information is read-only. Contact admin if changes are needed.
             </Typography>
             <Grid container spacing={3}>
               <Grid item xs={12} sm={6}>
@@ -244,6 +404,140 @@ const Profile = () => {
             </Grid>
           </>
         )}
+
+        {/* Faculty Information */}
+        {user?.role === 'faculty' && !editMode && (
+          <>
+            <Divider sx={{ my: 4 }} />
+            <Typography variant="h5" gutterBottom>
+              Faculty Information
+            </Typography>
+            <Grid container spacing={3}>
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Assigned Departments:
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  {user.departments?.map((dept) => (
+                    <Chip key={dept} label={dept} variant="outlined" />
+                  ))}
+                </Box>
+              </Grid>
+            </Grid>
+          </>
+        )}
+
+        {/* Password Change Dialog */}
+        <Dialog
+          open={passwordDialogOpen}
+          onClose={() => setPasswordDialogOpen(false)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>Change Password</DialogTitle>
+          <DialogContent>
+            <Box component="form" onSubmit={handlePasswordChange} sx={{ mt: 2 }}>
+              <Grid container spacing={3}>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Current Password"
+                    name="currentPassword"
+                    type={showCurrentPassword ? "text" : "password"}
+                    value={formData.currentPassword}
+                    onChange={handleChange}
+                    disabled={loading}
+                    required
+                    InputProps={{
+                      endAdornment: (
+                        <IconButton
+                          onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                          edge="end"
+                          className="view-icon"
+                        >
+                          {showCurrentPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                        </IconButton>
+                      ),
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="New Password"
+                    name="newPassword"
+                    type={showNewPassword ? "text" : "password"}
+                    value={formData.newPassword}
+                    onChange={handleChange}
+                    disabled={loading}
+                    required
+                    helperText="Password must be at least 6 characters long"
+                    InputProps={{
+                      endAdornment: (
+                        <IconButton
+                          onClick={() => setShowNewPassword(!showNewPassword)}
+                          edge="end"
+                          className="view-icon"
+                        >
+                          {showNewPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                        </IconButton>
+                      ),
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="Confirm New Password"
+                    name="confirmPassword"
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    disabled={loading}
+                    required
+                    InputProps={{
+                      endAdornment: (
+                        <IconButton
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          edge="end"
+                          className="view-icon"
+                        >
+                          {showConfirmPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                        </IconButton>
+                      ),
+                    }}
+                  />
+                </Grid>
+              </Grid>
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button
+              onClick={() => {
+                setPasswordDialogOpen(false);
+                setFormData(prev => ({
+                  ...prev,
+                  currentPassword: '',
+                  newPassword: '',
+                  confirmPassword: ''
+                }));
+                setError('');
+              }}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handlePasswordChange}
+              variant="contained"
+              disabled={loading}
+              startIcon={<SaveIcon />}
+              className="add-icon"
+            >
+              {loading ? <CircularProgress size={24} /> : 'Change Password'}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Paper>
     </Container>
   );

@@ -54,6 +54,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import api from '../../config/axios';
+import CountDisplayPaper from '../common/CountDisplayPaper';
 
 const YEARS = ['1', '2', '3', '4'];
 const SEMESTERS = ['1', '2', '3', '4', '5', '6', '7', '8'];
@@ -1011,22 +1012,42 @@ const FacultyAccounts = () => {
           <Box sx={{ display: 'flex', gap: 2 }}>
             <Button
               variant="outlined"
-              startIcon={<DownloadIcon />}
+              startIcon={<DownloadIcon className="download-icon" />}
               onClick={handleDownloadPDF}
+              sx={{
+                color: 'purple.main',
+                borderColor: 'purple.main',
+                '&:hover': {
+                  borderColor: 'purple.dark',
+                  backgroundColor: 'purple.50'
+                }
+              }}
             >
               Download PDF
             </Button>
             <Button
               variant="outlined"
-              startIcon={<CloudUploadIcon />}
+              startIcon={<CloudUploadIcon className="upload-icon" />}
               onClick={() => setOpenUploadDialog(true)}
+              sx={{
+                color: 'orange.main',
+                borderColor: 'orange.main',
+                '&:hover': {
+                  borderColor: 'orange.dark',
+                  backgroundColor: 'orange.50'
+                }
+              }}
             >
               Upload Excel
             </Button>
             <Button
               variant="contained"
-              startIcon={<AddIcon />}
+              startIcon={<AddIcon className="add-icon" />}
               onClick={() => handleOpenDialog()}
+              sx={{
+                backgroundColor: 'success.main',
+                '&:hover': { backgroundColor: 'success.dark' }
+              }}
             >
               Add Faculty
             </Button>
@@ -1104,21 +1125,21 @@ const FacultyAccounts = () => {
             </Paper>
 
             {/* Count Display */}
-            <Paper sx={{ p: 2, mb: 2, bgcolor: '#f5f5f5' }}>
+            <CountDisplayPaper sx={{ p: 2, mb: 2 }}>
               <Grid container spacing={2} alignItems="center">
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle1">
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                     Showing {getFilteredFaculty().length} out of {faculty.length} faculty members
                   </Typography>
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="body2" color="textSecondary">
+                  <Typography variant="body2">
                     {filters.department && `Department: ${filters.department}`}
                     {searchQuery && ` • Search: "${searchQuery}"`}
                   </Typography>
                 </Grid>
               </Grid>
-            </Paper>
+            </CountDisplayPaper>
 
             {/* Table Section */}
             <TableContainer>
@@ -1307,21 +1328,22 @@ const FacultyAccounts = () => {
                       <TableCell>
                         <Box sx={{ display: 'flex', gap: 1 }}>
                           <Tooltip title="Edit Faculty">
-                            <IconButton 
+                            <IconButton
                               size="small"
                               onClick={() => handleOpenDialog(member)}
+                              className="edit-icon"
                             >
                               <EditIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="Delete Faculty">
-                            <IconButton 
+                            <IconButton
                               size="small"
-                              color="error"
                               onClick={() => {
                                 setFacultyToDelete(member);
                                 setOpenDeleteDialog(true);
                               }}
+                              className="delete-icon"
                             >
                               <DeleteIcon fontSize="small" />
                             </IconButton>

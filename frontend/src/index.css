@@ -14,8 +14,7 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #f8fafc;
-  color: #1e293b;
+  /* Background and color will be handled by Material-UI theme */
 }
 
 /* Smooth scrolling */
@@ -34,23 +33,30 @@ html {
   outline: none;
 }
 
-/* Custom scrollbar */
+/* Custom scrollbar - will adapt to theme */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: var(--scrollbar-track, #f1f5f9);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #94a3b8;
+  background: var(--scrollbar-thumb, #94a3b8);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #64748b;
+  background: var(--scrollbar-thumb-hover, #64748b);
+}
+
+/* Dark mode scrollbar */
+[data-theme="dark"] {
+  --scrollbar-track: #1e293b;
+  --scrollbar-thumb: #475569;
+  --scrollbar-thumb-hover: #64748b;
 }
 
 /* Selection color */
@@ -72,7 +78,7 @@ a, button, input, select, textarea {
   }
 }
 
-/* Better table styles */
+/* Better table styles - will be overridden by Material-UI theme */
 table {
   border-collapse: separate;
   border-spacing: 0;
@@ -80,13 +86,19 @@ table {
 }
 
 th, td {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--table-border, #e2e8f0);
   padding: 12px;
 }
 
 th {
-  background-color: #f8fafc;
+  background-color: var(--table-header-bg, #f8fafc);
   font-weight: 600;
+}
+
+/* Dark mode table styles */
+[data-theme="dark"] {
+  --table-border: #4b5563;
+  --table-header-bg: #374151;
 }
 
 /* Card hover effects */
@@ -143,7 +155,4 @@ th {
   padding: 0 6px !important;
 }
 
-/* Menu item hover effect */
-.MuiMenuItem-root:hover {
-  background-color: #f1f5f9 !important;
-}
+/* Menu item hover effect - handled by Material-UI theme */

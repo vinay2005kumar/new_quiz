@@ -39,12 +39,14 @@ import {
   VisibilityOff as VisibilityOffIcon,
   ExpandMore as ExpandMoreIcon,
   Download as DownloadIcon,
-  CloudUpload as CloudUploadIcon
+  CloudUpload as CloudUploadIcon,
+  Add as AddIcon
 } from '@mui/icons-material';
 import api from '../../config/axios';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import CountDisplayPaper from '../common/CountDisplayPaper';
 
 const YEARS = ['1', '2', '3', '4'];
 const SEMESTERS = ['1', '2', '3', '4', '5', '6', '7', '8'];
@@ -636,21 +638,42 @@ const StudentAccounts = () => {
           <Box sx={{ display: 'flex', gap: 2 }}>
             <Button
               variant="outlined"
-              startIcon={<DownloadIcon />}
+              startIcon={<DownloadIcon className="download-icon" />}
               onClick={handleDownloadPDF}
+              sx={{
+                color: 'purple.main',
+                borderColor: 'purple.main',
+                '&:hover': {
+                  borderColor: 'purple.dark',
+                  backgroundColor: 'purple.50'
+                }
+              }}
             >
               Download PDF
             </Button>
             <Button
               variant="outlined"
-              startIcon={<CloudUploadIcon />}
+              startIcon={<CloudUploadIcon className="upload-icon" />}
               onClick={() => setOpenUploadDialog(true)}
+              sx={{
+                color: 'orange.main',
+                borderColor: 'orange.main',
+                '&:hover': {
+                  borderColor: 'orange.dark',
+                  backgroundColor: 'orange.50'
+                }
+              }}
             >
               Upload Excel
             </Button>
             <Button
               variant="contained"
+              startIcon={<AddIcon className="add-icon" />}
               onClick={() => handleOpenDialog()}
+              sx={{
+                backgroundColor: 'success.main',
+                '&:hover': { backgroundColor: 'success.dark' }
+              }}
             >
               Add Student
             </Button>
@@ -666,7 +689,7 @@ const StudentAccounts = () => {
             <Paper sx={{ p: 2, mb: 2 }}>
               <Box sx={{ mb: 2 }}>
                 <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <FilterListIcon /> Filters
+                  <FilterListIcon className="filter-icon" /> Filters
                 </Typography>
               </Box>
               <Grid container spacing={2}>
@@ -752,15 +775,15 @@ const StudentAccounts = () => {
             </Paper>
 
             {/* Count Display */}
-            <Paper sx={{ p: 2, mb: 2, bgcolor: '#f5f5f5' }}>
+            <CountDisplayPaper sx={{ p: 2, mb: 2 }}>
               <Grid container spacing={2} alignItems="center">
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle1">
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                     Showing {getFilteredStudents().length} out of {students.length} students
                   </Typography>
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="body2" color="textSecondary">
+                  <Typography variant="body2">
                     {filters.department && `Department: ${filters.department}`}
                     {filters.year && ` • Year: ${filters.year}`}
                     {filters.semester && ` • Semester: ${filters.semester}`}
@@ -768,7 +791,7 @@ const StudentAccounts = () => {
                   </Typography>
                 </Grid>
               </Grid>
-            </Paper>
+            </CountDisplayPaper>
 
             <TableContainer>
               <Table>
@@ -783,6 +806,7 @@ const StudentAccounts = () => {
                           <IconButton
                             size="small"
                             onClick={toggleAllPasswords}
+                            className="view-icon"
                           >
                             {showAllPasswords ? <VisibilityOffIcon /> : <VisibilityIcon />}
                           </IconButton>
@@ -813,10 +837,18 @@ const StudentAccounts = () => {
                       <TableCell>{student.section}</TableCell>
                       <TableCell>{student.admissionNumber}</TableCell>
                       <TableCell>
-                        <IconButton onClick={() => handleOpenDialog(student)}>
+                        <IconButton
+                          onClick={() => handleOpenDialog(student)}
+                          className="edit-icon"
+                          title="Edit Student"
+                        >
                           <EditIcon />
                         </IconButton>
-                        <IconButton onClick={() => handleDeleteClick(student)}>
+                        <IconButton
+                          onClick={() => handleDeleteClick(student)}
+                          className="delete-icon"
+                          title="Delete Student"
+                        >
                           <DeleteIcon />
                         </IconButton>
                       </TableCell>

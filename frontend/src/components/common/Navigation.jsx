@@ -34,14 +34,18 @@ import {
   Add as AddIcon,
   Assignment as AssignmentIcon,
   Settings as SettingsIcon,
-  Assessment as AssessmentIcon
+  Assessment as AssessmentIcon,
+  LightMode as LightModeIcon,
+  DarkMode as DarkModeIcon
 } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme as useAppTheme } from '../../context/ThemeContext';
 
 const Navigation = () => {
   const [anchorElUser, setAnchorElUser] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { user, logout } = useAuth();
+  const { mode, toggleTheme } = useAppTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
@@ -172,11 +176,29 @@ const Navigation = () => {
         section: user?.section
       }
     });
-    
-    if (location.pathname === path) {
+
+    // Construct the correct path based on user role
+    let fullPath = path;
+    if (path === '/profile' || path === '/dashboard') {
+      const rolePrefix = user?.role === 'admin' ? '/admin' :
+                        user?.role === 'faculty' ? '/faculty' :
+                        user?.role === 'event' ? '/event' : '/student';
+      fullPath = `${rolePrefix}${path}`;
+    } else if (!path.startsWith('/admin') && !path.startsWith('/faculty') &&
+               !path.startsWith('/student') && !path.startsWith('/event')) {
+      // For other paths, add role prefix if not already present
+      const rolePrefix = user?.role === 'admin' ? '/admin' :
+                        user?.role === 'faculty' ? '/faculty' :
+                        user?.role === 'event' ? '/event' : '/student';
+      fullPath = `${rolePrefix}${path}`;
+    }
+
+    console.log('Navigating to:', fullPath);
+
+    if (location.pathname === fullPath) {
       return;
     }
-    navigate(path, { replace: true });
+    navigate(fullPath, { replace: true });
     setDrawerOpen(false);
   };
 
@@ -267,6 +289,26 @@ const Navigation = () => {
                 ))}
               </List>
               <Divider />
+              <List>
+                <ListItem
+                  button
+                  onClick={() => {
+                    toggleTheme();
+                    setDrawerOpen(false);
+                  }}
+                >
+                  <ListItemIcon>
+                    {mode === 'light' ? (
+                      <DarkModeIcon />
+                    ) : (
+                      <LightModeIcon />
+                    )}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={mode === 'light' ? 'Dark Mode' : 'Light Mode'}
+                  />
+                </ListItem>
+              </List>
             </Box>
           </Drawer>
 
@@ -301,6 +343,21 @@ const Navigation = () => {
                   <AccountIcon fontSize="small" />
                 </ListItemIcon>
                 <Typography textAlign="center">Profile</Typography>
+              </MenuItem>
+              <MenuItem onClick={() => {
+                handleCloseUserMenu();
+                toggleTheme();
+              }}>
+                <ListItemIcon>
+                  {mode === 'light' ? (
+                    <DarkModeIcon fontSize="small" />
+                  ) : (
+                    <LightModeIcon fontSize="small" />
+                  )}
+                </ListItemIcon>
+                <Typography textAlign="center">
+                  {mode === 'light' ? 'Dark Mode' : 'Light Mode'}
+                </Typography>
               </MenuItem>
               <MenuItem onClick={() => {
                 handleCloseUserMenu();

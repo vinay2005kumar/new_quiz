@@ -30,7 +30,7 @@ import {
   AccordionDetails,
   LinearProgress
 } from '@mui/material';
-import { 
+import {
   Delete as DeleteIcon,
   Edit as EditIcon,
   Save as SaveIcon,
@@ -39,13 +39,15 @@ import {
   VisibilityOff as VisibilityOffIcon,
   Download as DownloadIcon,
   CloudUpload as CloudUploadIcon,
-  ExpandMore as ExpandMoreIcon
+  ExpandMore as ExpandMoreIcon,
+  Add as AddIcon
 } from '@mui/icons-material';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import api from '../../config/axios';
 import { useAuth } from '../../context/AuthContext';
+import CountDisplayPaper from '../common/CountDisplayPaper';
 
 const EventQuizAccounts = () => {
   const { user } = useAuth();
@@ -489,22 +491,42 @@ const EventQuizAccounts = () => {
         <Box sx={{ display: 'flex', gap: 2 }}>
           <Button
             variant="outlined"
-            startIcon={<DownloadIcon />}
+            startIcon={<DownloadIcon className="download-icon" />}
             onClick={handleDownloadPDF}
+            sx={{
+              color: 'purple.main',
+              borderColor: 'purple.main',
+              '&:hover': {
+                borderColor: 'purple.dark',
+                backgroundColor: 'purple.50'
+              }
+            }}
           >
             Download PDF
           </Button>
           <Button
             variant="outlined"
-            startIcon={<CloudUploadIcon />}
+            startIcon={<CloudUploadIcon className="upload-icon" />}
             onClick={() => setOpenUploadDialog(true)}
+            sx={{
+              color: 'orange.main',
+              borderColor: 'orange.main',
+              '&:hover': {
+                borderColor: 'orange.dark',
+                backgroundColor: 'orange.50'
+              }
+            }}
           >
             Upload Excel
           </Button>
           <Button
             variant="contained"
-            color="primary"
+            startIcon={<AddIcon className="add-icon" />}
             onClick={() => setOpenDialog(true)}
+            sx={{
+              backgroundColor: 'success.main',
+              '&:hover': { backgroundColor: 'success.dark' }
+            }}
           >
             Create New Account
           </Button>
@@ -571,15 +593,15 @@ const EventQuizAccounts = () => {
       </Paper>
 
       {/* Count Display */}
-      <Paper sx={{ p: 2, mb: 2, bgcolor: '#f5f5f5' }}>
+      <CountDisplayPaper sx={{ p: 2, mb: 2 }}>
         <Grid container spacing={2} alignItems="center">
           <Grid item xs={12}>
-            <Typography variant="subtitle1">
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
               Total Event Quiz Accounts: {accounts.length} (Showing {filteredAccounts.length})
             </Typography>
           </Grid>
         </Grid>
-      </Paper>
+      </CountDisplayPaper>
 
       <TableContainer component={Paper}>
         <Table>
@@ -608,6 +630,7 @@ const EventQuizAccounts = () => {
                     <IconButton
                       size="small"
                       onClick={() => togglePasswordVisibility(account._id)}
+                      className="view-icon"
                     >
                       {visiblePasswords[account._id] ? <VisibilityOffIcon /> : <VisibilityIcon />}
                     </IconButton>
@@ -617,16 +640,16 @@ const EventQuizAccounts = () => {
                   <Box sx={{ display: 'flex', gap: 1 }}>
                     <Tooltip title="Edit">
                       <IconButton
-                        color="primary"
                         onClick={() => handleEdit(account)}
+                        className="edit-icon"
                       >
                         <EditIcon />
                       </IconButton>
                     </Tooltip>
                     <Tooltip title="Delete">
                       <IconButton
-                        color="error"
                         onClick={() => handleDeleteClick(account)}
+                        className="delete-icon"
                       >
                         <DeleteIcon />
                       </IconButton>
