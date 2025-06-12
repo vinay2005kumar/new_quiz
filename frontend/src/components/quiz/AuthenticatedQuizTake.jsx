@@ -681,7 +681,7 @@ const AuthenticatedQuizTake = () => {
                               borderRadius: 2,
                               bgcolor: answers[currentQuestion] === optionIndex ? 'primary.light' : 'transparent',
                               '&:hover': {
-                                bgcolor: 'grey.100'
+                                bgcolor: answers[currentQuestion] === optionIndex ? 'primary.light' : 'action.hover'
                               }
                             }}
                           />
@@ -785,7 +785,7 @@ const AuthenticatedQuizTake = () => {
                                   borderRadius: 1,
                                   bgcolor: answers[index] === optionIndex ? 'primary.light' : 'transparent',
                                   '&:hover': {
-                                    bgcolor: 'grey.100'
+                                    bgcolor: answers[index] === optionIndex ? 'primary.light' : 'action.hover'
                                   }
                                 }}
                               />

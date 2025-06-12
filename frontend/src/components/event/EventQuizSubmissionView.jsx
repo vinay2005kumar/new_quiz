@@ -38,7 +38,7 @@ const EventQuizSubmissionView = () => {
       setLoading(true);
       setError('');
 
-      const response = await api.get(`/api/event-quizzes/${quizId}/submission/${studentId}`);
+      const response = await api.get(`/api/event-quiz/${quizId}/submission/${studentId}`);
       setSubmission(response);
     } catch (error) {
       console.error('Error fetching submission:', error);
@@ -178,44 +178,73 @@ const EventQuizSubmissionView = () => {
                   Questions and Answers
                 </Typography>
                 <List>
-                  {submission.quiz.questions.map((question, index) => (
-                    <React.Fragment key={index}>
-                      <ListItem>
-                        <Box sx={{ width: '100%' }}>
-                          <Typography variant="subtitle1" gutterBottom>
-                            <strong>Question {index + 1}:</strong> {question.question}
-                            {' '}({question.marks} marks)
-                          </Typography>
-                          <RadioGroup
-                            value={submission.answers[index]}
-                            sx={{ ml: 2 }}
-                          >
-                            {question.options.map((option, optIndex) => (
-                              <FormControlLabel
-                                key={optIndex}
-                                value={optIndex}
-                                control={<Radio />}
-                                label={option}
-                                sx={{
-                                  color: optIndex === question.correctAnswer ? 'success.main' : 
-                                        submission.answers[index] === optIndex ? 'error.main' : 'inherit'
-                                }}
-                                disabled
-                              />
-                            ))}
-                          </RadioGroup>
-                          <Box sx={{ mt: 1 }}>
-                            <Typography color={submission.answers[index] === question.correctAnswer ? 'success.main' : 'error.main'}>
-                              {submission.answers[index] === question.correctAnswer ? 
-                                '✓ Correct' : 
-                                `✗ Incorrect (Correct answer: ${question.options[question.correctAnswer]})`}
+                  {submission.quiz.questions.map((question, index) => {
+                    // Get the student's answer for this question
+                    // The answers array might have different structures, so we need to handle both
+                    let studentAnswer = null;
+
+                    if (submission.answers && Array.isArray(submission.answers)) {
+                      // Check if answers is an array of objects with questionIndex
+                      const answerObj = submission.answers.find(ans => ans.questionIndex === index);
+                      if (answerObj) {
+                        studentAnswer = answerObj.selectedOption;
+                      } else {
+                        // Check if answers is a simple array indexed by question
+                        studentAnswer = submission.answers[index];
+                      }
+                    }
+
+                    return (
+                      <React.Fragment key={index}>
+                        <ListItem>
+                          <Box sx={{ width: '100%' }}>
+                            <Typography variant="subtitle1" gutterBottom>
+                              <strong>Question {index + 1}:</strong> {question.question}
+                              {' '}({question.marks || 1} marks)
                             </Typography>
+                            <RadioGroup
+                              value={studentAnswer !== null ? studentAnswer : ''}
+                              sx={{ ml: 2 }}
+                            >
+                              {question.options.map((option, optIndex) => {
+                                const isCorrect = optIndex === question.correctAnswer;
+                                const isSelected = studentAnswer === optIndex;
+
+                                return (
+                                  <FormControlLabel
+                                    key={optIndex}
+                                    value={optIndex}
+                                    control={<Radio />}
+                                    label={option}
+                                    sx={{
+                                      color: isCorrect ? 'success.main' :
+                                            isSelected ? 'error.main' : 'inherit',
+                                      fontWeight: isSelected ? 'bold' : 'normal'
+                                    }}
+                                    disabled
+                                  />
+                                );
+                              })}
+                            </RadioGroup>
+                            <Box sx={{ mt: 1 }}>
+                              {studentAnswer !== null ? (
+                                <Typography color={studentAnswer === question.correctAnswer ? 'success.main' : 'error.main'}>
+                                  {studentAnswer === question.correctAnswer ?
+                                    '✓ Correct Answer' :
+                                    `✗ Incorrect Answer (Correct: ${question.options[question.correctAnswer]})`}
+                                </Typography>
+                              ) : (
+                                <Typography color="warning.main">
+                                  ⚠ No answer selected
+                                </Typography>
+                              )}
+                            </Box>
                           </Box>
-                        </Box>
-                      </ListItem>
-                      {index < submission.quiz.questions.length - 1 && <Divider />}
-                    </React.Fragment>
-                  ))}
+                        </ListItem>
+                        {index < submission.quiz.questions.length - 1 && <Divider />}
+                      </React.Fragment>
+                    );
+                  })}
                 </List>
               </CardContent>
             </Card>

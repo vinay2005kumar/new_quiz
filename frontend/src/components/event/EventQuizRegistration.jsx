@@ -39,6 +39,7 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   // Fetch quiz details when dialog opens
   useEffect(() => {
@@ -101,8 +102,14 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
 
     try {
       await api.post(`/api/event-quiz/${quizId}/register`, formData);
+      setSuccess(true);
       onSuccess();
-      onClose();
+
+      // Close dialog after showing success for 2 seconds
+      setTimeout(() => {
+        onClose();
+        setSuccess(false);
+      }, 2000);
     } catch (error) {
       setError(error.response?.data?.message || 'Registration failed');
     } finally {
@@ -132,6 +139,20 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
       </DialogTitle>
       <form onSubmit={handleSubmit}>
         <DialogContent>
+          {success && (
+            <Alert severity="success" sx={{ mb: 2 }}>
+              <Typography variant="body1">
+                🎉 Registration Successful!
+              </Typography>
+              <Typography variant="body2">
+                {quiz?.participationMode === 'team'
+                  ? `Your team "${formData.teamName}" has been registered for "${quiz.title}". All team members will receive individual emails with login credentials.`
+                  : `You have been registered for "${quiz.title}". You will receive an email with your login credentials.`
+                }
+              </Typography>
+            </Alert>
+          )}
+
           {error && (
             <Alert severity="error" sx={{ mb: 2 }}>
               {error}
@@ -361,15 +382,31 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
         </DialogContent>
         
         <DialogActions>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button 
-            type="submit" 
-            variant="contained" 
-            color="primary"
-            disabled={loading}
-          >
-            {loading ? 'Registering...' : 'Register'}
-          </Button>
+          {success ? (
+            <Button
+              onClick={() => {
+                onClose();
+                setSuccess(false);
+              }}
+              variant="contained"
+              color="success"
+              fullWidth
+            >
+              Close
+            </Button>
+          ) : (
+            <>
+              <Button onClick={onClose}>Cancel</Button>
+              <Button
+                type="submit"
+                variant="contained"
+                color="primary"
+                disabled={loading}
+              >
+                {loading ? 'Registering...' : 'Register'}
+              </Button>
+            </>
+          )}
         </DialogActions>
       </form>
     </Dialog>

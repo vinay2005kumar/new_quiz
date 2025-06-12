@@ -1078,6 +1078,16 @@ router.post('/:id/submit', async (req, res) => {
       };
     });
 
+    // Check if this participant has already submitted
+    const existingResult = await EventQuizResult.findOne({
+      quiz: quiz._id,
+      'participantInfo.email': credentials.participantDetails.email
+    });
+
+    if (existingResult) {
+      return res.status(400).json({ message: 'You have already submitted this quiz' });
+    }
+
     // Save result
     const result = new EventQuizResult({
       quiz: quiz._id,
@@ -1101,7 +1111,15 @@ router.post('/:id/submit', async (req, res) => {
       timeTaken: timeTaken || 0
     });
 
-    await result.save();
+    try {
+      await result.save();
+    } catch (saveError) {
+      if (saveError.code === 11000) {
+        // Duplicate key error - participant already submitted
+        return res.status(400).json({ message: 'You have already submitted this quiz' });
+      }
+      throw saveError; // Re-throw other errors
+    }
 
     // Mark all related credentials as having attempted quiz
     if (credentials.isTeam) {
@@ -1230,6 +1248,29 @@ router.delete('/:id/registrations/:registrationId', auth, isEventAdmin, async (r
       });
     } catch (credError) {
       console.log('No quiz credentials found to delete:', credError.message);
+    }
+
+    // Also delete related quiz results if they exist
+    try {
+      const EventQuizResult = require('../models/EventQuizResult');
+
+      // For team registrations, delete by team name
+      if (deletedRegistration.isTeamRegistration) {
+        await EventQuizResult.deleteMany({
+          quiz: req.params.id,
+          'participantInfo.teamName': deletedRegistration.teamName
+        });
+        console.log(`Deleted quiz results for team: ${deletedRegistration.teamName}`);
+      } else {
+        // For individual registrations, delete by email
+        await EventQuizResult.deleteMany({
+          quiz: req.params.id,
+          'participantInfo.email': deletedRegistration.email
+        });
+        console.log(`Deleted quiz results for email: ${deletedRegistration.email}`);
+      }
+    } catch (resultError) {
+      console.log('No quiz results found to delete:', resultError.message);
     }
 
     res.json({
@@ -1764,30 +1805,35 @@ router.get('/:id/submissions', auth, authorize('event', 'admin'), async (req, re
       }
     }
 
-    // Get submissions from EventQuizResult
+    // Get submissions from EventQuizResult (event quiz results use participantInfo, not student field)
     const submissions = await EventQuizResult.find({ quiz: req.params.id })
-      .populate('student', 'name email college department year rollNumber')
       .lean();
+
+    console.log(`Found ${submissions.length} submissions for quiz ${req.params.id}`);
 
     // Transform submissions data to include all necessary details
     const transformedSubmissions = submissions.map(submission => ({
       student: {
-        _id: submission.student?._id,
-        name: submission.student?.name || 'N/A',
-        email: submission.student?.email || 'N/A',
-        college: submission.student?.college || 'N/A',
-        department: submission.student?.department || 'N/A',
-        year: submission.student?.year || 'N/A',
-        rollNumber: submission.student?.rollNumber || 'N/A'
+        _id: submission._id, // Use submission ID as student ID for event quizzes
+        name: submission.participantInfo?.name || 'N/A',
+        email: submission.participantInfo?.email || 'N/A',
+        college: submission.participantInfo?.college || 'N/A',
+        department: submission.participantInfo?.department || 'N/A',
+        year: submission.participantInfo?.year || 'N/A',
+        rollNumber: submission.participantInfo?.admissionNumber || 'N/A',
+        isTeam: submission.participantInfo?.isTeam || false,
+        teamName: submission.participantInfo?.teamName || null,
+        teamMembers: submission.participantInfo?.teamMembers || []
       },
       status: 'submitted',
       totalMarks: submission.score || 0,
       duration: submission.timeTaken || null,
       startTime: submission.startTime || null,
-      submitTime: submission.createdAt || null,
+      submitTime: submission.submittedAt || submission.createdAt || null,
       answers: submission.answers || []
     }));
 
+    console.log(`Transformed ${transformedSubmissions.length} submissions`);
     res.json(transformedSubmissions);
   } catch (error) {
     console.error('Error fetching event quiz submissions:', error);
@@ -1812,37 +1858,59 @@ router.get('/:quizId/submission/:studentId', auth, authorize('event', 'admin'), 
       }
     }
 
-    // Get submission from EventQuizResult
-    const submission = await EventQuizResult.findOne({
+    // Get submission from EventQuizResult (event quiz results use participantInfo, not student field)
+    // For event quizzes, we need to find by participantInfo.email or _id
+    let submission = await EventQuizResult.findOne({
       quiz: req.params.quizId,
-      student: req.params.studentId
-    }).populate('student', 'name email college department year rollNumber');
+      _id: req.params.studentId
+    }).lean();
+
+    // If not found by _id, try to find by participantInfo.email (in case studentId is actually an email)
+    if (!submission) {
+      submission = await EventQuizResult.findOne({
+        quiz: req.params.quizId,
+        'participantInfo.email': req.params.studentId
+      }).lean();
+    }
+
+    // If still not found, the studentId might be a registration ID, so we need to find the registration first
+    if (!submission) {
+      // Find the registration to get the email
+      const registration = quiz.registrations.find(reg => reg._id.toString() === req.params.studentId);
+      if (registration) {
+        // Try to find submission by the registration email
+        submission = await EventQuizResult.findOne({
+          quiz: req.params.quizId,
+          'participantInfo.email': registration.email
+        }).lean();
+      }
+    }
 
     if (!submission) {
       return res.status(404).json({ message: 'Submission not found' });
     }
 
-    // Format submission data
+    // Format submission data for event quiz
     const formattedSubmission = {
       student: {
-        _id: submission.student._id,
-        name: submission.student.name || 'N/A',
-        email: submission.student.email || 'N/A',
-        college: submission.student.college || 'N/A',
-        department: submission.student.department || 'N/A',
-        year: submission.student.year || 'N/A',
-        rollNumber: submission.student.rollNumber || 'N/A'
+        _id: submission._id,
+        name: submission.participantInfo?.name || 'N/A',
+        email: submission.participantInfo?.email || 'N/A',
+        college: submission.participantInfo?.college || 'N/A',
+        department: submission.participantInfo?.department || 'N/A',
+        year: submission.participantInfo?.year || 'N/A',
+        rollNumber: submission.participantInfo?.admissionNumber || 'N/A'
       },
       quiz: {
         title: quiz.title,
-        totalMarks: quiz.totalMarks,
+        totalMarks: quiz.questions.reduce((sum, q) => sum + (q.marks || 1), 0),
         questions: quiz.questions
       },
       status: 'submitted',
       totalMarks: submission.score || 0,
       duration: submission.timeTaken || null,
       startTime: submission.startTime || null,
-      submitTime: submission.createdAt || null,
+      submitTime: submission.submittedAt || submission.createdAt || null,
       answers: submission.answers || []
     };
 

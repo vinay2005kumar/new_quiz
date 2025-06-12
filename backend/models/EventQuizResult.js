@@ -69,11 +69,34 @@ const eventQuizResultSchema = new mongoose.Schema({
 });
 
 // Add indexes for better query performance
-eventQuizResultSchema.index({ quiz: 1, student: 1 }, { unique: true, sparse: true });
-eventQuizResultSchema.index({ quiz: 1, 'participantInfo.email': 1 }, { unique: true, sparse: true });
+// Remove the problematic unique index on quiz + student since student can be null
 eventQuizResultSchema.index({ quiz: 1, score: -1 });
-eventQuizResultSchema.index({ student: 1, submittedAt: -1 });
+eventQuizResultSchema.index({ student: 1, submittedAt: -1 }, { sparse: true });
 eventQuizResultSchema.index({ 'participantInfo.email': 1, submittedAt: -1 });
+
+// Create a compound unique index for public submissions using email
+eventQuizResultSchema.index({
+  quiz: 1,
+  'participantInfo.email': 1
+}, {
+  unique: true,
+  sparse: true,
+  partialFilterExpression: {
+    'participantInfo.email': { $exists: true, $ne: null }
+  }
+});
+
+// Create a compound unique index for authenticated submissions
+eventQuizResultSchema.index({
+  quiz: 1,
+  student: 1
+}, {
+  unique: true,
+  sparse: true,
+  partialFilterExpression: {
+    student: { $exists: true, $ne: null }
+  }
+});
 
 const EventQuizResult = mongoose.model('EventQuizResult', eventQuizResultSchema);
 

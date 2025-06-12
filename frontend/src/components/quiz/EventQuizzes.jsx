@@ -42,7 +42,8 @@ import {
   CalendarToday as CalendarIcon,
   LocationOn as LocationIcon,
   Person as PersonIcon,
-  Group as GroupIcon
+  Group as GroupIcon,
+  Refresh as RefreshIcon
 } from '@mui/icons-material';
 import api from '../../config/axios';
 import { useAuth } from '../../context/AuthContext';
@@ -864,6 +865,15 @@ const EventQuizzes = () => {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             Event Quizzes
           </Typography>
+          <Button
+            color="inherit"
+            startIcon={<RefreshIcon />}
+            onClick={fetchEventQuizzes}
+            disabled={loading}
+            sx={{ mr: 1 }}
+          >
+            Refresh
+          </Button>
           <Button color="inherit" startIcon={<HomeIcon />} onClick={() => navigate('/')}>
             Home
           </Button>
@@ -1268,7 +1278,7 @@ const EventQuizzes = () => {
                       sx={{
                         p: 2,
                         mb: 2,
-                        bgcolor: 'background.default',
+                        bgcolor: 'background.paper',
                         border: 1,
                         borderColor: 'divider'
                       }}

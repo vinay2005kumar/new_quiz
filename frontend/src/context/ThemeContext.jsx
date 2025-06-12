@@ -267,6 +267,7 @@ const createAppTheme = (mode) => {
         styleOverrides: {
           root: {
             '& .MuiOutlinedInput-root': {
+              backgroundColor: isLight ? 'transparent' : 'transparent',
               '& fieldset': {
                 borderColor: isLight ? '#d1d5db' : '#6b7280',
               },
@@ -282,6 +283,7 @@ const createAppTheme = (mode) => {
             },
             '& .MuiOutlinedInput-input': {
               color: isLight ? '#1f2937' : '#f9fafb',
+              backgroundColor: isLight ? 'transparent' : 'transparent',
             },
           },
         },
@@ -297,6 +299,119 @@ const createAppTheme = (mode) => {
             },
             '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
               borderColor: isLight ? '#3b82f6' : '#60a5fa',
+            },
+          },
+          select: {
+            backgroundColor: isLight ? 'transparent' : 'transparent',
+            '&:focus': {
+              backgroundColor: isLight ? 'transparent' : 'transparent',
+            },
+          },
+        },
+      },
+      MuiMenu: {
+        styleOverrides: {
+          paper: {
+            backgroundColor: isLight ? '#ffffff' : '#1e293b', // Proper contrast background for dropdown
+            border: `1px solid ${isLight ? '#e5e7eb' : '#374151'}`,
+            boxShadow: isLight
+              ? '0 4px 6px -1px rgba(0,0,0,0.1)'
+              : '0 4px 6px -1px rgba(0,0,0,0.3)',
+          },
+        },
+      },
+      MuiDialog: {
+        styleOverrides: {
+          paper: {
+            backgroundColor: isLight ? '#ffffff' : '#1e293b', // Proper background for dialogs
+            border: `1px solid ${isLight ? '#e5e7eb' : '#374151'}`,
+            boxShadow: isLight
+              ? '0 10px 15px -3px rgba(0,0,0,0.1)'
+              : '0 10px 15px -3px rgba(0,0,0,0.3)',
+          },
+        },
+      },
+      MuiBackdrop: {
+        styleOverrides: {
+          root: {
+            backgroundColor: isLight
+              ? 'rgba(0, 0, 0, 0.5)'
+              : 'rgba(0, 0, 0, 0.7)', // Darker backdrop for dark mode
+          },
+        },
+      },
+      MuiDialogTitle: {
+        styleOverrides: {
+          root: {
+            backgroundColor: isLight ? '#f8fafc' : '#334155', // Header background
+            color: isLight ? '#1f2937' : '#f1f5f9',
+            borderBottom: `1px solid ${isLight ? '#e5e7eb' : '#475569'}`,
+          },
+        },
+      },
+      MuiDialogContent: {
+        styleOverrides: {
+          root: {
+            backgroundColor: isLight ? '#ffffff' : '#1e293b', // Content background
+            color: isLight ? '#1f2937' : '#f1f5f9',
+          },
+        },
+      },
+      MuiDialogActions: {
+        styleOverrides: {
+          root: {
+            backgroundColor: isLight ? '#f8fafc' : '#334155', // Footer background
+            borderTop: `1px solid ${isLight ? '#e5e7eb' : '#475569'}`,
+          },
+        },
+      },
+      MuiFormControl: {
+        styleOverrides: {
+          root: {
+            '& .MuiInputLabel-root': {
+              color: isLight ? '#6b7280' : '#d1d5db',
+            },
+            '& .MuiOutlinedInput-root': {
+              backgroundColor: isLight ? 'transparent' : 'transparent',
+            },
+          },
+        },
+      },
+      MuiFormLabel: {
+        styleOverrides: {
+          root: {
+            color: isLight ? '#374151' : '#d1d5db',
+            '&.Mui-focused': {
+              color: isLight ? '#3b82f6' : '#60a5fa',
+            },
+          },
+        },
+      },
+      MuiRadio: {
+        styleOverrides: {
+          root: {
+            color: isLight ? '#6b7280' : '#9ca3af',
+            '&.Mui-checked': {
+              color: isLight ? '#3b82f6' : '#60a5fa',
+            },
+          },
+        },
+      },
+      MuiFormControlLabel: {
+        styleOverrides: {
+          root: {
+            '&:hover': {
+              backgroundColor: isLight ? 'rgba(59, 130, 246, 0.04)' : 'rgba(96, 165, 250, 0.08)',
+              borderRadius: '4px',
+            },
+            '&:hover .MuiFormControlLabel-label': {
+              color: isLight ? '#1f2937' : '#f1f5f9', // Ensure text stays visible on hover
+            },
+          },
+          label: {
+            color: isLight ? '#374151' : '#f1f5f9',
+            '&:hover': {
+              color: isLight ? '#1f2937' : '#f1f5f9', // Override any hover color changes
             },
           },
         },

@@ -35,7 +35,10 @@ import {
   FilterList as FilterListIcon,
   Add as AddIcon,
   PersonAdd as PersonAddIcon,
-  List as ListIcon
+  List as ListIcon,
+  Person as PersonIcon,
+  Edit as EditIcon,
+  Refresh as RefreshIcon
 } from '@mui/icons-material';
 import api from '../../config/axios';
 import { toast } from 'react-toastify';
@@ -58,8 +61,11 @@ const EventQuizSubmissions = () => {
   const [showShortlisted, setShowShortlisted] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [teamDetailsDialog, setTeamDetailsDialog] = useState({ open: false, team: null });
+  const [individualDetailsDialog, setIndividualDetailsDialog] = useState({ open: false, student: null });
+  const [individualEditDialog, setIndividualEditDialog] = useState({ open: false, student: null });
   const [editMode, setEditMode] = useState(false);
   const [editedTeamData, setEditedTeamData] = useState(null);
+  const [editedIndividualData, setEditedIndividualData] = useState(null);
   const [filters, setFilters] = useState({
     name: '',
     email: '',
@@ -228,10 +234,48 @@ const EventQuizSubmissions = () => {
     setTeamDetailsDialog({ open: true, team: teamData });
   };
 
+  const handleViewIndividualDetails = (studentData) => {
+    setIndividualDetailsDialog({ open: true, student: studentData });
+  };
+
   const handleCloseTeamDetails = () => {
     setTeamDetailsDialog({ open: false, team: null });
     setEditMode(false);
     setEditedTeamData(null);
+  };
+
+  const handleCloseIndividualDetails = () => {
+    setIndividualDetailsDialog({ open: false, student: null });
+  };
+
+  const handleEditIndividualDetails = (studentData) => {
+    setIndividualEditDialog({ open: true, student: studentData });
+    setEditedIndividualData({
+      name: studentData.student.name,
+      email: studentData.student.email,
+      college: studentData.student.college,
+      department: studentData.student.department,
+      year: studentData.student.year,
+      admissionNumber: studentData.student.admissionNumber || studentData.student.rollNumber,
+      phoneNumber: studentData.student.phoneNumber
+    });
+    setIndividualDetailsDialog({ open: false, student: null });
+  };
+
+  const handleCloseIndividualEdit = () => {
+    setIndividualEditDialog({ open: false, student: null });
+    setEditedIndividualData(null);
+  };
+
+  const handleSaveIndividualEdit = async () => {
+    try {
+      await api.put(`/api/event-quiz/${id}/registrations/${individualEditDialog.student.student._id}`, editedIndividualData);
+      toast.success('Student details updated successfully!');
+      handleCloseIndividualEdit();
+      fetchData(); // Refresh the data
+    } catch (error) {
+      toast.error('Failed to update student details: ' + (error.response?.data?.message || error.message));
+    }
   };
 
   const handleEditTeam = () => {
@@ -448,6 +492,14 @@ const EventQuizSubmissions = () => {
               {quiz?.title} - {showShortlisted ? 'Shortlisted Candidates' : 'Results & Registrations'}
             </Typography>
             <Box sx={{ display: 'flex', gap: 2 }}>
+              <Button
+                variant="outlined"
+                onClick={fetchData}
+                startIcon={<RefreshIcon />}
+                disabled={loading}
+              >
+                Refresh
+              </Button>
               <Button
                 variant={showShortlisted ? "outlined" : "contained"}
                 onClick={() => setShowShortlisted(false)}
@@ -742,7 +794,13 @@ const EventQuizSubmissions = () => {
                       size="small"
                       variant="outlined"
                       color="info"
-                      onClick={() => handleViewTeamDetails(studentData.student)}
+                      onClick={() => {
+                        if (studentData.student.isTeamRegistration) {
+                          handleViewTeamDetails(studentData.student);
+                        } else {
+                          handleViewIndividualDetails(studentData);
+                        }
+                      }}
                     >
                       {studentData.student.isTeamRegistration ? 'Team Details' : 'Details'}
                     </Button>
@@ -1215,6 +1273,272 @@ const EventQuizSubmissions = () => {
               </Button>
             </>
           )}
+        </DialogActions>
+      </Dialog>
+
+      {/* Individual Student Details Dialog */}
+      <Dialog
+        open={individualDetailsDialog.open}
+        onClose={handleCloseIndividualDetails}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <PersonIcon />
+            Individual Student Details
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {individualDetailsDialog.student && (
+            <Box sx={{ mt: 2 }}>
+              <Grid container spacing={3}>
+                {/* Student Information */}
+                <Grid item xs={12}>
+                  <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', borderBottom: 1, borderColor: 'divider', pb: 1 }}>
+                    Student Information
+                  </Typography>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                      Name
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                      {individualDetailsDialog.student.student?.name || 'N/A'}
+                    </Typography>
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                      Email
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                      {individualDetailsDialog.student.student?.email || 'N/A'}
+                    </Typography>
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                      College
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                      {individualDetailsDialog.student.student?.college || 'N/A'}
+                    </Typography>
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                      Department
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                      {individualDetailsDialog.student.student?.department || 'N/A'}
+                    </Typography>
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                      Year
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                      {individualDetailsDialog.student.student?.year || 'N/A'}
+                    </Typography>
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                      Admission Number
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                      {individualDetailsDialog.student.student?.admissionNumber || individualDetailsDialog.student.student?.rollNumber || 'N/A'}
+                    </Typography>
+                  </Box>
+                </Grid>
+
+                {/* Quiz Performance */}
+                <Grid item xs={12}>
+                  <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', borderBottom: 1, borderColor: 'divider', pb: 1, mt: 2 }}>
+                    Quiz Performance
+                  </Typography>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                      Score
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                      {individualDetailsDialog.student.totalMarks || 0} marks
+                    </Typography>
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                      Time Taken
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                      {individualDetailsDialog.student.duration ?
+                        `${Math.floor(individualDetailsDialog.student.duration / 60)}:${(individualDetailsDialog.student.duration % 60).toString().padStart(2, '0')}` :
+                        'N/A'
+                      }
+                    </Typography>
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                      Submission Time
+                    </Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                      {individualDetailsDialog.student.submitTime ?
+                        new Date(individualDetailsDialog.student.submitTime).toLocaleString() :
+                        'N/A'
+                      }
+                    </Typography>
+                  </Box>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                      Status
+                    </Typography>
+                    <Chip
+                      label={individualDetailsDialog.student.status || 'N/A'}
+                      color={individualDetailsDialog.student.status === 'submitted' ? 'success' : 'default'}
+                      size="small"
+                    />
+                  </Box>
+                </Grid>
+              </Grid>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseIndividualDetails} color="secondary">
+            Close
+          </Button>
+          <Button
+            onClick={() => handleEditIndividualDetails(individualDetailsDialog.student)}
+            color="primary"
+            variant="contained"
+          >
+            Edit Details
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Individual Student Edit Dialog */}
+      <Dialog
+        open={individualEditDialog.open}
+        onClose={handleCloseIndividualEdit}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <EditIcon />
+            Edit Student Details
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {editedIndividualData && (
+            <Box sx={{ mt: 2 }}>
+              <Grid container spacing={3}>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Name"
+                    value={editedIndividualData.name || ''}
+                    onChange={(e) => setEditedIndividualData({ ...editedIndividualData, name: e.target.value })}
+                    required
+                  />
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Email"
+                    type="email"
+                    value={editedIndividualData.email || ''}
+                    onChange={(e) => setEditedIndividualData({ ...editedIndividualData, email: e.target.value })}
+                    required
+                  />
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="College"
+                    value={editedIndividualData.college || ''}
+                    onChange={(e) => setEditedIndividualData({ ...editedIndividualData, college: e.target.value })}
+                  />
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Department"
+                    value={editedIndividualData.department || ''}
+                    onChange={(e) => setEditedIndividualData({ ...editedIndividualData, department: e.target.value })}
+                  />
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Year"
+                    value={editedIndividualData.year || ''}
+                    onChange={(e) => setEditedIndividualData({ ...editedIndividualData, year: e.target.value })}
+                  />
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Admission Number"
+                    value={editedIndividualData.admissionNumber || ''}
+                    onChange={(e) => setEditedIndividualData({ ...editedIndividualData, admissionNumber: e.target.value })}
+                  />
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Phone Number"
+                    value={editedIndividualData.phoneNumber || ''}
+                    onChange={(e) => setEditedIndividualData({ ...editedIndividualData, phoneNumber: e.target.value })}
+                  />
+                </Grid>
+              </Grid>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseIndividualEdit} color="secondary">
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSaveIndividualEdit}
+            color="primary"
+            variant="contained"
+          >
+            Save Changes
+          </Button>
         </DialogActions>
       </Dialog>
     </Container>

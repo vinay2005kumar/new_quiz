@@ -21,7 +21,7 @@ const app = express();
 
 // CORS configuration
 const corsOptions = {
-  origin: ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:5173','http://localhost:5174'],
+  origin: ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:5173','http://localhost:5174','https://quiz-website-mxfr.onrender.com'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'sessiontoken', 'sessionToken']
