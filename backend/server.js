@@ -119,3 +119,7 @@ const startServer = async (port) => {
 };
 
 startServer(PORT); 
+
+app.get('/', (req, res) => {
+  res.send('Backend server is running ✅');
+});
