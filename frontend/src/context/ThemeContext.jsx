@@ -31,8 +31,8 @@ const createAppTheme = (mode) => {
         dark: isLight ? '#115e59' : '#0f766e',
       },
       background: {
-        default: isLight ? '#f8fafc' : '#0f172a', // Light gray / Dark slate
-        paper: isLight ? '#ffffff' : '#1e293b',   // White / Dark gray
+        default: isLight ? '#f8fafc' : '#0f172a', // Keep dark background
+        paper: isLight ? '#ffffff' : '#1e293b',   // Keep dark paper background
       },
       text: {
         primary: isLight ? '#1f2937' : '#f1f5f9',
@@ -160,30 +160,33 @@ const createAppTheme = (mode) => {
           root: {
             boxShadow: isLight
               ? '0 1px 3px rgba(0,0,0,0.1)'
-              : '0 1px 3px rgba(0,0,0,0.3)',
+              : 'none', // Remove shadows in dark mode
             borderRadius: '12px',
             backgroundImage: 'none', // Remove default gradient in dark mode
+            backgroundColor: isLight ? undefined : 'transparent', // Remove paper background in dark mode
+            border: isLight ? 'none' : '1px solid #374151', // Add border in dark mode instead of background
             // Override any hardcoded background colors
             '&[style*="background-color: rgb(245, 245, 245)"]': {
-              backgroundColor: `${isLight ? '#f5f5f5' : '#374151'} !important`,
+              backgroundColor: `${isLight ? '#f5f5f5' : 'transparent'} !important`,
               color: isLight ? '#1f2937' : '#f9fafb',
+              border: isLight ? 'none' : '1px solid #374151',
             },
             // Target papers with the specific bgcolor class
             '&.count-display-paper': {
-              backgroundColor: isLight ? '#f0f9ff' : '#1e3a8a',
-              color: isLight ? '#1e3a8a' : '#f0f9ff',
+              backgroundColor: isLight ? '#f0f9ff' : 'transparent',
+              color: isLight ? '#1e3a8a' : '#60a5fa',
               border: `1px solid ${isLight ? '#bfdbfe' : '#3b82f6'}`,
             },
           },
           elevation1: {
             boxShadow: isLight
               ? '0 1px 3px rgba(0,0,0,0.1)'
-              : '0 1px 3px rgba(0,0,0,0.3)',
+              : 'none',
           },
           elevation2: {
             boxShadow: isLight
               ? '0 4px 6px -1px rgba(0,0,0,0.1)'
-              : '0 4px 6px -1px rgba(0,0,0,0.3)',
+              : 'none',
           },
         },
       },
@@ -191,13 +194,16 @@ const createAppTheme = (mode) => {
         styleOverrides: {
           root: {
             borderRadius: '12px',
-            boxShadow: isLight 
-              ? '0 1px 3px rgba(0,0,0,0.1)' 
-              : '0 1px 3px rgba(0,0,0,0.3)',
+            backgroundColor: isLight ? undefined : 'transparent', // Remove background in dark mode
+            boxShadow: isLight
+              ? '0 1px 3px rgba(0,0,0,0.1)'
+              : 'none', // Remove shadow in dark mode
+            border: isLight ? 'none' : '1px solid #374151', // Add border in dark mode
             '&:hover': {
-              boxShadow: isLight 
-                ? '0 4px 6px -1px rgba(0,0,0,0.1)' 
-                : '0 4px 6px -1px rgba(0,0,0,0.3)',
+              boxShadow: isLight
+                ? '0 4px 6px -1px rgba(0,0,0,0.1)'
+                : 'none',
+              borderColor: isLight ? undefined : '#60a5fa', // Change border color on hover in dark mode
             },
           },
         },
@@ -212,10 +218,10 @@ const createAppTheme = (mode) => {
       MuiTableHead: {
         styleOverrides: {
           root: {
-            backgroundColor: isLight ? '#e0e7ff' : '#1e40af', // More highlighted colors
+            backgroundColor: isLight ? '#e0e7ff' : 'transparent', // Remove background in dark mode
             '& .MuiTableCell-head': {
-              backgroundColor: isLight ? '#e0e7ff' : '#1e40af', // Indigo background
-              color: isLight ? '#1e3a8a' : '#ffffff', // Strong contrast text
+              backgroundColor: isLight ? '#e0e7ff' : 'transparent', // Remove background in dark mode
+              color: isLight ? '#1e3a8a' : '#60a5fa', // Strong contrast text
               fontWeight: 700, // Bolder text
               borderBottom: `2px solid ${isLight ? '#3b82f6' : '#60a5fa'}`, // Thicker border
               fontSize: '0.95rem', // Slightly larger text
@@ -230,8 +236,8 @@ const createAppTheme = (mode) => {
             color: isLight ? '#1f2937' : '#f9fafb',
           },
           head: {
-            backgroundColor: isLight ? '#e0e7ff' : '#1e40af', // Match table head
-            color: isLight ? '#1e3a8a' : '#ffffff', // Strong contrast
+            backgroundColor: isLight ? '#e0e7ff' : 'transparent', // Remove background in dark mode
+            color: isLight ? '#1e3a8a' : '#60a5fa', // Strong contrast
             fontWeight: 700, // Bolder
             fontSize: '0.95rem', // Slightly larger
             textTransform: 'uppercase', // Make headers stand out more
@@ -243,13 +249,16 @@ const createAppTheme = (mode) => {
         styleOverrides: {
           root: {
             '&:nth-of-type(odd)': {
-              backgroundColor: isLight ? '#ffffff' : '#1e293b',
+              backgroundColor: isLight ? '#ffffff' : 'transparent',
             },
             '&:nth-of-type(even)': {
-              backgroundColor: isLight ? '#f9fafb' : '#334155',
+              backgroundColor: isLight ? '#f9fafb' : 'transparent',
             },
             '&:hover': {
-              backgroundColor: isLight ? '#f3f4f6' : '#475569',
+              backgroundColor: isLight ? '#f3f4f6' : 'transparent', // No background on hover in dark mode
+              '& .MuiTableCell-root': {
+                color: isLight ? undefined : '#60a5fa', // Change text color on hover in dark mode
+              },
             },
           },
         },
@@ -297,12 +306,15 @@ const createAppTheme = (mode) => {
           root: {
             color: isLight ? '#1f2937' : '#f9fafb',
             '&:hover': {
-              backgroundColor: isLight ? '#f3f4f6' : '#374151',
+              backgroundColor: isLight ? '#f3f4f6' : 'transparent',
+              color: isLight ? undefined : '#60a5fa', // Change text color on hover in dark mode
             },
             '&.Mui-selected': {
-              backgroundColor: isLight ? '#e0e7ff' : '#1e40af',
+              backgroundColor: isLight ? '#e0e7ff' : 'transparent',
+              color: isLight ? undefined : '#60a5fa', // Selected text color in dark mode
               '&:hover': {
-                backgroundColor: isLight ? '#c7d2fe' : '#1d4ed8',
+                backgroundColor: isLight ? '#c7d2fe' : 'transparent',
+                color: isLight ? undefined : '#3b82f6', // Darker blue on hover when selected
               },
             },
           },
@@ -311,8 +323,9 @@ const createAppTheme = (mode) => {
       MuiChip: {
         styleOverrides: {
           root: {
-            backgroundColor: isLight ? '#f3f4f6' : '#374151',
+            backgroundColor: isLight ? '#f3f4f6' : 'transparent',
             color: isLight ? '#1f2937' : '#f9fafb',
+            border: isLight ? 'none' : '1px solid #60a5fa',
             '& .MuiChip-deleteIcon': {
               color: isLight ? '#6b7280' : '#d1d5db',
               '&:hover': {
@@ -327,62 +340,63 @@ const createAppTheme = (mode) => {
           root: {
             color: isLight ? '#6b7280' : '#d1d5db',
             '&:hover': {
-              backgroundColor: isLight ? '#f3f4f6' : '#374151',
+              backgroundColor: isLight ? '#f3f4f6' : 'transparent',
+              color: isLight ? undefined : '#60a5fa', // Change color on hover in dark mode
             },
             // Semantic colors for different actions
             '&.edit-icon': {
               color: isLight ? '#0ea5e9' : '#38bdf8', // Blue for edit
               '&:hover': {
-                backgroundColor: isLight ? '#e0f2fe' : '#1e3a8a',
+                backgroundColor: isLight ? '#e0f2fe' : 'transparent',
                 color: isLight ? '#0284c7' : '#60a5fa',
               },
             },
             '&.delete-icon': {
               color: isLight ? '#dc2626' : '#ef4444', // Red for delete
               '&:hover': {
-                backgroundColor: isLight ? '#fef2f2' : '#7f1d1d',
+                backgroundColor: isLight ? '#fef2f2' : 'transparent',
                 color: isLight ? '#b91c1c' : '#f87171',
               },
             },
             '&.view-icon': {
               color: isLight ? '#16a34a' : '#22c55e', // Green for view/visibility
               '&:hover': {
-                backgroundColor: isLight ? '#f0fdf4' : '#14532d',
+                backgroundColor: isLight ? '#f0fdf4' : 'transparent',
                 color: isLight ? '#15803d' : '#4ade80',
               },
             },
             '&.download-icon': {
               color: isLight ? '#7c3aed' : '#a855f7', // Purple for download
               '&:hover': {
-                backgroundColor: isLight ? '#faf5ff' : '#581c87',
+                backgroundColor: isLight ? '#faf5ff' : 'transparent',
                 color: isLight ? '#6d28d9' : '#c084fc',
               },
             },
             '&.upload-icon': {
               color: isLight ? '#ea580c' : '#fb923c', // Orange for upload
               '&:hover': {
-                backgroundColor: isLight ? '#fff7ed' : '#9a3412',
+                backgroundColor: isLight ? '#fff7ed' : 'transparent',
                 color: isLight ? '#c2410c' : '#fdba74',
               },
             },
             '&.add-icon': {
               color: isLight ? '#059669' : '#10b981', // Emerald for add/create
               '&:hover': {
-                backgroundColor: isLight ? '#ecfdf5' : '#064e3b',
+                backgroundColor: isLight ? '#ecfdf5' : 'transparent',
                 color: isLight ? '#047857' : '#6ee7b7',
               },
             },
             '&.filter-icon': {
               color: isLight ? '#7c2d12' : '#ea580c', // Brown/orange for filter
               '&:hover': {
-                backgroundColor: isLight ? '#fef7ed' : '#7c2d12',
+                backgroundColor: isLight ? '#fef7ed' : 'transparent',
                 color: isLight ? '#9a3412' : '#fb923c',
               },
             },
             '&.settings-icon': {
               color: isLight ? '#4b5563' : '#9ca3af', // Gray for settings
               '&:hover': {
-                backgroundColor: isLight ? '#f9fafb' : '#374151',
+                backgroundColor: isLight ? '#f9fafb' : 'transparent',
                 color: isLight ? '#374151' : '#d1d5db',
               },
             },

@@ -70,6 +70,28 @@ router.post('/', auth, authorize(['event', 'admin']), async (req, res) => {
   }
 });
 
+// Get public event quizzes (no authentication required) - MUST BE BEFORE /:id route
+router.get('/public', async (req, res) => {
+  try {
+    console.log('Fetching public event quizzes...');
+
+    const quizzes = await Quiz.find({
+      type: 'event',
+      status: { $in: ['published', 'upcoming'] },
+      registrationEnabled: true
+    })
+    .populate('createdBy', 'name email')
+    .select('-questions.correctAnswer -questions.explanation') // Hide answers for security
+    .sort({ startTime: 1 });
+
+    console.log(`Found ${quizzes.length} public event quizzes`);
+    res.json(quizzes);
+  } catch (error) {
+    console.error('Error fetching public event quizzes:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // Get event quiz by ID
 router.get('/:id', auth, authorize(['event', 'admin']), async (req, res) => {
   try {
@@ -265,4 +287,202 @@ router.get('/:quizId/submission/:studentId', auth, authorize(['event', 'admin'])
   }
 });
 
-module.exports = router; 
+// Register for event quiz (no authentication required) - Enhanced for team support
+router.post('/:id/register', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      // Individual registration fields
+      name, email, college, department, year, section, phoneNumber, rollNumber, admissionNumber,
+      // Team registration fields
+      isTeamRegistration, teamName, teamLeader, teamMembers
+    } = req.body;
+
+    console.log('Registration request for quiz:', id);
+    console.log('Registration type:', isTeamRegistration ? 'Team' : 'Individual');
+
+    // Find the quiz
+    const quiz = await Quiz.findById(id);
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    // Check if quiz allows registration
+    if (!quiz.registrationEnabled) {
+      return res.status(400).json({ message: 'Registration is not enabled for this quiz' });
+    }
+
+    // Check if registration is still open
+    const now = new Date();
+    if (quiz.startTime <= now) {
+      return res.status(400).json({ message: 'Registration is closed. Quiz has already started.' });
+    }
+
+    let registration;
+
+    if (isTeamRegistration) {
+      // Team registration validation
+      if (!teamName || !teamLeader || !teamMembers || !Array.isArray(teamMembers)) {
+        return res.status(400).json({
+          message: 'Team name, team leader, and team members are required for team registration'
+        });
+      }
+
+      // Validate team size
+      const totalTeamSize = 1 + teamMembers.length; // leader + members
+      if (quiz.participationMode === 'team' && totalTeamSize !== quiz.teamSize) {
+        return res.status(400).json({
+          message: `Team size must be exactly ${quiz.teamSize} members`
+        });
+      }
+
+      // Validate team leader
+      if (!teamLeader.name || !teamLeader.email || !teamLeader.college) {
+        return res.status(400).json({
+          message: 'Team leader name, email, and college are required'
+        });
+      }
+
+      // Validate team members
+      for (let i = 0; i < teamMembers.length; i++) {
+        const member = teamMembers[i];
+        if (!member.name || !member.email || !member.college) {
+          return res.status(400).json({
+            message: `Team member ${i + 1} must have name, email, and college`
+          });
+        }
+      }
+
+      // Check for duplicate emails within the team
+      const allEmails = [teamLeader.email, ...teamMembers.map(m => m.email)];
+      const uniqueEmails = new Set(allEmails);
+      if (uniqueEmails.size !== allEmails.length) {
+        return res.status(400).json({ message: 'Duplicate emails found within the team' });
+      }
+
+      // Check if any team member email is already registered
+      const existingEmails = quiz.registrations.flatMap(reg => {
+        if (reg.isTeamRegistration) {
+          return [reg.teamLeader.email, ...reg.teamMembers.map(m => m.email)];
+        }
+        return [reg.email];
+      });
+
+      const duplicateEmail = allEmails.find(email => existingEmails.includes(email));
+      if (duplicateEmail) {
+        return res.status(400).json({
+          message: `Email ${duplicateEmail} is already registered for this quiz`
+        });
+      }
+
+      // For college-only quizzes, check admission number uniqueness
+      if (quiz.participantTypes?.includes('college') && !quiz.participantTypes?.includes('external')) {
+        const allAdmissionNumbers = [
+          teamLeader.admissionNumber,
+          ...teamMembers.map(m => m.admissionNumber)
+        ].filter(Boolean);
+
+        const existingAdmissionNumbers = quiz.registrations.flatMap(reg => {
+          if (reg.isTeamRegistration) {
+            return [reg.teamLeader.admissionNumber, ...reg.teamMembers.map(m => m.admissionNumber)];
+          }
+          return [reg.admissionNumber];
+        }).filter(Boolean);
+
+        const duplicateAdmission = allAdmissionNumbers.find(num => existingAdmissionNumbers.includes(num));
+        if (duplicateAdmission) {
+          return res.status(400).json({
+            message: `Admission number ${duplicateAdmission} is already registered for this quiz`
+          });
+        }
+      }
+
+      registration = {
+        isTeamRegistration: true,
+        teamName,
+        teamLeader,
+        teamMembers,
+        registeredAt: new Date(),
+        isSpotRegistration: false
+      };
+    } else {
+      // Individual registration validation
+      if (!name || !email || !college) {
+        return res.status(400).json({
+          message: 'Name, email, and college are required'
+        });
+      }
+
+      // Check if email is already registered
+      const existingEmails = quiz.registrations.flatMap(reg => {
+        if (reg.isTeamRegistration) {
+          return [reg.teamLeader.email, ...reg.teamMembers.map(m => m.email)];
+        }
+        return [reg.email];
+      });
+
+      if (existingEmails.includes(email)) {
+        return res.status(400).json({ message: 'This email is already registered for this quiz' });
+      }
+
+      // For college-only quizzes, check admission number uniqueness
+      if (admissionNumber && quiz.participantTypes?.includes('college') && !quiz.participantTypes?.includes('external')) {
+        const existingAdmissionNumbers = quiz.registrations.flatMap(reg => {
+          if (reg.isTeamRegistration) {
+            return [reg.teamLeader.admissionNumber, ...reg.teamMembers.map(m => m.admissionNumber)];
+          }
+          return [reg.admissionNumber];
+        }).filter(Boolean);
+
+        if (existingAdmissionNumbers.includes(admissionNumber)) {
+          return res.status(400).json({
+            message: `Admission number ${admissionNumber} is already registered for this quiz`
+          });
+        }
+      }
+
+      registration = {
+        name,
+        email,
+        college,
+        department,
+        year,
+        section,
+        phoneNumber,
+        rollNumber,
+        admissionNumber,
+        isTeamRegistration: false,
+        registeredAt: new Date(),
+        isSpotRegistration: false
+      };
+    }
+
+    // Check if quiz is full (considering team sizes)
+    if (quiz.maxParticipants > 0) {
+      const currentParticipants = quiz.registrations.reduce((total, reg) => {
+        return total + (reg.isTeamRegistration ? (1 + reg.teamMembers.length) : 1);
+      }, 0);
+
+      const newParticipants = isTeamRegistration ? (1 + teamMembers.length) : 1;
+
+      if (currentParticipants + newParticipants > quiz.maxParticipants) {
+        return res.status(400).json({ message: 'Quiz is full. Registration limit reached.' });
+      }
+    }
+
+    quiz.registrations.push(registration);
+    await quiz.save();
+
+    console.log('Registration successful:', isTeamRegistration ? `Team: ${teamName}` : `Individual: ${email}`);
+    res.status(201).json({
+      message: 'Registration successful',
+      registrationId: quiz.registrations[quiz.registrations.length - 1]._id,
+      type: isTeamRegistration ? 'team' : 'individual'
+    });
+  } catch (error) {
+    console.error('Error registering for event quiz:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+module.exports = router;

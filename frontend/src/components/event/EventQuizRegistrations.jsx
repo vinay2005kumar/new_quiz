@@ -17,7 +17,8 @@ import {
   IconButton,
   Tooltip,
   TextField,
-  InputAdornment
+  InputAdornment,
+  Chip
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -61,9 +62,14 @@ const EventQuizRegistrations = () => {
       'S.No': index + 1,
       'Name': reg.name,
       'Email': reg.email,
-      'College': reg.college,
-      'Department': reg.department,
-      'Year': reg.year,
+      'College': reg.college || 'N/A',
+      'Department': reg.department || 'N/A',
+      'Year': reg.year || 'N/A',
+      'Participant Type': reg.participantType || 'N/A',
+      'Role': reg.role || 'Individual',
+      'Team Name': reg.teamName || '-',
+      'Phone Number': reg.phoneNumber || 'N/A',
+      'Admission Number': reg.admissionNumber || 'N/A',
       'Registration Type': reg.isSpotRegistration ? 'Spot' : 'Online',
       'Registered At': new Date(reg.registeredAt).toLocaleString()
     }));
@@ -151,6 +157,8 @@ const EventQuizRegistrations = () => {
                 <TableCell>College</TableCell>
                 <TableCell>Department</TableCell>
                 <TableCell>Year</TableCell>
+                <TableCell>Role</TableCell>
+                <TableCell>Team Name</TableCell>
                 <TableCell>Registration Type</TableCell>
                 <TableCell>Registered At</TableCell>
                 <TableCell>Actions</TableCell>
@@ -160,13 +168,35 @@ const EventQuizRegistrations = () => {
               {filteredRegistrations.map((reg, index) => (
                 <TableRow key={reg._id || index}>
                   <TableCell>{index + 1}</TableCell>
-                  <TableCell>{reg.name}</TableCell>
-                  <TableCell>{reg.email}</TableCell>
-                  <TableCell>{reg.college}</TableCell>
-                  <TableCell>{reg.department}</TableCell>
-                  <TableCell>{reg.year}</TableCell>
                   <TableCell>
-                    {reg.isSpotRegistration ? 'Spot' : 'Online'}
+                    {reg.name}
+                    {reg.participantType && (
+                      <Chip
+                        label={reg.participantType === 'college' ? 'College' : 'External'}
+                        size="small"
+                        color={reg.participantType === 'college' ? 'primary' : 'secondary'}
+                        sx={{ ml: 1 }}
+                      />
+                    )}
+                  </TableCell>
+                  <TableCell>{reg.email}</TableCell>
+                  <TableCell>{reg.college || 'N/A'}</TableCell>
+                  <TableCell>{reg.department || 'N/A'}</TableCell>
+                  <TableCell>{reg.year || 'N/A'}</TableCell>
+                  <TableCell>
+                    <Chip
+                      label={reg.role || 'Individual'}
+                      size="small"
+                      color={reg.role === 'Team Leader' ? 'success' : reg.role?.includes('Team Member') ? 'info' : 'default'}
+                    />
+                  </TableCell>
+                  <TableCell>{reg.teamName || '-'}</TableCell>
+                  <TableCell>
+                    <Chip
+                      label={reg.isSpotRegistration ? 'Spot' : 'Online'}
+                      size="small"
+                      color={reg.isSpotRegistration ? 'warning' : 'success'}
+                    />
                   </TableCell>
                   <TableCell>
                     {new Date(reg.registeredAt).toLocaleString()}
@@ -185,7 +215,7 @@ const EventQuizRegistrations = () => {
               ))}
               {filteredRegistrations.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={9} align="center">
+                  <TableCell colSpan={11} align="center">
                     No registrations found
                   </TableCell>
                 </TableRow>

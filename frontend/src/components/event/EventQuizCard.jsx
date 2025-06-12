@@ -38,13 +38,16 @@ import {
   CalendarMonth as CalendarIcon,
   HowToReg as RegisterIcon,
   PlayArrow as StartIcon,
-  People as PeopleIcon
+  People as PeopleIcon,
+  Person as PersonIcon,
+  Quiz as QuizIcon
 } from '@mui/icons-material';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import EventQuizRegistration from './EventQuizRegistration';
 import api from '../../config/axios';
+import { toast } from 'react-toastify';
 
 const EventQuizCard = ({ 
   quiz, 
@@ -104,6 +107,11 @@ const EventQuizCard = ({
     navigate(`/event/quiz/${quiz._id}/submissions`);
   };
 
+  const handleRegistrations = () => {
+    if (!quiz?._id) return;
+    navigate(`/event/quiz/${quiz._id}/registrations`);
+  };
+
   const handleDeleteClick = () => {
     setDeleteDialogOpen(true);
   };
@@ -114,19 +122,53 @@ const EventQuizCard = ({
 
   const handleDeleteConfirm = async () => {
     if (!quiz?._id) return;
-    
+
     try {
       setLoading(true);
-      await api.delete(`/api/event-quiz/${quiz._id}`);
+      setError(''); // Clear any previous errors
+
+      console.log('Deleting quiz:', quiz._id);
+      const response = await api.delete(`/api/event-quiz/${quiz._id}`);
+
+      console.log('Quiz deleted successfully');
+
+      // Show success toast with deletion info
+      const deletionInfo = response?.deletionInfo || response?.data?.deletionInfo;
+      if (deletionInfo?.wasActive && deletionInfo?.participantCount > 0) {
+        toast.success(
+          `Quiz "${deletionInfo.quizTitle}" deleted successfully! ⚠️ ${deletionInfo.participantCount} active participant(s) were notified.`,
+          {
+            position: "top-right",
+            autoClose: 5000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+          }
+        );
+      } else {
+        toast.success(`Quiz "${quiz.title}" deleted successfully!`, {
+          position: "top-right",
+          autoClose: 3000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
+      }
+
+      setDeleteDialogOpen(false);
+
+      // Call onDelete callback to remove from UI immediately
       if (onDelete) {
         onDelete(quiz._id);
       }
     } catch (error) {
       console.error('Error deleting quiz:', error);
-      setError(error.response?.data?.message || 'Failed to delete quiz');
+      const errorMessage = error.response?.data?.message || 'Failed to delete quiz';
+      setError(errorMessage);
     } finally {
       setLoading(false);
-      setDeleteDialogOpen(false);
     }
   };
 
@@ -168,23 +210,77 @@ const EventQuizCard = ({
     }
   };
 
-  const formatParticipantTypes = (types) => {
-    if (!types || !Array.isArray(types) || types.length === 0) {
-      return 'College Students';
+  // Calculate dynamic status based on current time
+  const getDynamicStatus = () => {
+    if (!quiz?.startTime || !quiz?.endTime) return quiz?.status || 'draft';
+
+    const now = new Date();
+    const startTime = new Date(quiz.startTime);
+    const endTime = new Date(quiz.endTime);
+
+    if (now < startTime) {
+      return 'upcoming';
+    } else if (now >= startTime && now <= endTime) {
+      return 'active';
+    } else {
+      return 'completed';
     }
-    return types.map(type => 
-      type === 'college' ? 'College Students' : 'External Students'
-    ).join(', ');
+  };
+
+  // Use dynamic status if available from backend, otherwise calculate it
+  const currentStatus = quiz?.dynamicStatus || getDynamicStatus();
+
+  // Debug logging (remove this after testing)
+  if (quiz?.title === 'ai') {
+    console.log('EventQuizCard Debug for AI quiz:', {
+      quizId: quiz?._id,
+      quizTitle: quiz?.title,
+      quizStatus: quiz?.status,
+      dynamicStatus: quiz?.dynamicStatus,
+      calculatedStatus: getDynamicStatus(),
+      currentStatus,
+      startTime: quiz?.startTime,
+      endTime: quiz?.endTime,
+      userRole: user?.role,
+      shouldShowRegistrations: (currentStatus === 'upcoming' || currentStatus === 'draft' || !currentStatus),
+      shouldShowResults: (currentStatus === 'active' || currentStatus === 'completed')
+    });
+  }
+
+  const formatParticipantTypes = (quiz) => {
+    // Check for new array format first (participantTypes)
+    if (quiz?.participantTypes && Array.isArray(quiz.participantTypes) && quiz.participantTypes.length > 0) {
+      return quiz.participantTypes.map(type =>
+        type === 'college' ? 'College Students' : 'External Students'
+      ).join(', ');
+    }
+
+    // Check for old string format (participantType) for backward compatibility
+    if (quiz?.participantType) {
+      if (quiz.participantType === 'any') {
+        return 'College Students, External Students';
+      } else if (quiz.participantType === 'college') {
+        return 'College Students';
+      }
+    }
+
+    return 'College Students';
   };
 
   const formatEligibility = (quiz) => {
     if (!quiz) return 'Open to All';
-    
+
+    console.log('formatEligibility - quiz.departments:', quiz.departments);
+    console.log('formatEligibility - quiz.years:', quiz.years);
+    console.log('formatEligibility - quiz.semesters:', quiz.semesters);
+
     const parts = [];
 
     if (quiz.departments?.includes('all')) {
+      console.log('Departments includes "all", showing All Departments');
       parts.push('All Departments');
     } else if (Array.isArray(quiz.departments) && quiz.departments.length > 0) {
+      console.log('Specific departments found:', quiz.departments);
       const deptNames = quiz.departments.map(dept => {
         const deptDetail = academicDetails.find(d => d.department === dept);
         return deptDetail ? deptDetail.department : dept;
@@ -267,9 +363,9 @@ const EventQuizCard = ({
             >
               {quiz?.title || 'Untitled Quiz'}
             </Typography>
-            <Chip 
-              label={quiz?.status ? (quiz.status.charAt(0).toUpperCase() + quiz.status.slice(1)) : 'Draft'}
-              color={getStatusColor(quiz?.status)}
+            <Chip
+              label={currentStatus ? (currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1)) : 'Draft'}
+              color={getStatusColor(currentStatus)}
               size="small"
               sx={{ flexShrink: 0 }}
             />
@@ -306,7 +402,7 @@ const EventQuizCard = ({
               <Stack direction="row" spacing={1} alignItems="center">
                 <GroupIcon fontSize="small" color="action" />
                 <Typography variant="body2">
-                  For: {formatParticipantTypes(quiz?.participantTypes)}
+                  For: {formatParticipantTypes(quiz)}
                 </Typography>
               </Stack>
             </Grid>
@@ -345,8 +441,38 @@ const EventQuizCard = ({
               <Stack direction="row" spacing={1} alignItems="center">
                 <RegisterIcon fontSize="small" color="action" />
                 <Typography variant="body2">
-                  Registration: {quiz?.registrationEnabled ? 'Enabled' : 'Disabled'} • 
+                  Registration: {quiz?.registrationEnabled ? 'Enabled' : 'Disabled'} •
                   Spot Registration: {quiz?.spotRegistrationEnabled ? 'Enabled' : 'Disabled'}
+                </Typography>
+              </Stack>
+            </Grid>
+
+            {/* Team/Individual Mode Display */}
+            <Grid item xs={12}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                {quiz?.participationMode === 'team' ? (
+                  <GroupIcon fontSize="small" color="action" />
+                ) : (
+                  <PeopleIcon fontSize="small" color="action" />
+                )}
+                <Typography variant="body2">
+                  {quiz?.participationMode === 'team'
+                    ? `Team Mode (${quiz?.teamSize || 1} members per team)`
+                    : 'Individual Mode'
+                  }
+                </Typography>
+              </Stack>
+            </Grid>
+
+            {/* Question Display Mode */}
+            <Grid item xs={12}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <QuizIcon fontSize="small" color="action" />
+                <Typography variant="body2">
+                  Questions: {quiz?.questionDisplayMode === 'all-at-once'
+                    ? 'All questions on one page'
+                    : 'One question at a time'
+                  }
                 </Typography>
               </Stack>
             </Grid>
@@ -403,7 +529,7 @@ const EventQuizCard = ({
                 </Button>
               )}
 
-              {showStart && isRegistered && quiz?.status === 'active' && (
+              {showStart && isRegistered && currentStatus === 'active' && (
                 <Button
                   startIcon={<StartIcon />}
                   variant="contained"
@@ -416,15 +542,15 @@ const EventQuizCard = ({
               )}
 
               {user?.role === 'event' && (
-              <Button
-                startIcon={<AssessmentIcon />}
-                onClick={handleResults}
-                color="primary"
-                size="small"
-                variant="outlined"
-              >
-                View Results
-              </Button>
+                <Button
+                  startIcon={<AssessmentIcon />}
+                  onClick={handleResults}
+                  color="primary"
+                  size="small"
+                  variant="outlined"
+                >
+                  View Results
+                </Button>
               )}
           </Stack>
         </CardActions>
@@ -498,26 +624,74 @@ const EventQuizCard = ({
         onClose={handleDeleteCancel}
         aria-labelledby="delete-dialog-title"
         aria-describedby="delete-dialog-description"
+        maxWidth="sm"
+        fullWidth
       >
         <DialogTitle id="delete-dialog-title">
-          Delete Quiz
+          Delete Quiz: {quiz?.title}
         </DialogTitle>
         <DialogContent>
           <DialogContentText id="delete-dialog-description">
             Are you sure you want to delete this quiz? This action cannot be undone.
           </DialogContentText>
+
+          {/* Show warning for active quizzes */}
+          {(() => {
+            const now = new Date();
+            const startTime = new Date(quiz?.startTime);
+            const endTime = new Date(quiz?.endTime);
+            const isActive = now >= startTime && now <= endTime;
+            const registrationCount = quiz?.registrations?.length || 0;
+
+            if (isActive && registrationCount > 0) {
+              return (
+                <Alert severity="warning" sx={{ mt: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    ⚠️ Warning: This quiz is currently active!
+                  </Typography>
+                  <Typography variant="body2">
+                    • {registrationCount} participant(s) are registered for this quiz
+                  </Typography>
+                  <Typography variant="body2">
+                    • Some participants may currently be taking the quiz
+                  </Typography>
+                  <Typography variant="body2">
+                    • They will be notified that the quiz has been deleted
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 1, fontWeight: 'bold' }}>
+                    Are you sure you want to proceed?
+                  </Typography>
+                </Alert>
+              );
+            } else if (registrationCount > 0) {
+              return (
+                <Alert severity="info" sx={{ mt: 2 }}>
+                  <Typography variant="body2">
+                    This quiz has {registrationCount} registered participant(s).
+                  </Typography>
+                </Alert>
+              );
+            }
+            return null;
+          })()}
+
+          {error && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {error}
+            </Alert>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={handleDeleteCancel} color="primary">
             Cancel
           </Button>
-          <Button 
-            onClick={handleDeleteConfirm} 
-            color="error" 
+          <Button
+            onClick={handleDeleteConfirm}
+            color="error"
             variant="contained"
             disabled={loading}
           >
-            {loading ? <CircularProgress size={24} /> : 'Delete'}
+            {loading ? <CircularProgress size={24} /> : 'Delete Quiz'}
           </Button>
         </DialogActions>
       </Dialog>

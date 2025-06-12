@@ -3,6 +3,8 @@ import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import CssBaseline from '@mui/material/CssBaseline';
 import { Box, CircularProgress } from '@mui/material';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import { NavigationProvider } from './context/NavigationContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -30,6 +32,10 @@ import AdminRoutes from './routes/AdminRoutes';
 import EventQuizAccounts from './components/admin/EventQuizAccounts';
 import AdminEventQuizzes from './components/admin/EventQuizzes';
 import PublicEventQuizzes from './components/quiz/EventQuizzes';
+import QuizLogin from './components/quiz/QuizLogin';
+import PublicQuizTake from './components/quiz/PublicQuizTake';
+import AuthenticatedQuizTake from './components/quiz/AuthenticatedQuizTake';
+import QuizResult from './components/quiz/QuizResult';
 import AccountManagement from './components/admin/AccountManagement';
 import Profile from './components/profile/Profile';
 import StudentAccounts from './components/admin/StudentAccounts';
@@ -41,6 +47,7 @@ import EventQuizCreate from './components/event/EventQuizCreate';
 import EventQuizList from './components/event/EventQuizList';
 import FacultyAccounts from './components/admin/FacultyAccounts';
 import EventQuizEdit from './components/event/EventQuizEdit';
+import EventQuizRegistrations from './components/event/EventQuizRegistrations';
 import EventQuizSubmissions from './components/event/EventQuizSubmissions';
 import EventQuizSubmissionView from './components/event/EventQuizSubmissionView';
 import CollegeSettings from './components/admin/CollegeSettings';
@@ -65,6 +72,9 @@ const AppRoutes = () => {
         <Route path="/login" element={user ? <RoleBasedRedirect /> : <Login />} />
         <Route path="/register" element={user ? <RoleBasedRedirect /> : <Register />} />
         <Route path="/events" element={<PublicEventQuizzes />} />
+        <Route path="/quiz/:quizId/login" element={<QuizLogin />} />
+        <Route path="/quiz/:quizId/take-authenticated" element={<AuthenticatedQuizTake />} />
+        <Route path="/quiz/:quizId/result" element={<QuizResult />} />
 
         {/* Event Routes */}
         <Route path="/event/*" element={
@@ -76,6 +86,7 @@ const AppRoutes = () => {
                 <Route path="/quizzes" element={<EventQuizList />} />
                 <Route path="/quiz/create" element={<EventQuizCreate />} />
                 <Route path="/quiz/edit/:id" element={<EventQuizEdit />} />
+                <Route path="/quiz/:id/registrations" element={<EventQuizRegistrations />} />
                 <Route path="/quiz/:id/submissions" element={<EventQuizSubmissions />} />
                 <Route path="/quiz/:quizId/submission/:studentId" element={<EventQuizSubmissionView />} />
                 <Route path="/profile" element={<Profile />} />
@@ -160,6 +171,18 @@ function App() {
           <AuthProvider>
             <NavigationProvider>
               <AppRoutes />
+              <ToastContainer
+                position="top-right"
+                autoClose={3000}
+                hideProgressBar={false}
+                newestOnTop={false}
+                closeOnClick
+                rtl={false}
+                pauseOnFocusLoss
+                draggable
+                pauseOnHover
+                theme="light"
+              />
             </NavigationProvider>
           </AuthProvider>
         </Router>

@@ -43,9 +43,23 @@ const Dashboard = () => {
     const fetchStats = async () => {
       try {
         setError('');
-        // Get quizzes
-        const quizzesResponse = await api.get('/api/quiz');
-        const quizzes = Array.isArray(quizzesResponse) ? quizzesResponse : [];
+        // Get quizzes based on user role
+        let quizzes = [];
+
+        if (user?.role === 'event') {
+          // For event managers, fetch only their own event quizzes
+          const quizzesResponse = await api.get('/api/event-quiz');
+          const allEventQuizzes = Array.isArray(quizzesResponse) ? quizzesResponse : [];
+          // Filter to only show quizzes created by this event manager
+          quizzes = allEventQuizzes.filter(quiz =>
+            quiz.createdBy?._id === user._id || quiz.createdBy === user._id
+          );
+          console.log('Event manager quizzes:', quizzes.length, 'out of', allEventQuizzes.length, 'total');
+        } else {
+          // For other roles, fetch academic quizzes
+          const quizzesResponse = await api.get('/api/quiz');
+          quizzes = Array.isArray(quizzesResponse) ? quizzesResponse : [];
+        }
 
         // For students, fetch their submissions
         let submissions = [];

@@ -9,7 +9,7 @@ import {
   CircularProgress,
   Box
 } from '@mui/material';
-import { Add as AddIcon } from '@mui/icons-material';
+import { Add as AddIcon, Refresh as RefreshIcon } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../config/axios';
 import EventQuizCard from './EventQuizCard';
@@ -20,33 +20,76 @@ const EventQuizList = () => {
   const [quizzes, setQuizzes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [infoMessage, setInfoMessage] = useState('');
+
+  const fetchQuizzes = async () => {
+    try {
+      setLoading(true);
+      console.log('Fetching quizzes...');
+      const response = await api.get('/api/event-quiz');
+      console.log('Response:', response);
+      setQuizzes(response);
+      setError(''); // Clear any previous errors
+      setInfoMessage(''); // Clear any previous info messages
+    } catch (error) {
+      console.error('Error fetching event quizzes:', error);
+      setError(error.response?.data?.message || 'Failed to fetch event quizzes');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchQuizzes = async () => {
-      try {
-        setLoading(true);
-        console.log('Fetching quizzes...');
-        const response = await api.get('/api/event-quiz');
-        console.log('Response:', response);
-        setQuizzes(response);
-      } catch (error) {
-        console.error('Error fetching event quizzes:', error);
-        setError(error.response?.data?.message || 'Failed to fetch event quizzes');
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchQuizzes();
   }, []);
 
   const handleDelete = async (quizId) => {
     try {
+      console.log('🗑️ Deleting quiz:', quizId);
       await api.delete(`/api/event-quiz/${quizId}`);
-      setQuizzes(quizzes.filter(quiz => quiz._id !== quizId));
+      console.log('✅ Quiz deleted successfully, updating UI...');
+
+      // Use functional update to ensure we have the latest state
+      setQuizzes(prevQuizzes => {
+        const updatedQuizzes = prevQuizzes.filter(quiz => quiz._id !== quizId);
+        console.log('📊 Updated quiz list:', updatedQuizzes.length, 'quizzes remaining');
+        return updatedQuizzes;
+      });
+
+      // Clear any previous errors
+      setError('');
+
+      console.log('🎉 Quiz deletion completed successfully');
     } catch (error) {
-      console.error('Error deleting quiz:', error);
-      setError(error.response?.data?.message || 'Failed to delete quiz');
+      console.error('❌ Error deleting quiz:', error);
+
+      // Handle specific error cases
+      if (error.response?.status === 404) {
+        console.log('📝 Quiz not found (404) - removing from UI and refreshing list');
+
+        // Remove from UI since it doesn't exist in database
+        setQuizzes(prevQuizzes => {
+          const updatedQuizzes = prevQuizzes.filter(quiz => quiz._id !== quizId);
+          console.log('📊 Removed non-existent quiz, updated list:', updatedQuizzes.length, 'quizzes remaining');
+          return updatedQuizzes;
+        });
+
+        // Show info message instead of error
+        setInfoMessage('Quiz was already deleted. The list has been updated.');
+        setError(''); // Clear any error messages
+
+        // Clear the info message after 3 seconds
+        setTimeout(() => setInfoMessage(''), 3000);
+
+        // Refresh the entire list to ensure consistency
+        setTimeout(() => {
+          console.log('🔄 Refreshing quiz list to ensure consistency...');
+          fetchQuizzes();
+        }, 1000);
+      } else {
+        // Handle other errors normally
+        setError(error.response?.data?.message || 'Failed to delete quiz');
+      }
     }
   };
 
@@ -65,21 +108,37 @@ const EventQuizList = () => {
           <Typography variant="h4" component="h1">
             Event Quizzes
           </Typography>
-          {user.role === 'event' && (
+          <Box sx={{ display: 'flex', gap: 2 }}>
             <Button
-              variant="contained"
-              color="primary"
-              startIcon={<AddIcon />}
-              onClick={() => navigate('/event/quiz/create')}
+              variant="outlined"
+              startIcon={<RefreshIcon />}
+              onClick={fetchQuizzes}
+              disabled={loading}
             >
-              Create Quiz
+              Refresh
             </Button>
-          )}
+            {user.role === 'event' && (
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={<AddIcon />}
+                onClick={() => navigate('/event/quiz/create')}
+              >
+                Create Quiz
+              </Button>
+            )}
+          </Box>
         </Box>
 
         {error && (
           <Alert severity="error" sx={{ mb: 3 }}>
             {error}
+          </Alert>
+        )}
+
+        {infoMessage && (
+          <Alert severity="info" sx={{ mb: 3 }}>
+            {infoMessage}
           </Alert>
         )}
 

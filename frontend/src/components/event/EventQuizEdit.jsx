@@ -18,7 +18,10 @@ import {
   FormControlLabel,
   Checkbox,
   IconButton,
-  Stack
+  Stack,
+  Switch,
+  Radio,
+  RadioGroup
 } from '@mui/material';
 import { Delete as DeleteIcon, Add as AddIcon } from '@mui/icons-material';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -70,6 +73,10 @@ const EventQuizEdit = () => {
     semesters: ['all'],
     maxParticipants: 0,
     passingMarks: 0,
+    registrationEnabled: true,
+    spotRegistrationEnabled: false,
+    participationMode: 'individual',
+    teamSize: 2,
     questions: []
   });
 
@@ -108,6 +115,10 @@ const EventQuizEdit = () => {
           semesters: quizResponse.semesters || ['all'],
           maxParticipants: quizResponse.maxParticipants || 0,
           passingMarks: quizResponse.passingMarks || 0,
+          registrationEnabled: quizResponse.registrationEnabled !== undefined ? quizResponse.registrationEnabled : true,
+          spotRegistrationEnabled: quizResponse.spotRegistrationEnabled !== undefined ? quizResponse.spotRegistrationEnabled : false,
+          participationMode: quizResponse.participationMode || 'individual',
+          teamSize: quizResponse.teamSize || 2,
           questions: quizResponse.questions || []
         });
       } catch (error) {
@@ -366,9 +377,9 @@ const EventQuizEdit = () => {
                   renderValue={(selected) => (
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                       {selected.map((value) => (
-                        <Chip 
-                          key={value} 
-                          label={value === 'college' ? 'College Students' : 'External Students'} 
+                        <Chip
+                          key={value}
+                          label={value === 'college' ? 'College Students' : 'External Students'}
                         />
                       ))}
                     </Box>
@@ -379,6 +390,81 @@ const EventQuizEdit = () => {
                 </Select>
               </FormControl>
             </Grid>
+
+            {/* Registration Settings */}
+            <Grid item xs={12}>
+              <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>
+                Registration Settings
+              </Typography>
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={formData.registrationEnabled}
+                    onChange={(e) => setFormData(prev => ({ ...prev, registrationEnabled: e.target.checked }))}
+                    name="registrationEnabled"
+                  />
+                }
+                label="Enable Registration"
+              />
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={formData.spotRegistrationEnabled}
+                    onChange={(e) => setFormData(prev => ({ ...prev, spotRegistrationEnabled: e.target.checked }))}
+                    name="spotRegistrationEnabled"
+                  />
+                }
+                label="Enable Spot Registration"
+              />
+            </Grid>
+
+            {/* Participation Mode Section */}
+            <Grid item xs={12}>
+              <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>
+                Participation Mode
+              </Typography>
+              <FormControl component="fieldset">
+                <RadioGroup
+                  row
+                  value={formData.participationMode}
+                  onChange={(e) => setFormData(prev => ({ ...prev, participationMode: e.target.value }))}
+                >
+                  <FormControlLabel
+                    value="individual"
+                    control={<Radio />}
+                    label="Individual"
+                  />
+                  <FormControlLabel
+                    value="team"
+                    control={<Radio />}
+                    label="Team"
+                  />
+                </RadioGroup>
+              </FormControl>
+            </Grid>
+
+            {/* Team Size - Only shown if team mode is selected */}
+            {formData.participationMode === 'team' && (
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Team Size"
+                  name="teamSize"
+                  type="number"
+                  value={formData.teamSize}
+                  onChange={(e) => setFormData(prev => ({ ...prev, teamSize: parseInt(e.target.value) }))}
+                  inputProps={{ min: 2, max: 10 }}
+                  helperText="Number of members per team (2-10)"
+                  required
+                />
+              </Grid>
+            )}
 
             <Grid item xs={12} sm={6}>
               <TextField

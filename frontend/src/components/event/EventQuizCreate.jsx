@@ -26,7 +26,10 @@ import {
   CardContent,
   ListItemText,
   OutlinedInput,
-  FormGroup
+  FormGroup,
+  Radio,
+  RadioGroup,
+  FormHelperText
 } from '@mui/material';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -64,6 +67,10 @@ const EventQuizCreate = () => {
     passingMarks: 0,
     registrationEnabled: true,
     spotRegistrationEnabled: false,
+    participationMode: 'individual', // 'individual' or 'team'
+    teamSize: 2,
+    questionDisplayMode: 'one-by-one', // 'one-by-one' or 'all-at-once'
+    emailInstructions: 'Please login with the provided credentials 10-15 minutes before the quiz starts. Ensure you have a stable internet connection.',
     questions: [],
     departments: ['all'],
     years: ['all'],
@@ -253,6 +260,19 @@ const EventQuizCreate = () => {
           />
         </Grid>
 
+        <Grid item xs={12}>
+          <TextField
+            fullWidth
+            label="Email Instructions"
+            name="emailInstructions"
+            value={formData.emailInstructions}
+            onChange={handleInputChange}
+            multiline
+            rows={3}
+            helperText="Special instructions to be included in the registration confirmation email"
+          />
+        </Grid>
+
         <Grid item xs={12} sm={6}>
           <TextField
             fullWidth
@@ -425,6 +445,83 @@ const EventQuizCreate = () => {
             label="Enable Spot Registration"
           />
         </Grid>
+
+        {/* Participation Mode Section */}
+        <Grid item xs={12}>
+          <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>
+            Participation Mode
+          </Typography>
+          <FormControl component="fieldset">
+            <RadioGroup
+              row
+              value={formData.participationMode}
+              onChange={(e) => handleInputChange({
+                target: { name: 'participationMode', value: e.target.value }
+              })}
+            >
+              <FormControlLabel
+                value="individual"
+                control={<Radio />}
+                label="Individual"
+              />
+              <FormControlLabel
+                value="team"
+                control={<Radio />}
+                label="Team"
+              />
+            </RadioGroup>
+          </FormControl>
+        </Grid>
+
+        {/* Team Size - Only shown if team mode is selected */}
+        {formData.participationMode === 'team' && (
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Team Size"
+              name="teamSize"
+              type="number"
+              value={formData.teamSize}
+              onChange={handleInputChange}
+              inputProps={{ min: 2, max: 10 }}
+              helperText="Number of members per team (2-10)"
+              required
+            />
+          </Grid>
+        )}
+
+        {/* Question Display Mode */}
+        <Grid item xs={12} sm={6}>
+          <FormControl fullWidth>
+            <InputLabel>Question Display Mode</InputLabel>
+            <Select
+              name="questionDisplayMode"
+              value={formData.questionDisplayMode}
+              onChange={handleInputChange}
+              label="Question Display Mode"
+            >
+              <MenuItem value="one-by-one">
+                <Box>
+                  <Typography variant="body1">One by One</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Show questions one at a time with navigation
+                  </Typography>
+                </Box>
+              </MenuItem>
+              <MenuItem value="all-at-once">
+                <Box>
+                  <Typography variant="body1">All at Once</Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Show all questions vertically on one page
+                  </Typography>
+                </Box>
+              </MenuItem>
+            </Select>
+            <FormHelperText>
+              Choose how questions will be displayed to participants
+            </FormHelperText>
+          </FormControl>
+        </Grid>
       </Grid>
     </LocalizationProvider>
   );
@@ -506,6 +603,9 @@ const EventQuizCreate = () => {
               <Grid item xs={12}>
                 <Typography><strong>End Time:</strong> {formData.endTime ? new Date(formData.endTime).toLocaleString() : 'Not set'}</Typography>
               </Grid>
+              <Grid item xs={12}>
+                <Typography><strong>Participation Mode:</strong> {formData.participationMode === 'team' ? `Team (${formData.teamSize} members)` : 'Individual'}</Typography>
+              </Grid>
               {formData.participantTypes.includes('college') && (
                 <>
                   <Grid item xs={12}>
@@ -575,6 +675,9 @@ const EventQuizCreate = () => {
         createdBy: user._id,
         totalMarks: formData.questions.reduce((sum, q) => sum + (q.marks || 1), 0)
       };
+
+      console.log('Sending quiz data to backend:', quizData);
+      console.log('participantTypes being sent:', quizData.participantTypes);
 
       const response = await api.post('/api/event-quiz', quizData);
       console.log('Quiz created successfully:', response);

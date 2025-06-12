@@ -32,6 +32,10 @@ const EventActiveQuizzes = () => {
     fetchActiveQuizzes();
   }, []);
 
+  const handleDelete = (quizId) => {
+    setQuizzes(prevQuizzes => prevQuizzes.filter(quiz => quiz._id !== quizId));
+  };
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
@@ -75,8 +79,9 @@ const EventActiveQuizzes = () => {
                   flexShrink: 0
                 }}
               >
-                <EventQuizCard 
-                  quiz={quiz} 
+                <EventQuizCard
+                  quiz={quiz}
+                  onDelete={handleDelete}
                   showRegistration={true}
                   showStart={true}
                   showViewDetails={true}

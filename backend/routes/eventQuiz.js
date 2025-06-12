@@ -4,6 +4,8 @@ const EventQuiz = require('../models/EventQuiz');
 const { auth, isEventAdmin, authorize } = require('../middleware/auth');
 const EventQuizAccount = require('../models/EventQuizAccount');
 const EventQuizResult = require('../models/EventQuizResult');
+const QuizCredentials = require('../models/QuizCredentials');
+const { generateCredentials, sendRegistrationEmail } = require('../services/emailService');
 const { encrypt, decrypt } = require('../utils/encryption');
 const multer = require('multer');
 const XLSX = require('xlsx');
@@ -83,28 +85,32 @@ router.post('/', auth, isEventAdmin, async (req, res) => {
       }
     }
 
-    // Extract eligibility fields from the request body
-    const { eligibility = {} } = req.body;
-    
-    // Transform eligibility fields
+    // Use the fields directly from request body (frontend sends them directly)
     const quizData = {
       ...req.body,
-      departments: eligibility.departments || ['all'],
-      years: eligibility.years || ['all'],
-      semesters: eligibility.semesters || ['all'],
-      sections: eligibility.sections || ['all'],
+      // Use the fields from request body, with fallbacks to ['all'] if not provided
+      departments: req.body.departments || ['all'],
+      years: req.body.years || ['all'],
+      semesters: req.body.semesters || ['all'],
+      sections: req.body.sections || ['all'],
       createdBy: req.user._id,
       totalMarks: req.body.questions.reduce((sum, q) => sum + (q.marks || 1), 0),
       status: 'upcoming'
     };
 
-    // Remove the eligibility object since we've extracted its fields
-    delete quizData.eligibility;
-
     console.log('Creating quiz with data:', quizData);
+    console.log('participantTypes in quizData:', quizData.participantTypes);
+    console.log('departments in quizData:', quizData.departments);
+    console.log('years in quizData:', quizData.years);
+    console.log('semesters in quizData:', quizData.semesters);
 
     const quiz = new EventQuiz(quizData);
+    console.log('Quiz before save:', quiz.toObject());
+
     await quiz.save();
+    console.log('Quiz after save:', quiz.toObject());
+    console.log('Saved participantTypes:', quiz.participantTypes);
+
     res.status(201).json(quiz);
   } catch (error) {
     console.error('Error creating event quiz:', error);
@@ -118,27 +124,121 @@ router.get('/', async (req, res) => {
     console.log('GET /api/event-quiz - Request received');
     const { status, participantType } = req.query;
     const query = {};
-    
-    if (status) query.status = status;
+
     if (participantType) query.participantType = participantType;
 
     console.log('Query:', query);
-    const quizzes = await EventQuiz.find(query)
+    let quizzes = await EventQuiz.find(query)
       .populate('createdBy', 'name email')
       .sort('-createdAt');
-    
-    console.log('Found quizzes:', quizzes);
-    
+
+    // Calculate dynamic status based on current time
+    const now = new Date();
+    quizzes = quizzes.map(quiz => {
+      const startTime = new Date(quiz.startTime);
+      const endTime = new Date(quiz.endTime);
+
+      let dynamicStatus;
+      if (now < startTime) {
+        dynamicStatus = 'upcoming';
+      } else if (now >= startTime && now <= endTime) {
+        dynamicStatus = 'active';
+      } else {
+        dynamicStatus = 'completed';
+      }
+
+      // Convert to plain object and add dynamic status
+      const quizObj = quiz.toObject();
+      quizObj.dynamicStatus = dynamicStatus;
+
+      console.log(`Quiz "${quiz.title}": stored status = ${quiz.status}, dynamic status = ${dynamicStatus}`);
+      console.log(`Quiz "${quiz.title}" participantTypes:`, quizObj.participantTypes);
+      console.log(`Quiz "${quiz.title}" participantType:`, quizObj.participantType);
+      console.log(`Quiz "${quiz.title}" departments:`, quizObj.departments);
+      console.log(`Quiz "${quiz.title}" years:`, quizObj.years);
+      console.log(`Quiz "${quiz.title}" semesters:`, quizObj.semesters);
+
+      return quizObj;
+    });
+
+    // Filter by status if requested (use dynamic status)
+    if (status) {
+      quizzes = quizzes.filter(quiz => quiz.dynamicStatus === status);
+    }
+
+    console.log(`Found ${quizzes.length} quizzes after filtering`);
+
     if (!quizzes) {
       console.log('No quizzes found');
       return res.json([]);
     }
-    
+
     console.log('Sending response with quizzes');
     return res.json(quizzes);
   } catch (error) {
     console.error('Error in GET /api/event-quiz:', error);
     res.status(500).json({ message: error.message });
+  }
+});
+
+// Get public event quizzes (no authentication required) - MUST BE BEFORE /:id route
+router.get('/public', async (req, res) => {
+  try {
+    console.log('=== FETCHING PUBLIC EVENT QUIZZES ===');
+
+    // First, get ALL quizzes to see what we have
+    const allQuizzes = await EventQuiz.find({});
+    console.log(`Total quizzes in database: ${allQuizzes.length}`);
+
+    if (allQuizzes.length > 0) {
+      console.log('All quizzes in database:');
+      allQuizzes.forEach((q, index) => {
+        console.log(`${index + 1}. ${q.title}:`);
+        console.log(`   - Status: ${q.status}`);
+        console.log(`   - Registration Enabled: ${q.registrationEnabled}`);
+        console.log(`   - Spot Registration Enabled: ${q.spotRegistrationEnabled}`);
+        console.log(`   - Start Time: ${q.startTime}`);
+        console.log(`   - End Time: ${q.endTime}`);
+        console.log(`   - Created: ${q.createdAt}`);
+      });
+    } else {
+      console.log('No quizzes found in database!');
+    }
+
+    // Now get quizzes for public display - simplified query
+    let quizzes = await EventQuiz.find({})
+    .populate('createdBy', 'name email')
+    .select('-questions.correctAnswer -questions.explanation') // Hide answers for security
+    .sort({ startTime: 1 });
+
+    // Calculate dynamic status for public quizzes too
+    const now = new Date();
+    quizzes = quizzes.map(quiz => {
+      const startTime = new Date(quiz.startTime);
+      const endTime = new Date(quiz.endTime);
+
+      let dynamicStatus;
+      if (now < startTime) {
+        dynamicStatus = 'upcoming';
+      } else if (now >= startTime && now <= endTime) {
+        dynamicStatus = 'active';
+      } else {
+        dynamicStatus = 'completed';
+      }
+
+      // Convert to plain object and add dynamic status
+      const quizObj = quiz.toObject();
+      quizObj.dynamicStatus = dynamicStatus;
+
+      return quizObj;
+    });
+
+    console.log(`Returning ${quizzes.length} quizzes to frontend`);
+
+    res.json(quizzes);
+  } catch (error) {
+    console.error('Error fetching public event quizzes:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
@@ -225,18 +325,967 @@ router.post('/:id/register', auth, async (req, res) => {
   }
 });
 
+// Public registration for event quiz (no authentication required) - Enhanced for team support
+router.post('/:id/register-public', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      // Individual registration fields
+      name, email, college, department, year, phoneNumber, admissionNumber,
+      // Team registration fields
+      isTeamRegistration, teamName, teamLeader, teamMembers,
+      // Participant type
+      participantType
+    } = req.body;
+
+    console.log('Public registration request for quiz:', id);
+    console.log('Registration type:', isTeamRegistration ? 'Team' : 'Individual');
+
+    // Find the quiz
+    const quiz = await EventQuiz.findById(id);
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    // Check if quiz allows registration
+    const now = new Date();
+    const quizStarted = quiz.startTime <= now;
+    const quizEnded = quiz.endTime <= now;
+
+    if (quizEnded) {
+      return res.status(400).json({ message: 'Quiz has ended. Registration is closed.' });
+    }
+
+    // Check registration eligibility
+    if (!quizStarted && !quiz.registrationEnabled) {
+      return res.status(400).json({ message: 'Registration is not enabled for this quiz' });
+    }
+
+    if (quizStarted && !quiz.spotRegistrationEnabled) {
+      return res.status(400).json({ message: 'Quiz has started and spot registration is not enabled.' });
+    }
+
+    let registration;
+
+    if (isTeamRegistration) {
+      // Team registration validation
+      if (!teamName || !teamLeader || !teamMembers || !Array.isArray(teamMembers)) {
+        return res.status(400).json({
+          message: 'Team name, team leader, and team members are required for team registration'
+        });
+      }
+
+      // Validate team size
+      const totalTeamSize = 1 + teamMembers.length; // leader + members
+      if (quiz.participationMode === 'team' && totalTeamSize !== quiz.teamSize) {
+        return res.status(400).json({
+          message: `Team size must be exactly ${quiz.teamSize} members`
+        });
+      }
+
+      // Validate team leader
+      if (!teamLeader.name || !teamLeader.email) {
+        return res.status(400).json({
+          message: 'Team leader name and email are required'
+        });
+      }
+
+      // Validate team leader based on participant type
+      if (participantType === 'college' || (quiz.participantTypes?.includes('college') && !quiz.participantTypes?.includes('external'))) {
+        if (!teamLeader.department || !teamLeader.year || !teamLeader.phoneNumber || !teamLeader.admissionNumber) {
+          return res.status(400).json({
+            message: 'Team leader must provide department, year, phone number, and admission number for college students'
+          });
+        }
+      } else if (participantType === 'external' || (!quiz.participantTypes?.includes('college') && quiz.participantTypes?.includes('external'))) {
+        if (!teamLeader.college) {
+          return res.status(400).json({
+            message: 'Team leader must provide college/institution for external students'
+          });
+        }
+      }
+
+      // Validate team members
+      for (let i = 0; i < teamMembers.length; i++) {
+        const member = teamMembers[i];
+        if (!member.name || !member.email) {
+          return res.status(400).json({
+            message: `Team member ${i + 1} must have name and email`
+          });
+        }
+
+        // Validate member based on their individual participant type
+        if (member.participantType === 'college' || (quiz.participantTypes?.includes('college') && !quiz.participantTypes?.includes('external'))) {
+          if (!member.department || !member.year || !member.phoneNumber || !member.admissionNumber) {
+            return res.status(400).json({
+              message: `Team member ${i + 1} must provide department, year, phone number, and admission number for college students`
+            });
+          }
+        } else if (member.participantType === 'external' || (!quiz.participantTypes?.includes('college') && quiz.participantTypes?.includes('external'))) {
+          if (!member.college) {
+            return res.status(400).json({
+              message: `Team member ${i + 1} must provide college/institution for external students`
+            });
+          }
+        }
+      }
+
+      // Check for duplicate emails within the team
+      const allEmails = [teamLeader.email, ...teamMembers.map(m => m.email)];
+      const uniqueEmails = new Set(allEmails);
+      if (uniqueEmails.size !== allEmails.length) {
+        return res.status(400).json({ message: 'Duplicate emails found within the team' });
+      }
+
+      // Check if any team member email is already registered
+      const existingEmails = quiz.registrations.flatMap(reg => {
+        if (reg.isTeamRegistration) {
+          return [reg.teamLeader.email, ...reg.teamMembers.map(m => m.email)];
+        }
+        return [reg.email];
+      });
+
+      const duplicateEmail = allEmails.find(email => existingEmails.includes(email));
+      if (duplicateEmail) {
+        return res.status(400).json({
+          message: `Email ${duplicateEmail} is already registered for this quiz`
+        });
+      }
+
+      // Set default college for college students if not provided
+      const processedTeamLeader = {
+        ...teamLeader,
+        college: teamLeader.participantType === 'college' && !teamLeader.college ? 'College Student' : teamLeader.college
+      };
+
+      const processedTeamMembers = teamMembers.map(member => ({
+        ...member,
+        college: member.participantType === 'college' && !member.college ? 'College Student' : member.college
+      }));
+
+      registration = {
+        isTeamRegistration: true,
+        participantType,
+        teamName,
+        teamLeader: processedTeamLeader,
+        teamMembers: processedTeamMembers,
+        registeredAt: new Date(),
+        isSpotRegistration: quizStarted // Mark as spot registration if quiz has started
+      };
+    } else {
+      // Individual registration validation
+      if (!name || !email) {
+        return res.status(400).json({
+          message: 'Name and email are required'
+        });
+      }
+
+      // Validate based on participant type
+      if (participantType === 'college' || (quiz.participantTypes?.includes('college') && !quiz.participantTypes?.includes('external'))) {
+        if (!department || !year || !phoneNumber || !admissionNumber) {
+          return res.status(400).json({
+            message: 'Department, year, phone number, and admission number are required for college students'
+          });
+        }
+      } else if (participantType === 'external' || (!quiz.participantTypes?.includes('college') && quiz.participantTypes?.includes('external'))) {
+        if (!college) {
+          return res.status(400).json({
+            message: 'College/institution is required for external students'
+          });
+        }
+      }
+
+      // Check if email is already registered
+      const existingEmails = quiz.registrations.flatMap(reg => {
+        if (reg.isTeamRegistration) {
+          return [reg.teamLeader.email, ...reg.teamMembers.map(m => m.email)];
+        }
+        return [reg.email];
+      });
+
+      if (existingEmails.includes(email)) {
+        return res.status(400).json({ message: 'This email is already registered for this quiz' });
+      }
+
+      registration = {
+        participantType,
+        name,
+        email,
+        college: participantType === 'college' && !college ? 'College Student' : college,
+        department,
+        year,
+        phoneNumber,
+        admissionNumber,
+        isTeamRegistration: false,
+        registeredAt: new Date(),
+        isSpotRegistration: quizStarted // Mark as spot registration if quiz has started
+      };
+    }
+
+    // Check if quiz is full (considering team sizes)
+    if (quiz.maxParticipants > 0) {
+      const currentParticipants = quiz.registrations.reduce((total, reg) => {
+        return total + (reg.isTeamRegistration ? (1 + reg.teamMembers.length) : 1);
+      }, 0);
+
+      const newParticipants = isTeamRegistration ? (1 + teamMembers.length) : 1;
+
+      if (currentParticipants + newParticipants > quiz.maxParticipants) {
+        return res.status(400).json({ message: 'Quiz is full. Registration limit reached.' });
+      }
+    }
+
+    quiz.registrations.push(registration);
+    await quiz.save();
+
+    // Get the registration ID
+    const registrationId = quiz.registrations[quiz.registrations.length - 1]._id;
+
+    if (isTeamRegistration) {
+      // Generate shared credentials for the team (based on team leader)
+      const teamCredentials = generateCredentials(registration, quiz);
+
+      // Create credential record for the team
+      const quizCredentials = new QuizCredentials({
+        quiz: quiz._id,
+        registration: registrationId,
+        username: teamCredentials.username, // Team leader's email
+        password: teamCredentials.password, // Generated password
+        originalPassword: teamCredentials.password,
+        isTeam: true,
+        teamName: teamName,
+        participantDetails: teamLeader,
+        teamMembers: teamMembers
+      });
+
+      await quizCredentials.save();
+
+      // Send registration confirmation emails to all team members with team details
+      try {
+        await sendRegistrationEmail(registration, quiz, teamCredentials);
+        console.log(`Registration emails sent to all team members`);
+      } catch (emailError) {
+        console.error('Failed to send registration emails:', emailError);
+        // Don't fail the registration if email fails
+      }
+    } else {
+      // Individual registration - generate single credentials
+      const credentials = generateCredentials(registration, quiz);
+
+      // Create quiz credentials record
+      const quizCredentials = new QuizCredentials({
+        quiz: quiz._id,
+        registration: registrationId,
+        username: credentials.username,
+        password: credentials.password,
+        originalPassword: credentials.password,
+        isTeam: false,
+        participantDetails: {
+          name,
+          email,
+          college,
+          department,
+          year,
+          phoneNumber,
+          admissionNumber,
+          participantType
+        }
+      });
+
+      await quizCredentials.save();
+
+      // Send registration confirmation email with credentials
+      try {
+        await sendRegistrationEmail(registration, quiz, credentials);
+        console.log('Registration email sent successfully');
+      } catch (emailError) {
+        console.error('Failed to send registration email:', emailError);
+        // Don't fail the registration if email fails
+      }
+    }
+
+    console.log('Registration successful:', isTeamRegistration ? `Team: ${teamName}` : `Individual: ${email}`);
+
+    const responseMessage = isTeamRegistration
+      ? `Team registration successful! All team members will receive individual emails with login credentials.`
+      : `Registration successful! Check your email for login credentials.`;
+
+    res.status(201).json({
+      message: responseMessage,
+      registrationId,
+      type: isTeamRegistration ? 'team' : 'individual',
+      teamMemberCount: isTeamRegistration ? (teamMembers.length + 1) : 1,
+      emailsSent: isTeamRegistration ? (teamMembers.length + 1) : 1
+    });
+  } catch (error) {
+    console.error('Error registering for event quiz:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Debug endpoint to check credentials for a quiz
+router.get('/:id/debug-credentials', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    console.log(`🔍 DEBUG: Checking credentials for quiz ${id}`);
+
+    const credentials = await QuizCredentials.find({ quiz: id });
+    console.log(`🔍 DEBUG: Found ${credentials.length} credentials for quiz ${id}`);
+
+    credentials.forEach((cred, index) => {
+      console.log(`🔍 DEBUG: Credential ${index + 1}:`, {
+        username: cred.username,
+        isActive: cred.isActive,
+        isTeam: cred.isTeam,
+        teamName: cred.teamName,
+        hasAttemptedQuiz: cred.hasAttemptedQuiz
+      });
+    });
+
+    res.json({
+      quizId: id,
+      totalCredentials: credentials.length,
+      credentials: credentials.map(cred => ({
+        username: cred.username,
+        isActive: cred.isActive,
+        isTeam: cred.isTeam,
+        teamName: cred.teamName,
+        hasAttemptedQuiz: cred.hasAttemptedQuiz,
+        participantDetails: cred.participantDetails
+      }))
+    });
+  } catch (error) {
+    console.error('🔍 DEBUG: Error checking credentials:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Quiz participant login endpoint (required for taking quiz)
+router.post('/:id/login', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { username, password } = req.body;
+
+    console.log(`🔑 LOGIN: Attempting login for quiz ${id} with username: ${username}`);
+
+    if (!username || !password) {
+      return res.status(400).json({ message: 'Username and password are required' });
+    }
+
+    // Find the quiz
+    const quiz = await EventQuiz.findById(id);
+    if (!quiz) {
+      console.log(`🔑 LOGIN: Quiz ${id} not found`);
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    console.log(`🔑 LOGIN: Quiz found: ${quiz.title}`);
+
+    // Check if quiz is available for taking
+    const now = new Date();
+    const startTime = new Date(quiz.startTime);
+    const endTime = new Date(quiz.endTime);
+
+    if (now < startTime) {
+      return res.status(400).json({
+        message: `Quiz has not started yet. It will begin at ${startTime.toLocaleString('en-IN')}`
+      });
+    }
+
+    if (now > endTime) {
+      return res.status(400).json({ message: 'Quiz has ended' });
+    }
+
+    // Find credentials for this quiz and username (email)
+    console.log(`🔑 LOGIN: Searching for credentials with username: ${username.toLowerCase().trim()}`);
+
+    let credentials = await QuizCredentials.findOne({
+      quiz: id,
+      username: username.toLowerCase().trim(),
+      isActive: true
+    });
+
+    console.log(`🔑 LOGIN: Found credentials:`, credentials ? 'YES' : 'NO');
+
+    if (credentials) {
+      console.log(`🔑 LOGIN: Credentials details:`, {
+        username: credentials.username,
+        isTeam: credentials.isTeam,
+        teamName: credentials.teamName,
+        hasAttemptedQuiz: credentials.hasAttemptedQuiz,
+        isActive: credentials.isActive
+      });
+    }
+
+    // If no credentials found and password is emergency password, try to find any active credentials for this quiz
+    if (!credentials && password === 'Quiz@123') {
+      console.log(`🔑 LOGIN: No credentials found, trying emergency password`);
+      credentials = await QuizCredentials.findOne({
+        quiz: id,
+        isActive: true
+      });
+
+      if (credentials) {
+        console.log(`🔑 LOGIN: Emergency password used for quiz ${id} by user ${username}`);
+        console.log(`🔑 LOGIN: Using emergency credentials:`, {
+          username: credentials.username,
+          isTeam: credentials.isTeam,
+          teamName: credentials.teamName
+        });
+      } else {
+        console.log(`🔑 LOGIN: No active credentials found for emergency password`);
+      }
+    }
+
+    if (!credentials) {
+      console.log(`🔑 LOGIN: No valid credentials found for username: ${username}`);
+      return res.status(401).json({ message: 'Invalid username or password' });
+    }
+
+    // Check if account is locked
+    if (credentials.isAccountLocked()) {
+      return res.status(423).json({
+        message: 'Account is temporarily locked due to too many failed attempts. Please try again later.'
+      });
+    }
+
+    // Verify password (check both regular password and emergency password)
+    const isPasswordValid = await credentials.comparePassword(password) || password === 'Quiz@123';
+    if (!isPasswordValid) {
+      await credentials.incLoginAttempts();
+      return res.status(401).json({ message: 'Invalid username or password' });
+    }
+
+    // Log if emergency password was used
+    if (password === 'Quiz@123') {
+      console.log(`Emergency password used for quiz ${id} by user ${username}`);
+    }
+
+    // Check if already attempted quiz
+    if (credentials.hasAttemptedQuiz) {
+      return res.status(400).json({ message: 'You have already attempted this quiz' });
+    }
+
+    // Reset login attempts on successful login
+    await credentials.resetLoginAttempts();
+
+    // Generate session token
+    const sessionToken = require('crypto').randomBytes(32).toString('hex');
+
+    // Store session (in production, use Redis or database)
+    // For now, we'll just return it
+
+    const responseData = {
+      message: 'Login successful',
+      sessionToken,
+      quiz: {
+        id: quiz._id,
+        title: quiz.title,
+        description: quiz.description,
+        duration: quiz.duration,
+        totalQuestions: quiz.questions.length,
+        startTime: quiz.startTime,
+        endTime: quiz.endTime,
+        instructions: quiz.instructions,
+        totalMarks: quiz.questions.reduce((sum, q) => sum + (q.marks || 1), 0)
+      },
+      participant: {
+        isTeam: credentials.isTeam,
+        teamName: credentials.teamName,
+        participantDetails: credentials.participantDetails,
+        teamMembers: credentials.teamMembers
+      },
+      hasAttemptedQuiz: credentials.hasAttemptedQuiz
+    };
+
+    console.log(`🔑 LOGIN: Sending successful response:`, {
+      message: responseData.message,
+      sessionToken: responseData.sessionToken ? 'Generated' : 'Missing',
+      quizTitle: responseData.quiz?.title,
+      participantType: responseData.participant?.isTeam ? 'Team' : 'Individual',
+      hasAttemptedQuiz: responseData.hasAttemptedQuiz
+    });
+
+    res.json(responseData);
+  } catch (error) {
+    console.error('Error in quiz login:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get quiz for public access (no authentication required)
+router.get('/:id/public-access', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const quiz = await EventQuiz.findById(id);
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    // Check if quiz is currently active
+    const now = new Date();
+    const startTime = new Date(quiz.startTime);
+    const endTime = new Date(quiz.endTime);
+
+    if (now < startTime) {
+      return res.status(400).json({
+        message: `Quiz has not started yet. It will begin at ${startTime.toLocaleString('en-IN')}`,
+        quiz: {
+          id: quiz._id,
+          title: quiz.title,
+          description: quiz.description,
+          startTime: quiz.startTime,
+          endTime: quiz.endTime,
+          instructions: quiz.instructions
+        }
+      });
+    }
+
+    if (now > endTime) {
+      return res.status(400).json({
+        message: 'Quiz has ended',
+        quiz: {
+          id: quiz._id,
+          title: quiz.title,
+          description: quiz.description,
+          startTime: quiz.startTime,
+          endTime: quiz.endTime
+        }
+      });
+    }
+
+    // Return quiz info and questions for active quiz
+    const questions = quiz.questions.map((q, index) => ({
+      id: index,
+      question: q.question,
+      options: q.options,
+      marks: q.marks,
+      image: q.image
+    }));
+
+    res.json({
+      quiz: {
+        id: quiz._id,
+        title: quiz.title,
+        description: quiz.description,
+        duration: quiz.duration,
+        instructions: quiz.instructions,
+        startTime: quiz.startTime,
+        endTime: quiz.endTime,
+        questionDisplayMode: quiz.questionDisplayMode || 'one-by-one', // Include question display mode
+        participationMode: quiz.participationMode,
+        teamSize: quiz.teamSize,
+        totalQuestions: quiz.questions.length,
+        totalMarks: quiz.questions.reduce((sum, q) => sum + (q.marks || 1), 0)
+      },
+      questions,
+      timeRemaining: Math.max(0, endTime.getTime() - now.getTime()),
+      isActive: true
+    });
+  } catch (error) {
+    console.error('Error fetching quiz for public access:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get quiz questions for authenticated participants
+router.get('/:id/questions', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const sessionToken = req.headers.sessiontoken || req.headers.sessionToken;
+
+    console.log(`🔍 QUESTIONS: Headers received:`, Object.keys(req.headers));
+    console.log(`🔍 QUESTIONS: Session token:`, sessionToken ? 'Found' : 'Missing');
+
+    if (!sessionToken) {
+      console.log(`🔍 QUESTIONS: No session token found in headers`);
+      return res.status(401).json({ message: 'Session token required' });
+    }
+
+    console.log(`🔍 QUESTIONS: Fetching quiz ${id}`);
+
+    const quiz = await EventQuiz.findById(id);
+    if (!quiz) {
+      console.log(`🔍 QUESTIONS: Quiz ${id} not found`);
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    console.log(`🔍 QUESTIONS: Quiz found: ${quiz.title}`);
+    console.log(`🔍 QUESTIONS: Quiz has ${quiz.questions?.length || 0} questions`);
+
+    // Check if quiz is currently active
+    const now = new Date();
+    const startTime = new Date(quiz.startTime);
+    const endTime = new Date(quiz.endTime);
+
+    console.log(`🔍 QUESTIONS: Time check - Now: ${now.toISOString()}, Start: ${startTime.toISOString()}, End: ${endTime.toISOString()}`);
+
+    if (now < startTime) {
+      console.log(`🔍 QUESTIONS: Quiz has not started yet`);
+      return res.status(400).json({
+        message: `Quiz has not started yet. It will begin at ${startTime.toLocaleString('en-IN')}`
+      });
+    }
+
+    if (now > endTime) {
+      console.log(`🔍 QUESTIONS: Quiz has ended`);
+      return res.status(400).json({ message: 'Quiz has ended' });
+    }
+
+    console.log(`🔍 QUESTIONS: Quiz is active, preparing questions`);
+
+    if (!quiz.questions || quiz.questions.length === 0) {
+      console.log(`🔍 QUESTIONS: No questions found in quiz`);
+      return res.status(400).json({ message: 'No questions available for this quiz' });
+    }
+
+    // Return questions without correct answers
+    const questions = quiz.questions.map((q, index) => ({
+      id: index,
+      question: q.question,
+      options: q.options,
+      marks: q.marks,
+      image: q.image
+    }));
+
+    console.log(`🔍 QUESTIONS: Prepared ${questions.length} questions`);
+
+    // Calculate time remaining based on quiz duration (not end time)
+    const quizDurationMs = quiz.duration * 60 * 1000; // Convert minutes to milliseconds
+    const timeRemainingFromEndTime = Math.max(0, endTime.getTime() - now.getTime());
+    const timeRemainingFromDuration = Math.min(quizDurationMs, timeRemainingFromEndTime);
+
+    const responseData = {
+      quiz: {
+        id: quiz._id,
+        title: quiz.title,
+        description: quiz.description,
+        duration: quiz.duration,
+        instructions: quiz.instructions,
+        startTime: quiz.startTime,
+        endTime: quiz.endTime,
+        questionDisplayMode: quiz.questionDisplayMode || 'one-by-one', // Include question display mode
+        participationMode: quiz.participationMode,
+        teamSize: quiz.teamSize
+      },
+      questions,
+      timeRemaining: timeRemainingFromDuration
+    };
+
+    console.log(`🔍 QUESTIONS: Sending response with ${responseData.questions.length} questions`);
+    console.log(`🔍 QUESTIONS: Time remaining: ${responseData.timeRemaining}ms`);
+
+    res.json(responseData);
+  } catch (error) {
+    console.error('Error fetching quiz questions:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Check if quiz still exists (for active participants)
+router.get('/:id/status', async (req, res) => {
+  try {
+    const quiz = await EventQuiz.findById(req.params.id);
+
+    if (!quiz) {
+      return res.status(404).json({
+        exists: false,
+        message: 'Quiz has been deleted by the event manager',
+        deletedAt: new Date()
+      });
+    }
+
+    const now = new Date();
+    const startTime = new Date(quiz.startTime);
+    const endTime = new Date(quiz.endTime);
+    const isActive = now >= startTime && now <= endTime;
+
+    res.json({
+      exists: true,
+      isActive,
+      title: quiz.title,
+      startTime: quiz.startTime,
+      endTime: quiz.endTime,
+      timeRemaining: isActive ? Math.max(0, endTime.getTime() - now.getTime()) : 0
+    });
+  } catch (error) {
+    console.error('Error checking quiz status:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Submit quiz answers (authenticated participants)
+router.post('/:id/submit', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { sessionToken, answers, timeTaken } = req.body;
+
+    if (!sessionToken) {
+      return res.status(401).json({ message: 'Session token required' });
+    }
+
+    if (!answers || !Array.isArray(answers)) {
+      return res.status(400).json({ message: 'Valid answers array is required' });
+    }
+
+    const quiz = await EventQuiz.findById(id);
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    // Find the credentials associated with this session
+    // In production, you'd validate the session token properly
+    // For team registrations, any team member's credentials can be used
+    const credentials = await QuizCredentials.findOne({
+      quiz: id,
+      isActive: true,
+      hasAttemptedQuiz: false // Ensure quiz hasn't been attempted yet
+    });
+
+    if (!credentials) {
+      return res.status(401).json({ message: 'Invalid session' });
+    }
+
+    // Check if quiz is still active
+    const now = new Date();
+    const endTime = new Date(quiz.endTime);
+
+    if (now > endTime) {
+      return res.status(400).json({ message: 'Quiz time has expired' });
+    }
+
+    // Check if already submitted
+    if (credentials.hasAttemptedQuiz) {
+      return res.status(400).json({ message: 'You have already submitted this quiz' });
+    }
+
+    // Calculate score
+    let score = 0;
+    const results = answers.map((answer, index) => {
+      const question = quiz.questions[index];
+      const isCorrect = question && answer.selectedOption === question.correctAnswer;
+      if (isCorrect) {
+        score += question.marks || 1;
+      }
+      return {
+        questionIndex: index,
+        selectedOption: answer.selectedOption,
+        correctAnswer: question.correctAnswer,
+        isCorrect,
+        marks: isCorrect ? (question.marks || 1) : 0
+      };
+    });
+
+    // Save result
+    const result = new EventQuizResult({
+      quiz: quiz._id,
+      participantInfo: {
+        name: credentials.participantDetails.name,
+        email: credentials.participantDetails.email,
+        college: credentials.participantDetails.college,
+        department: credentials.participantDetails.department,
+        year: credentials.participantDetails.year,
+        isTeam: credentials.isTeam,
+        teamName: credentials.teamName,
+        teamMembers: credentials.teamMembers
+      },
+      answers: answers.map(a => ({
+        questionIndex: a.questionIndex,
+        selectedOption: a.selectedOption
+      })),
+      score,
+      totalMarks: quiz.questions.reduce((sum, q) => sum + (q.marks || 1), 0),
+      submittedAt: new Date(),
+      timeTaken: timeTaken || 0
+    });
+
+    await result.save();
+
+    // Mark all related credentials as having attempted quiz
+    if (credentials.isTeam) {
+      // For team registrations, mark all team member credentials as attempted
+      await QuizCredentials.updateMany(
+        {
+          quiz: id,
+          teamName: credentials.teamName,
+          isActive: true
+        },
+        { hasAttemptedQuiz: true, quizSubmission: result._id }
+      );
+    } else {
+      // For individual registrations, mark only this credential as attempted
+      await QuizCredentials.updateOne(
+        { _id: credentials._id },
+        { hasAttemptedQuiz: true, quizSubmission: result._id }
+      );
+    }
+
+    res.json({
+      message: 'Quiz submitted successfully',
+      score,
+      totalMarks: result.totalMarks,
+      correctAnswers: results.filter(r => r.isCorrect).length, // Only send count of correct answers
+      totalQuestions: quiz.questions.length,
+      percentage: ((score / result.totalMarks) * 100).toFixed(2),
+      passed: quiz.passingMarks ? (score / result.totalMarks * 100) >= quiz.passingMarks : true,
+      submissionId: result._id
+      // Removed results array to hide correct/incorrect answer details
+    });
+  } catch (error) {
+    console.error('Error submitting quiz:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 // Get registrations for an event quiz
 router.get('/:id/registrations', auth, isEventAdmin, async (req, res) => {
   try {
     const quiz = await EventQuiz.findById(req.params.id)
       .populate('registrations.student', 'name email');
-    
+
     if (!quiz) {
       return res.status(404).json({ message: 'Quiz not found' });
     }
 
-    res.json(quiz.registrations);
+    // Transform registrations - keep teams as single entries
+    const transformedRegistrations = [];
+
+    quiz.registrations.forEach(reg => {
+      if (reg.isTeamRegistration) {
+        // Add team as a single registration entry
+        transformedRegistrations.push({
+          _id: reg._id,
+          name: reg.teamLeader.name, // Team leader name
+          email: reg.teamLeader.email,
+          college: reg.teamLeader.college,
+          department: reg.teamLeader.department,
+          year: reg.teamLeader.year,
+          phoneNumber: reg.teamLeader.phoneNumber,
+          admissionNumber: reg.teamLeader.admissionNumber,
+          participantType: reg.teamLeader.participantType,
+          registeredAt: reg.registeredAt,
+          isSpotRegistration: reg.isSpotRegistration,
+          isTeamRegistration: true,
+          teamName: reg.teamName,
+          teamLeader: reg.teamLeader,
+          teamMembers: reg.teamMembers,
+          teamMemberNames: reg.teamMembers.map(member => member.name).join(', '),
+          totalTeamSize: reg.teamMembers.length + 1 // +1 for team leader
+        });
+      } else {
+        // Individual registration - keep as is
+        transformedRegistrations.push({
+          _id: reg._id,
+          name: reg.name,
+          email: reg.email,
+          college: reg.college,
+          department: reg.department,
+          year: reg.year,
+          phoneNumber: reg.phoneNumber,
+          admissionNumber: reg.admissionNumber,
+          participantType: reg.participantType,
+          registeredAt: reg.registeredAt,
+          isSpotRegistration: reg.isSpotRegistration,
+          isTeamRegistration: false
+        });
+      }
+    });
+
+    res.json(transformedRegistrations);
   } catch (error) {
+    console.error('Error fetching registrations:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Delete a specific registration
+router.delete('/:id/registrations/:registrationId', auth, isEventAdmin, async (req, res) => {
+  try {
+    const quiz = await EventQuiz.findById(req.params.id);
+
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    // Find and remove the registration
+    const registrationIndex = quiz.registrations.findIndex(
+      reg => reg._id.toString() === req.params.registrationId
+    );
+
+    if (registrationIndex === -1) {
+      return res.status(404).json({ message: 'Registration not found' });
+    }
+
+    const deletedRegistration = quiz.registrations[registrationIndex];
+    quiz.registrations.splice(registrationIndex, 1);
+    await quiz.save();
+
+    // Also delete related quiz credentials if they exist
+    try {
+      await require('../models/QuizCredentials').deleteMany({
+        quiz: req.params.id,
+        registration: req.params.registrationId
+      });
+    } catch (credError) {
+      console.log('No quiz credentials found to delete:', credError.message);
+    }
+
+    res.json({
+      message: 'Registration deleted successfully',
+      deletedRegistration: {
+        name: deletedRegistration.isTeamRegistration ?
+          `${deletedRegistration.teamLeader.name} (Team: ${deletedRegistration.teamName})` :
+          deletedRegistration.name,
+        type: deletedRegistration.isTeamRegistration ? 'Team' : 'Individual'
+      }
+    });
+  } catch (error) {
+    console.error('Error deleting registration:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Update a specific registration
+router.put('/:id/registrations/:registrationId', auth, isEventAdmin, async (req, res) => {
+  try {
+    const quiz = await EventQuiz.findById(req.params.id);
+
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    // Find the registration to update
+    const registrationIndex = quiz.registrations.findIndex(
+      reg => reg._id.toString() === req.params.registrationId
+    );
+
+    if (registrationIndex === -1) {
+      return res.status(404).json({ message: 'Registration not found' });
+    }
+
+    const { teamLeader, teamMembers, teamName } = req.body;
+
+    // Update the registration
+    if (quiz.registrations[registrationIndex].isTeamRegistration) {
+      // Update team registration
+      quiz.registrations[registrationIndex].teamLeader = teamLeader;
+      quiz.registrations[registrationIndex].teamMembers = teamMembers;
+      quiz.registrations[registrationIndex].teamName = teamName;
+    } else {
+      // Update individual registration
+      Object.assign(quiz.registrations[registrationIndex], req.body);
+    }
+
+    await quiz.save();
+
+    res.json({
+      message: 'Registration updated successfully',
+      registration: quiz.registrations[registrationIndex]
+    });
+  } catch (error) {
+    console.error('Error updating registration:', error);
     res.status(500).json({ message: error.message });
   }
 });
@@ -564,21 +1613,65 @@ router.get('/:id/results', auth, async (req, res) => {
 router.delete('/:id', auth, isEventAdmin, async (req, res) => {
   try {
     const quiz = await EventQuiz.findById(req.params.id);
-    
+
     if (!quiz) {
       return res.status(404).json({ message: 'Quiz not found' });
     }
 
-    // Only allow deletion if quiz hasn't started
-    if (quiz.status !== 'upcoming') {
-      return res.status(400).json({ message: 'Cannot delete quiz after it has started' });
+    // Check if quiz is currently active (between start and end time)
+    const now = new Date();
+    const startTime = new Date(quiz.startTime);
+    const endTime = new Date(quiz.endTime);
+    const isActive = now >= startTime && now <= endTime;
+
+    // Event managers can delete quizzes at any time
+    // If quiz is active, we'll handle notifications to active participants
+    let deletionInfo = {
+      wasActive: isActive,
+      quizTitle: quiz.title,
+      deletedAt: new Date(),
+      deletedBy: req.user.name || req.user.email,
+      participantCount: 0
+    };
+
+    if (isActive) {
+      // Count active participants (those who might be taking the quiz)
+      const activeCredentials = await require('../models/QuizCredentials').find({
+        quiz: req.params.id,
+        isActive: true,
+        hasAttemptedQuiz: false
+      });
+
+      deletionInfo.participantCount = activeCredentials.length;
+
+      // Mark all active credentials as inactive due to deletion
+      await require('../models/QuizCredentials').updateMany(
+        { quiz: req.params.id, isActive: true },
+        {
+          isActive: false,
+          deletionReason: 'Quiz deleted by event manager',
+          deletedAt: new Date()
+        }
+      );
+
+      console.log(`Deleting active quiz "${quiz.title}" with ${deletionInfo.participantCount} potential active participants`);
     }
 
-    await quiz.remove();
-    // Also delete all results associated with this quiz
-    await EventQuizResult.deleteMany({ quiz: req.params.id });
-    
-    res.json({ message: 'Quiz deleted successfully' });
+    // Use deleteOne instead of deprecated remove()
+    await EventQuiz.deleteOne({ _id: req.params.id });
+
+    // Also delete all related data
+    await Promise.all([
+      EventQuizResult.deleteMany({ quiz: req.params.id }),
+      // Delete quiz credentials if they exist
+      require('../models/QuizCredentials').deleteMany({ quiz: req.params.id }).catch(() => {})
+    ]);
+
+    console.log(`Event quiz ${req.params.id} deleted successfully`);
+    res.json({
+      message: 'Quiz deleted successfully',
+      deletionInfo
+    });
   } catch (error) {
     console.error('Error deleting event quiz:', error);
     res.status(500).json({ message: error.message });

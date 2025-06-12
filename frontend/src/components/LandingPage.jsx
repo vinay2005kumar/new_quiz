@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Box, Typography, Button, Container, Paper } from '@mui/material';
+import {
+  Box,
+  Typography,
+  Button,
+  Container,
+  Paper
+} from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import api from '../config/axios';
 
@@ -9,19 +15,26 @@ const LandingPage = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const checkAdminExists = async () => {
+    const fetchData = async () => {
       try {
-        const response = await api.get('/api/auth/check-admin');
-        setShowAdminButton(!response.adminExists);
+        const adminResponse = await api.get('/api/auth/check-admin');
+
+        // Handle admin response - axios interceptor returns data directly
+        const adminExists = adminResponse?.adminExists || adminResponse?.data?.adminExists;
+        setShowAdminButton(!adminExists);
       } catch (error) {
-        console.error('Error checking admin existence:', error);
+        console.error('Error fetching data:', error);
+        // Don't show admin button if there's an error
+        setShowAdminButton(false);
       } finally {
         setLoading(false);
       }
     };
 
-    checkAdminExists();
+    fetchData();
   }, []);
+
+
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
@@ -145,6 +158,8 @@ const LandingPage = () => {
             </Button>
           )}
         </Paper>
+
+
       </Container>
 
       {/* Footer */}

@@ -21,24 +21,45 @@ import {
   Select,
   MenuItem,
   IconButton,
-  Tooltip
+  Tooltip,
+  Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
   ArrowUpward as ArrowUpwardIcon,
   ArrowDownward as ArrowDownwardIcon,
-  FilterList as FilterListIcon
+  FilterList as FilterListIcon,
+  Add as AddIcon,
+  PersonAdd as PersonAddIcon,
+  List as ListIcon
 } from '@mui/icons-material';
 import api from '../../config/axios';
+import { toast } from 'react-toastify';
 
 const EventQuizSubmissions = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+
+  // Reusable text field style for edit mode
+  const editTextFieldStyle = {
+    '& .MuiOutlinedInput-root': {
+      bgcolor: 'background.paper'
+    }
+  };
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [quiz, setQuiz] = useState(null);
   const [students, setStudents] = useState([]);
+  const [shortlistedCandidates, setShortlistedCandidates] = useState([]);
+  const [showShortlisted, setShowShortlisted] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  const [teamDetailsDialog, setTeamDetailsDialog] = useState({ open: false, team: null });
+  const [editMode, setEditMode] = useState(false);
+  const [editedTeamData, setEditedTeamData] = useState(null);
   const [filters, setFilters] = useState({
     name: '',
     email: '',
@@ -46,7 +67,7 @@ const EventQuizSubmissions = () => {
     department: '',
     year: '',
     scoreRange: 'all',
-    submissionStatus: 'all'
+    participationStatus: 'all'
   });
 
   useEffect(() => {
@@ -58,7 +79,7 @@ const EventQuizSubmissions = () => {
       setLoading(true);
       setError('');
 
-      // Fetch quiz details and submissions separately to handle errors better
+      // Fetch quiz details first
       try {
         const quizResponse = await api.get(`/api/event-quiz/${id}`);
         if (!quizResponse || !quizResponse.title) {
@@ -73,38 +94,64 @@ const EventQuizSubmissions = () => {
       }
 
       try {
-        const submissionsResponse = await api.get(`/api/event-quiz/${id}/submissions`);
-        if (!submissionsResponse || !Array.isArray(submissionsResponse)) {
-          throw new Error('Failed to fetch submissions');
-        }
+        // Fetch both registrations and submissions
+        const [registrationsResponse, submissionsResponse] = await Promise.all([
+          api.get(`/api/event-quiz/${id}/registrations`),
+          api.get(`/api/event-quiz/${id}/submissions`).catch(() => []) // Don't fail if no submissions yet
+        ]);
 
-        // Transform submissions data
-        const transformedStudents = submissionsResponse.map(submission => ({
-          student: {
-            _id: submission.student?._id,
-            name: submission.student?.name || 'N/A',
-            email: submission.student?.email || 'N/A',
-            college: submission.student?.college || 'N/A',
-            department: submission.student?.department || 'N/A',
-            year: submission.student?.year || 'N/A',
-            rollNumber: submission.student?.rollNumber || 'N/A'
-          },
-          hasSubmitted: submission.status === 'submitted',
-          submissionStatus: submission.status || 'not-submitted',
-          totalMarks: submission.totalMarks || 0,
-          duration: submission.duration || null,
-          startTime: submission.startTime || null,
-          submitTime: submission.submitTime || null,
-          answers: submission.answers || []
-        }));
+        const registrations = Array.isArray(registrationsResponse) ? registrationsResponse : [];
+        const submissions = Array.isArray(submissionsResponse) ? submissionsResponse : [];
 
+        // Create a map of submissions by email for quick lookup
+        const submissionMap = new Map();
+        submissions.forEach(submission => {
+          if (submission.student?.email) {
+            submissionMap.set(submission.student.email, submission);
+          }
+        });
+
+        // Transform registrations data and merge with submissions
+        const transformedStudents = registrations.map(registration => {
+          const submission = submissionMap.get(registration.email);
+
+          return {
+            student: {
+              _id: registration._id,
+              name: registration.name || 'N/A',
+              email: registration.email || 'N/A',
+              college: registration.college || 'N/A',
+              department: registration.department || 'N/A',
+              year: registration.year || 'N/A',
+              phoneNumber: registration.phoneNumber || 'N/A',
+              admissionNumber: registration.admissionNumber || 'N/A',
+              participantType: registration.participantType || 'N/A',
+              isTeamRegistration: registration.isTeamRegistration || false,
+              teamName: registration.teamName || null,
+              teamLeader: registration.teamLeader || null,
+              teamMembers: registration.teamMembers || [],
+              teamMemberNames: registration.teamMemberNames || null,
+              totalTeamSize: registration.totalTeamSize || 1,
+              registeredAt: registration.registeredAt
+            },
+            hasSubmitted: submission ? submission.status === 'submitted' : false,
+            submissionStatus: submission ? submission.status : 'not-submitted',
+            totalMarks: submission ? submission.totalMarks || 0 : 0,
+            duration: submission ? submission.duration : null,
+            startTime: submission ? submission.startTime : null,
+            submitTime: submission ? submission.submitTime : null,
+            answers: submission ? submission.answers || [] : []
+          };
+        });
+
+        console.log('Transformed students data:', transformedStudents);
         setStudents(transformedStudents);
-      } catch (submissionsError) {
-        console.error('Error fetching submissions:', submissionsError);
-        if (submissionsError.response?.status === 403) {
-          setError('You do not have permission to view submissions for this quiz');
+      } catch (dataError) {
+        console.error('Error fetching data:', dataError);
+        if (dataError.response?.status === 403) {
+          setError('You do not have permission to view data for this quiz');
         } else {
-          setError(submissionsError.response?.data?.message || submissionsError.message || 'Failed to load submissions');
+          setError(dataError.response?.data?.message || dataError.message || 'Failed to load quiz data');
         }
       }
     } catch (error) {
@@ -130,8 +177,95 @@ const EventQuizSubmissions = () => {
       department: '',
       year: '',
       scoreRange: 'all',
-      submissionStatus: 'all'
+      participationStatus: 'all'
     });
+  };
+
+  const handleShortlist = (studentData) => {
+    const isAlreadyShortlisted = shortlistedCandidates.some(
+      candidate => candidate.student._id === studentData.student._id
+    );
+
+    if (!isAlreadyShortlisted) {
+      setShortlistedCandidates(prev => [...prev, {
+        ...studentData,
+        shortlistedAt: new Date().toISOString(),
+        shortlistedBy: 'Event Manager' // You can get this from user context
+      }]);
+
+      // Show success toast
+      toast.success(`${studentData.student.name} added to shortlist!`, {
+        position: "top-right",
+        autoClose: 3000,
+      });
+    } else {
+      toast.warning(`${studentData.student.name} is already shortlisted!`, {
+        position: "top-right",
+        autoClose: 3000,
+      });
+    }
+  };
+
+  const removeFromShortlist = (studentId) => {
+    const student = shortlistedCandidates.find(candidate => candidate.student._id === studentId);
+    setShortlistedCandidates(prev =>
+      prev.filter(candidate => candidate.student._id !== studentId)
+    );
+
+    if (student) {
+      toast.info(`${student.student.name} removed from shortlist`, {
+        position: "top-right",
+        autoClose: 3000,
+      });
+    }
+  };
+
+  const isShortlisted = (studentId) => {
+    return shortlistedCandidates.some(candidate => candidate.student._id === studentId);
+  };
+
+  const handleViewTeamDetails = (teamData) => {
+    setTeamDetailsDialog({ open: true, team: teamData });
+  };
+
+  const handleCloseTeamDetails = () => {
+    setTeamDetailsDialog({ open: false, team: null });
+    setEditMode(false);
+    setEditedTeamData(null);
+  };
+
+  const handleEditTeam = () => {
+    setEditMode(true);
+    setEditedTeamData({
+      teamName: teamDetailsDialog.team.teamName,
+      teamLeader: { ...teamDetailsDialog.team.teamLeader },
+      teamMembers: teamDetailsDialog.team.teamMembers.map(member => ({ ...member }))
+    });
+  };
+
+  const handleSaveTeamEdit = async () => {
+    try {
+      await api.put(`/api/event-quiz/${id}/registrations/${teamDetailsDialog.team._id}`, editedTeamData);
+      toast.success('Team details updated successfully!');
+      setEditMode(false);
+      setEditedTeamData(null);
+      handleCloseTeamDetails();
+      fetchData(); // Refresh the data
+    } catch (error) {
+      toast.error('Failed to update team details: ' + (error.response?.data?.message || error.message));
+    }
+  };
+
+  const handleDeleteRegistration = async (registrationId, registrationName) => {
+    if (window.confirm(`Are you sure you want to delete the registration for "${registrationName}"? This action cannot be undone.`)) {
+      try {
+        await api.delete(`/api/event-quiz/${id}/registrations/${registrationId}`);
+        toast.success('Registration deleted successfully!');
+        fetchData(); // Refresh the data
+      } catch (error) {
+        toast.error('Failed to delete registration: ' + (error.response?.data?.message || error.message));
+      }
+    }
   };
 
   const requestSort = (key) => {
@@ -207,15 +341,32 @@ const EventQuizSubmissions = () => {
         if (scorePercentage < min || scorePercentage > max) return false;
       }
 
-      // Submission status filter
-      if (filters.submissionStatus !== 'all') {
-        if (filters.submissionStatus === 'submitted' && !student.hasSubmitted) return false;
-        if (filters.submissionStatus === 'not-submitted' && student.hasSubmitted) return false;
+      // Participation status filter (combines registration and attempt status)
+      if (filters.participationStatus !== 'all') {
+        const isRegistered = true; // All students in the list are registered
+        const hasAttempted = student.hasSubmitted;
+
+        if (filters.participationStatus === 'registered-and-attempted' && (!isRegistered || !hasAttempted)) return false;
+        if (filters.participationStatus === 'registered-not-attempted' && (!isRegistered || hasAttempted)) return false;
       }
 
       return true;
     });
   }, [students, filters, quiz?.totalMarks]);
+
+  // Calculate participation counts
+  const participationCounts = useMemo(() => {
+    const totalRegistered = students.length;
+    const totalAttempted = students.filter(s => s.hasSubmitted).length;
+    const registeredNotAttempted = totalRegistered - totalAttempted;
+
+    return {
+      totalRegistered,
+      totalAttempted,
+      registeredNotAttempted,
+      filteredCount: filteredStudents.length
+    };
+  }, [students, filteredStudents]);
 
   const sortedStudents = useMemo(() => {
     if (!filteredStudents) return [];
@@ -292,35 +443,68 @@ const EventQuizSubmissions = () => {
             Back
           </Button>
 
-          <Typography variant="h4" gutterBottom>
-            {quiz?.title} - Submissions
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h4" gutterBottom>
+              {quiz?.title} - {showShortlisted ? 'Shortlisted Candidates' : 'Results & Registrations'}
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <Button
+                variant={showShortlisted ? "outlined" : "contained"}
+                onClick={() => setShowShortlisted(false)}
+                startIcon={<ListIcon />}
+              >
+                All Results ({students.length})
+              </Button>
+              <Button
+                variant={showShortlisted ? "contained" : "outlined"}
+                onClick={() => setShowShortlisted(true)}
+                startIcon={<PersonAddIcon />}
+                color="success"
+              >
+                Shortlisted ({shortlistedCandidates.length})
+              </Button>
+            </Box>
+          </Box>
 
           <Grid container spacing={2} sx={{ mt: 2 }}>
-            <Grid item xs={12} sm={4}>
-              <Typography variant="body1">
-                Total Registrations: {students.length}
-              </Typography>
+            <Grid item xs={12} sm={2.4}>
+              <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'primary.light', color: 'white' }}>
+                <Typography variant="h6">{participationCounts.totalRegistered}</Typography>
+                <Typography variant="body2">Total Registered</Typography>
+              </Paper>
             </Grid>
-            <Grid item xs={12} sm={4}>
-              <Typography variant="body1">
-                Submitted: {students.filter(s => s.hasSubmitted).length}
-              </Typography>
+            <Grid item xs={12} sm={2.4}>
+              <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'success.light', color: 'white' }}>
+                <Typography variant="h6">{participationCounts.totalAttempted}</Typography>
+                <Typography variant="body2">Attempted Quiz</Typography>
+              </Paper>
             </Grid>
-            <Grid item xs={12} sm={4}>
-              <Typography variant="body1">
-                Average Score: {
-                  students.length > 0 
-                    ? (students.reduce((acc, s) => acc + (s.totalMarks || 0), 0) / students.length).toFixed(2)
-                    : 0
-                }
-              </Typography>
+            <Grid item xs={12} sm={2.4}>
+              <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'warning.light', color: 'white' }}>
+                <Typography variant="h6">{participationCounts.registeredNotAttempted}</Typography>
+                <Typography variant="body2">Registered Only</Typography>
+              </Paper>
+            </Grid>
+            <Grid item xs={12} sm={2.4}>
+              <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'info.light', color: 'white' }}>
+                <Typography variant="h6">{shortlistedCandidates.length}</Typography>
+                <Typography variant="body2">Shortlisted</Typography>
+              </Paper>
+            </Grid>
+            <Grid item xs={12} sm={2.4}>
+              <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'secondary.light', color: 'white' }}>
+                <Typography variant="h6">
+                  {participationCounts.filteredCount}
+                </Typography>
+                <Typography variant="body2">Filtered Results</Typography>
+              </Paper>
             </Grid>
           </Grid>
         </Box>
 
         {/* Filters */}
         <Grid container spacing={2} sx={{ mb: 3 }}>
+          {/* Row 1: Basic Info Filters */}
           <Grid item xs={12} sm={6} md={3}>
             <TextField
               fullWidth
@@ -357,6 +541,8 @@ const EventQuizSubmissions = () => {
               size="small"
             />
           </Grid>
+
+          {/* Row 2: Status and Score Filters */}
           <Grid item xs={12} sm={6} md={3}>
             <TextField
               fullWidth
@@ -385,15 +571,21 @@ const EventQuizSubmissions = () => {
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <FormControl fullWidth size="small">
-              <InputLabel>Submission Status</InputLabel>
+              <InputLabel>Participation Status</InputLabel>
               <Select
-                value={filters.submissionStatus}
-                label="Submission Status"
-                onChange={(e) => handleFilterChange('submissionStatus', e.target.value)}
+                value={filters.participationStatus}
+                label="Participation Status"
+                onChange={(e) => handleFilterChange('participationStatus', e.target.value)}
               >
-                <MenuItem value="all">All Status</MenuItem>
-                <MenuItem value="submitted">Submitted</MenuItem>
-                <MenuItem value="not-submitted">Not Submitted</MenuItem>
+                <MenuItem value="all">
+                  All Students ({participationCounts.totalRegistered})
+                </MenuItem>
+                <MenuItem value="registered-and-attempted">
+                  Registered & Attempted ({participationCounts.totalAttempted})
+                </MenuItem>
+                <MenuItem value="registered-not-attempted">
+                  Registered Only ({participationCounts.registeredNotAttempted})
+                </MenuItem>
               </Select>
             </FormControl>
           </Grid>
@@ -402,6 +594,7 @@ const EventQuizSubmissions = () => {
               variant="outlined"
               onClick={resetFilters}
               fullWidth
+              sx={{ height: '40px' }}
             >
               Reset Filters
             </Button>
@@ -452,7 +645,14 @@ const EventQuizSubmissions = () => {
                   </Tooltip>
                   Year
                 </TableCell>
-                <TableCell>Roll Number</TableCell>
+                {quiz?.participationMode === 'team' && (
+                  <>
+                    <TableCell>Team Name</TableCell>
+                    <TableCell>Team Members</TableCell>
+                  </>
+                )}
+                <TableCell>Participant Type</TableCell>
+                <TableCell>Attempt Status</TableCell>
                 <TableCell>
                   <Tooltip title="Sort by Score">
                     <IconButton size="small" onClick={() => requestSort('score')}>
@@ -469,20 +669,69 @@ const EventQuizSubmissions = () => {
                   </Tooltip>
                   Duration
                 </TableCell>
+                <TableCell>Details</TableCell>
                 <TableCell>Actions</TableCell>
+                <TableCell>Delete</TableCell>
+                <TableCell>Shortlist</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {sortedStudents.map((studentData) => (
-                <TableRow key={studentData.student._id}>
-                  <TableCell>{studentData.student.name}</TableCell>
+              {(showShortlisted ? shortlistedCandidates : sortedStudents).map((studentData) => (
+                <TableRow
+                  key={studentData.student._id}
+                  sx={{
+                    backgroundColor: isShortlisted(studentData.student._id) ? '#e8f5e8' : 'inherit'
+                  }}
+                >
+                  <TableCell>
+                    {studentData.student.name}
+                    {studentData.student.isTeamRegistration && (
+                      <Chip
+                        label="Team Leader"
+                        size="small"
+                        color="success"
+                        sx={{ ml: 1 }}
+                      />
+                    )}
+                  </TableCell>
                   <TableCell>{studentData.student.email}</TableCell>
                   <TableCell>{studentData.student.college}</TableCell>
                   <TableCell>{studentData.student.department}</TableCell>
                   <TableCell>{studentData.student.year}</TableCell>
-                  <TableCell>{studentData.student.rollNumber}</TableCell>
+                  {quiz?.participationMode === 'team' && (
+                    <>
+                      <TableCell>{studentData.student.teamName || '-'}</TableCell>
+                      <TableCell>
+                        {studentData.student.isTeamRegistration ? (
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="body2" sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {studentData.student.teamMemberNames ||
+                               (studentData.student.teamMembers?.map(m => m.name).join(', ')) ||
+                               'No members'}
+                            </Typography>
+                          </Box>
+                        ) : (
+                          '-'
+                        )}
+                      </TableCell>
+                    </>
+                  )}
                   <TableCell>
-                    {studentData.hasSubmitted 
+                    <Chip
+                      label={studentData.student.participantType === 'college' ? 'College' : 'External'}
+                      size="small"
+                      color={studentData.student.participantType === 'college' ? 'primary' : 'secondary'}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={studentData.hasSubmitted ? 'Attempted' : 'Registered Only'}
+                      size="small"
+                      color={studentData.hasSubmitted ? 'success' : 'warning'}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    {studentData.hasSubmitted
                       ? `${studentData.totalMarks}/${quiz?.totalMarks} (${Math.round(calculateScorePercentage(studentData.totalMarks, quiz?.totalMarks))}%)`
                       : 'Not submitted'
                     }
@@ -492,18 +741,66 @@ const EventQuizSubmissions = () => {
                     <Button
                       size="small"
                       variant="outlined"
+                      color="info"
+                      onClick={() => handleViewTeamDetails(studentData.student)}
+                    >
+                      {studentData.student.isTeamRegistration ? 'Team Details' : 'Details'}
+                    </Button>
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      size="small"
+                      variant="outlined"
                       onClick={() => navigate(`/event/quiz/${id}/submission/${studentData.student._id}`)}
                       disabled={!studentData.hasSubmitted}
                     >
-                      View Details
+                      View Submission
                     </Button>
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="error"
+                      onClick={() => handleDeleteRegistration(
+                        studentData.student._id,
+                        studentData.student.isTeamRegistration ?
+                          `${studentData.student.name} (Team: ${studentData.student.teamName})` :
+                          studentData.student.name
+                      )}
+                    >
+                      Delete
+                    </Button>
+                  </TableCell>
+                  <TableCell>
+                    {isShortlisted(studentData.student._id) ? (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color="error"
+                        onClick={() => removeFromShortlist(studentData.student._id)}
+                        startIcon={<PersonAddIcon />}
+                      >
+                        Remove
+                      </Button>
+                    ) : (
+                      <Button
+                        size="small"
+                        variant="contained"
+                        color="primary"
+                        onClick={() => handleShortlist(studentData)}
+                        startIcon={<AddIcon />}
+                      >
+                        Add
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
               {sortedStudents.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={9} align="center">
-                    No submissions found
+                  <TableCell colSpan={quiz?.participationMode === 'team' ? 13 : 11} align="center">
+                    No registrations found
                   </TableCell>
                 </TableRow>
               )}
@@ -511,6 +808,415 @@ const EventQuizSubmissions = () => {
           </Table>
         </TableContainer>
       </Paper>
+
+      {/* Team Details Dialog */}
+      <Dialog
+        open={teamDetailsDialog.open}
+        onClose={handleCloseTeamDetails}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          {editMode ? 'Edit Team Details' : 'Team Details'}: {editMode ? editedTeamData?.teamName : teamDetailsDialog.team?.teamName}
+        </DialogTitle>
+        <DialogContent>
+          {teamDetailsDialog.team && (
+            <Box sx={{ mt: 2 }}>
+              {/* Team Name */}
+              {editMode && (
+                <Box sx={{ mb: 3 }}>
+                  <TextField
+                    fullWidth
+                    label="Team Name"
+                    value={editedTeamData?.teamName || ''}
+                    onChange={(e) => setEditedTeamData(prev => ({ ...prev, teamName: e.target.value }))}
+                    sx={{ mb: 2 }}
+                  />
+                </Box>
+              )}
+
+              {/* Team Leader Section */}
+              <Typography variant="h6" gutterBottom color="success.main">
+                Team Leader
+              </Typography>
+              <Paper sx={{
+                p: 2,
+                mb: 3,
+                border: '2px solid',
+                borderColor: 'success.main',
+                bgcolor: 'background.paper'
+              }}>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    {editMode ? (
+                      <TextField
+                        fullWidth
+                        label="Name"
+                        value={editedTeamData?.teamLeader?.name || ''}
+                        onChange={(e) => setEditedTeamData(prev => ({
+                          ...prev,
+                          teamLeader: { ...prev.teamLeader, name: e.target.value }
+                        }))}
+                        size="small"
+                        sx={editTextFieldStyle}
+                      />
+                    ) : (
+                      <Typography variant="body2"><strong>Name:</strong> {teamDetailsDialog.team.teamLeader?.name}</Typography>
+                    )}
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    {editMode ? (
+                      <TextField
+                        fullWidth
+                        label="Email"
+                        value={editedTeamData?.teamLeader?.email || ''}
+                        onChange={(e) => setEditedTeamData(prev => ({
+                          ...prev,
+                          teamLeader: { ...prev.teamLeader, email: e.target.value }
+                        }))}
+                        size="small"
+                        sx={editTextFieldStyle}
+                      />
+                    ) : (
+                      <Typography variant="body2" color="text.primary"><strong>Email:</strong> {teamDetailsDialog.team.teamLeader?.email}</Typography>
+                    )}
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    {editMode ? (
+                      <TextField
+                        fullWidth
+                        label="College"
+                        value={editedTeamData?.teamLeader?.college || ''}
+                        onChange={(e) => setEditedTeamData(prev => ({
+                          ...prev,
+                          teamLeader: { ...prev.teamLeader, college: e.target.value }
+                        }))}
+                        size="small"
+                        sx={{
+                          bgcolor: 'background.paper',
+                          borderRadius: 1,
+                          '& .MuiInputBase-root': {
+                            color: 'text.primary',
+                            bgcolor: 'background.paper'
+                          },
+                          '& .MuiInputLabel-root': {
+                            color: 'text.secondary'
+                          },
+                          '& .MuiOutlinedInput-root': {
+                            '& fieldset': {
+                              borderColor: 'divider'
+                            },
+                            '&:hover fieldset': {
+                              borderColor: 'primary.main'
+                            }
+                          }
+                        }}
+                      />
+                    ) : (
+                      <Typography variant="body2"><strong>College:</strong> {teamDetailsDialog.team.teamLeader?.college}</Typography>
+                    )}
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    {editMode ? (
+                      <TextField
+                        fullWidth
+                        label="Department"
+                        value={editedTeamData?.teamLeader?.department || ''}
+                        onChange={(e) => setEditedTeamData(prev => ({
+                          ...prev,
+                          teamLeader: { ...prev.teamLeader, department: e.target.value }
+                        }))}
+                        size="small"
+                        sx={{
+                          bgcolor: 'background.paper',
+                          borderRadius: 1,
+                          '& .MuiInputBase-root': {
+                            color: 'text.primary',
+                            bgcolor: 'background.paper'
+                          },
+                          '& .MuiInputLabel-root': {
+                            color: 'text.secondary'
+                          },
+                          '& .MuiOutlinedInput-root': {
+                            '& fieldset': {
+                              borderColor: 'divider'
+                            },
+                            '&:hover fieldset': {
+                              borderColor: 'primary.main'
+                            }
+                          }
+                        }}
+                      />
+                    ) : (
+                      <Typography variant="body2"><strong>Department:</strong> {teamDetailsDialog.team.teamLeader?.department}</Typography>
+                    )}
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    {editMode ? (
+                      <TextField
+                        fullWidth
+                        label="Year"
+                        value={editedTeamData?.teamLeader?.year || ''}
+                        onChange={(e) => setEditedTeamData(prev => ({
+                          ...prev,
+                          teamLeader: { ...prev.teamLeader, year: e.target.value }
+                        }))}
+                        size="small"
+                        sx={editTextFieldStyle}
+                      />
+                    ) : (
+                      <Typography variant="body2"><strong>Year:</strong> {teamDetailsDialog.team.teamLeader?.year}</Typography>
+                    )}
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    {editMode ? (
+                      <TextField
+                        fullWidth
+                        label="Phone"
+                        value={editedTeamData?.teamLeader?.phoneNumber || ''}
+                        onChange={(e) => setEditedTeamData(prev => ({
+                          ...prev,
+                          teamLeader: { ...prev.teamLeader, phoneNumber: e.target.value }
+                        }))}
+                        size="small"
+                        sx={editTextFieldStyle}
+                      />
+                    ) : (
+                      <Typography variant="body2"><strong>Phone:</strong> {teamDetailsDialog.team.teamLeader?.phoneNumber}</Typography>
+                    )}
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    {editMode ? (
+                      <TextField
+                        fullWidth
+                        label="Admission No"
+                        value={editedTeamData?.teamLeader?.admissionNumber || ''}
+                        onChange={(e) => setEditedTeamData(prev => ({
+                          ...prev,
+                          teamLeader: { ...prev.teamLeader, admissionNumber: e.target.value }
+                        }))}
+                        size="small"
+                        sx={editTextFieldStyle}
+                      />
+                    ) : (
+                      <Typography variant="body2"><strong>Admission No:</strong> {teamDetailsDialog.team.teamLeader?.admissionNumber}</Typography>
+                    )}
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2">
+                      <strong>Type:</strong>
+                      <Chip
+                        label={teamDetailsDialog.team.teamLeader?.participantType === 'college' ? 'College' : 'External'}
+                        size="small"
+                        color={teamDetailsDialog.team.teamLeader?.participantType === 'college' ? 'primary' : 'secondary'}
+                        sx={{ ml: 1 }}
+                      />
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </Paper>
+
+              {/* Team Members Section */}
+              <Typography variant="h6" gutterBottom color="info.main">
+                Team Members ({teamDetailsDialog.team.teamMembers?.length || 0})
+              </Typography>
+              {teamDetailsDialog.team.teamMembers?.map((member, index) => (
+                <Paper key={index} sx={{
+                  p: 2,
+                  mb: 2,
+                  border: '2px solid',
+                  borderColor: 'info.main',
+                  bgcolor: 'background.paper'
+                }}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    Member {index + 1}
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} sm={6}>
+                      {editMode ? (
+                        <TextField
+                          fullWidth
+                          label="Name"
+                          value={editedTeamData?.teamMembers?.[index]?.name || ''}
+                          onChange={(e) => {
+                            const newMembers = [...(editedTeamData?.teamMembers || [])];
+                            newMembers[index] = { ...newMembers[index], name: e.target.value };
+                            setEditedTeamData(prev => ({ ...prev, teamMembers: newMembers }));
+                          }}
+                          size="small"
+                          sx={editTextFieldStyle}
+                        />
+                      ) : (
+                        <Typography variant="body2"><strong>Name:</strong> {member.name}</Typography>
+                      )}
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      {editMode ? (
+                        <TextField
+                          fullWidth
+                          label="Email"
+                          value={editedTeamData?.teamMembers?.[index]?.email || ''}
+                          onChange={(e) => {
+                            const newMembers = [...(editedTeamData?.teamMembers || [])];
+                            newMembers[index] = { ...newMembers[index], email: e.target.value };
+                            setEditedTeamData(prev => ({ ...prev, teamMembers: newMembers }));
+                          }}
+                          size="small"
+                          sx={editTextFieldStyle}
+                        />
+                      ) : (
+                        <Typography variant="body2"><strong>Email:</strong> {member.email}</Typography>
+                      )}
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      {editMode ? (
+                        <TextField
+                          fullWidth
+                          label="College"
+                          value={editedTeamData?.teamMembers?.[index]?.college || ''}
+                          onChange={(e) => {
+                            const newMembers = [...(editedTeamData?.teamMembers || [])];
+                            newMembers[index] = { ...newMembers[index], college: e.target.value };
+                            setEditedTeamData(prev => ({ ...prev, teamMembers: newMembers }));
+                          }}
+                          size="small"
+                          sx={editTextFieldStyle}
+                        />
+                      ) : (
+                        <Typography variant="body2"><strong>College:</strong> {member.college}</Typography>
+                      )}
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      {editMode ? (
+                        <TextField
+                          fullWidth
+                          label="Department"
+                          value={editedTeamData?.teamMembers?.[index]?.department || ''}
+                          onChange={(e) => {
+                            const newMembers = [...(editedTeamData?.teamMembers || [])];
+                            newMembers[index] = { ...newMembers[index], department: e.target.value };
+                            setEditedTeamData(prev => ({ ...prev, teamMembers: newMembers }));
+                          }}
+                          size="small"
+                          sx={editTextFieldStyle}
+                        />
+                      ) : (
+                        <Typography variant="body2"><strong>Department:</strong> {member.department}</Typography>
+                      )}
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      {editMode ? (
+                        <TextField
+                          fullWidth
+                          label="Year"
+                          value={editedTeamData?.teamMembers?.[index]?.year || ''}
+                          onChange={(e) => {
+                            const newMembers = [...(editedTeamData?.teamMembers || [])];
+                            newMembers[index] = { ...newMembers[index], year: e.target.value };
+                            setEditedTeamData(prev => ({ ...prev, teamMembers: newMembers }));
+                          }}
+                          size="small"
+                          sx={editTextFieldStyle}
+                        />
+                      ) : (
+                        <Typography variant="body2"><strong>Year:</strong> {member.year}</Typography>
+                      )}
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      {editMode ? (
+                        <TextField
+                          fullWidth
+                          label="Phone"
+                          value={editedTeamData?.teamMembers?.[index]?.phoneNumber || ''}
+                          onChange={(e) => {
+                            const newMembers = [...(editedTeamData?.teamMembers || [])];
+                            newMembers[index] = { ...newMembers[index], phoneNumber: e.target.value };
+                            setEditedTeamData(prev => ({ ...prev, teamMembers: newMembers }));
+                          }}
+                          size="small"
+                          sx={editTextFieldStyle}
+                        />
+                      ) : (
+                        <Typography variant="body2"><strong>Phone:</strong> {member.phoneNumber}</Typography>
+                      )}
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      {editMode ? (
+                        <TextField
+                          fullWidth
+                          label="Admission No"
+                          value={editedTeamData?.teamMembers?.[index]?.admissionNumber || ''}
+                          onChange={(e) => {
+                            const newMembers = [...(editedTeamData?.teamMembers || [])];
+                            newMembers[index] = { ...newMembers[index], admissionNumber: e.target.value };
+                            setEditedTeamData(prev => ({ ...prev, teamMembers: newMembers }));
+                          }}
+                          size="small"
+                          sx={editTextFieldStyle}
+                        />
+                      ) : (
+                        <Typography variant="body2"><strong>Admission No:</strong> {member.admissionNumber}</Typography>
+                      )}
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <Typography variant="body2">
+                        <strong>Type:</strong>
+                        <Chip
+                          label={member.participantType === 'college' ? 'College' : 'External'}
+                          size="small"
+                          color={member.participantType === 'college' ? 'primary' : 'secondary'}
+                          sx={{ ml: 1 }}
+                        />
+                      </Typography>
+                    </Grid>
+                  </Grid>
+                </Paper>
+              ))}
+
+              {/* Team Summary */}
+              <Paper sx={{
+                p: 2,
+                border: '2px solid',
+                borderColor: 'divider',
+                bgcolor: 'background.paper'
+              }}>
+                <Typography variant="h6" gutterBottom color="text.primary">
+                  Team Summary
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="text.primary"><strong>Total Team Size:</strong> {teamDetailsDialog.team.totalTeamSize}</Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="body2" color="text.primary"><strong>Registration Date:</strong> {new Date(teamDetailsDialog.team.registeredAt).toLocaleString()}</Typography>
+                  </Grid>
+                </Grid>
+              </Paper>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          {editMode ? (
+            <>
+              <Button onClick={() => setEditMode(false)} color="secondary">
+                Cancel
+              </Button>
+              <Button onClick={handleSaveTeamEdit} color="primary" variant="contained">
+                Save Changes
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button onClick={handleCloseTeamDetails} color="secondary">
+                Close
+              </Button>
+              <Button onClick={handleEditTeam} color="primary" variant="contained">
+                Edit Details
+              </Button>
+            </>
+          )}
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

@@ -62,6 +62,12 @@ const eventQuizSchema = new mongoose.Schema({
     enum: ['college', 'any'],
     default: 'college'
   },
+  // New array format for participant types
+  participantTypes: {
+    type: [String],
+    enum: ['college', 'external'],
+    default: ['college']
+  },
   registrationEnabled: {
     type: Boolean,
     default: true
@@ -74,9 +80,34 @@ const eventQuizSchema = new mongoose.Schema({
     type: Number,
     default: 0 // 0 means unlimited
   },
+  // Team configuration
+  participationMode: {
+    type: String,
+    enum: ['individual', 'team'],
+    default: 'individual'
+  },
+  teamSize: {
+    type: Number,
+    default: 1,
+    min: 1,
+    max: 10,
+    required: function() {
+      return this.participationMode === 'team';
+    }
+  },
   instructions: {
     type: String,
     trim: true
+  },
+  emailInstructions: {
+    type: String,
+    trim: true,
+    default: 'Please login with the provided credentials 10-15 minutes before the quiz starts. Ensure you have a stable internet connection.'
+  },
+  questionDisplayMode: {
+    type: String,
+    enum: ['one-by-one', 'all-at-once'],
+    default: 'one-by-one'
   },
   passingMarks: {
     type: Number,
@@ -108,17 +139,65 @@ const eventQuizSchema = new mongoose.Schema({
     required: true
   },
   registrations: [{
+    // For individual registrations
     student: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
+    },
+    participantType: {
+      type: String,
+      enum: ['college', 'external'],
+      default: 'college'
     },
     name: String,
     email: String,
     college: String,
     department: String,
     year: String,
-    section: String,
-    semester: String,
+    phoneNumber: String,
+    admissionNumber: String,
+
+    // For team registrations
+    isTeamRegistration: {
+      type: Boolean,
+      default: false
+    },
+    teamName: String,
+    teamLeader: {
+      participantType: {
+        type: String,
+        enum: ['college', 'external'],
+        default: 'college'
+      },
+      name: String,
+      email: String,
+      college: String,
+      department: String,
+      year: String,
+      phoneNumber: String,
+      admissionNumber: String
+    },
+    teamMembers: [{
+      participantType: {
+        type: String,
+        enum: ['college', 'external'],
+        default: 'college'
+      },
+      name: {
+        type: String,
+        required: true
+      },
+      email: {
+        type: String,
+        required: true
+      },
+      college: String, // Made optional - will be validated in backend logic
+      department: String,
+      year: String,
+      phoneNumber: String,
+      admissionNumber: String
+    }],
+
     registeredAt: {
       type: Date,
       default: Date.now

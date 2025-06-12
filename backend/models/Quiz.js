@@ -211,6 +211,21 @@ const quizSchema = new mongoose.Schema({
     type: Number,
     default: 0 // 0 means unlimited
   },
+  // Team configuration
+  participationMode: {
+    type: String,
+    enum: ['individual', 'team'],
+    default: 'individual'
+  },
+  teamSize: {
+    type: Number,
+    default: 1,
+    min: 1,
+    max: 10,
+    required: function() {
+      return this.participationMode === 'team';
+    }
+  },
   instructions: {
     type: String,
     trim: true
@@ -233,6 +248,70 @@ const quizSchema = new mongoose.Schema({
       default: ['all']
     }
   },
+  // Event quiz registrations (for event type quizzes)
+  registrations: [{
+    // For individual registrations
+    student: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    name: String,
+    email: String,
+    college: String,
+    department: String,
+    year: String,
+    section: String,
+    phoneNumber: String,
+    rollNumber: String,
+    admissionNumber: String,
+
+    // For team registrations
+    isTeamRegistration: {
+      type: Boolean,
+      default: false
+    },
+    teamName: String,
+    teamLeader: {
+      name: String,
+      email: String,
+      college: String,
+      department: String,
+      year: String,
+      section: String,
+      phoneNumber: String,
+      rollNumber: String,
+      admissionNumber: String
+    },
+    teamMembers: [{
+      name: {
+        type: String,
+        required: true
+      },
+      email: {
+        type: String,
+        required: true
+      },
+      college: {
+        type: String,
+        required: true
+      },
+      department: String,
+      year: String,
+      section: String,
+      phoneNumber: String,
+      rollNumber: String,
+      admissionNumber: String
+    }],
+
+    registeredAt: {
+      type: Date,
+      default: Date.now
+    },
+    isSpotRegistration: {
+      type: Boolean,
+      default: false
+    }
+  }],
   submissions: [{
     student: {
       type: mongoose.Schema.Types.ObjectId,
