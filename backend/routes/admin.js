@@ -941,21 +941,25 @@ router.get('/event-quiz-accounts/passwords/:id', isAdmin, async (req, res) => {
 });
 
 // Department routes
-router.get('/settings/departments', async (req, res) => {
+router.get('/settings/departments', isAdmin, async (req, res) => {
   try {
     const departments = await Department.find().sort('name');
     res.json({ departments });
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching departments' });
+    console.error('Error fetching departments:', error);
+    res.status(500).json({ message: 'Error fetching departments', error: error.message });
   }
 });
 
-router.post('/settings/departments', async (req, res) => {
+router.post('/settings/departments', isAdmin, async (req, res) => {
   try {
+    console.log('Creating department with data:', req.body);
     const department = new Department(req.body);
     await department.save();
+    console.log('Department created successfully:', department);
     res.status(201).json(department);
   } catch (error) {
+    console.error('Error creating department:', error);
     if (error.code === 11000) {
       res.status(400).json({ message: 'Department with this name or code already exists' });
     } else {
@@ -964,8 +968,9 @@ router.post('/settings/departments', async (req, res) => {
   }
 });
 
-router.put('/settings/departments/:id', async (req, res) => {
+router.put('/settings/departments/:id', isAdmin, async (req, res) => {
   try {
+    console.log('Updating department with ID:', req.params.id, 'Data:', req.body);
     const department = await Department.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -974,8 +979,10 @@ router.put('/settings/departments/:id', async (req, res) => {
     if (!department) {
       return res.status(404).json({ message: 'Department not found' });
     }
+    console.log('Department updated successfully:', department);
     res.json(department);
   } catch (error) {
+    console.error('Error updating department:', error);
     if (error.code === 11000) {
       res.status(400).json({ message: 'Department with this name or code already exists' });
     } else {
@@ -984,16 +991,19 @@ router.put('/settings/departments/:id', async (req, res) => {
   }
 });
 
-router.delete('/settings/departments/:id', async (req, res) => {
+router.delete('/settings/departments/:id', isAdmin, async (req, res) => {
   try {
+    console.log('Deleting department with ID:', req.params.id);
     const department = await Department.findByIdAndDelete(req.params.id);
     if (!department) {
       return res.status(404).json({ message: 'Department not found' });
     }
     // Also delete all sections for this department
     await AcademicDetail.deleteMany({ department: department.name });
+    console.log('Department deleted successfully:', department.name);
     res.json({ message: 'Department deleted successfully' });
   } catch (error) {
+    console.error('Error deleting department:', error);
     res.status(500).json({ message: error.message });
   }
 });

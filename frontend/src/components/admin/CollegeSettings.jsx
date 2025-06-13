@@ -53,16 +53,10 @@ const CollegeSettings = () => {
   const [openSectionDialog, setOpenSectionDialog] = useState(false);
   const [selectedDept, setSelectedDept] = useState(null);
   const [selectedSection, setSelectedSection] = useState(null);
-  const [deptFormData, setDeptFormData] = useState({ 
-    name: '', 
-    code: '', 
-    description: '',
-    years: [
-      {
-        year: 1,
-        semesters: 2
-      }
-    ]
+  const [deptFormData, setDeptFormData] = useState({
+    name: '',
+    code: '',
+    description: ''
   });
   const [sectionFormData, setSectionFormData] = useState({
     names: [],
@@ -111,36 +105,21 @@ const CollegeSettings = () => {
 
   useEffect(() => {
     fetchAcademicDetails();
+    fetchDepartments();
   }, []);
 
   const fetchAcademicDetails = async () => {
     try {
       const response = await api.get('/api/academic-details');
-      console.log('Raw API response:', response);
+      console.log('Raw academic details API response:', response);
       console.log('Response type:', typeof response);
 
       // The data is directly in the response object
       let academicData = Array.isArray(response) ? response : [];
       console.log('Processed academic details:', academicData);
-      
+
       // Set the academic details state
       setAcademicDetails(academicData);
-      
-      // Extract unique departments
-      const uniqueDepartments = [...new Set(
-        academicData
-          .filter(detail => detail && detail.department)
-          .map(detail => detail.department)
-      )];
-      console.log('Unique departments:', uniqueDepartments);
-      
-      // Set departments state with proper object structure
-      const departmentObjects = uniqueDepartments.map(deptName => ({
-        name: deptName,
-        _id: academicData.find(detail => detail.department === deptName)?._id
-      }));
-      console.log('Department objects:', departmentObjects);
-      setDepartments(departmentObjects);
 
       // Group sections by department, year, semester
       const groupedSections = {};
@@ -165,10 +144,10 @@ const CollegeSettings = () => {
       const allSubjects = [];
       academicData.forEach(detail => {
         if (detail && detail.subjects) {
-          const subjectsArray = detail.subjects.trim() 
+          const subjectsArray = detail.subjects.trim()
             ? detail.subjects.split(',').filter(s => s.trim())
             : [];
-          
+
           subjectsArray.forEach(subject => {
             const match = subject.trim().match(/^(.+)\(([A-Z]{2}\d{3})\)$/);
             if (match) {
@@ -187,11 +166,11 @@ const CollegeSettings = () => {
       });
       console.log('Extracted subjects:', allSubjects);
       setSubjects(allSubjects);
-      
+
     } catch (error) {
       console.error('Error fetching academic details:', error);
-      const errorMessage = error.response?.message || 
-                         error.message || 
+      const errorMessage = error.response?.message ||
+                         error.message ||
                          'Failed to fetch academic details';
       setErrorDialog({
         open: true,
@@ -199,7 +178,6 @@ const CollegeSettings = () => {
       });
       // Reset all state on error
       setAcademicDetails([]);
-      setDepartments([]);
       setSections([]);
       setSubjects([]);
     }
@@ -208,24 +186,65 @@ const CollegeSettings = () => {
   const handleDeptSubmit = async (e) => {
     e.preventDefault();
     try {
+      console.log('=== DEPARTMENT SUBMIT START ===');
+      console.log('Form data:', deptFormData);
+      console.log('Selected dept:', selectedDept);
+
       if (!deptFormData.name || !deptFormData.code) {
+        console.log('Validation failed: missing name or code');
         showError('Department name and code are required');
         return;
       }
 
-      if (selectedDept) {
-        await api.put(`/api/admin/settings/departments/${selectedDept._id}`, deptFormData);
-      } else {
-        await api.post('/api/admin/settings/departments', deptFormData);
+      if (!deptFormData.name.trim() || !deptFormData.code.trim()) {
+        console.log('Validation failed: empty name or code after trim');
+        showError('Department name and code cannot be empty');
+        return;
       }
 
-      await fetchDepartments();
+      console.log('Submitting department data:', deptFormData);
+
+      let response;
+      if (selectedDept) {
+        console.log('Updating existing department...');
+        response = await api.put(`/api/admin/settings/departments/${selectedDept._id}`, deptFormData);
+        console.log('Department update response:', response);
+      } else {
+        console.log('Creating new department...');
+        response = await api.post('/api/admin/settings/departments', deptFormData);
+        console.log('Department create response:', response);
+      }
+
+      console.log('API call successful, refreshing data...');
+
+      // Refresh both departments and academic details
+      await Promise.all([
+        fetchDepartments(),
+        fetchAcademicDetails()
+      ]);
+
+      console.log('Data refreshed, closing dialog...');
+
       setOpenDeptDialog(false);
       setDeptFormData({ name: '', code: '', description: '' });
       setSelectedDept(null);
+
+      // Show success message
+      const action = selectedDept ? 'updated' : 'created';
+      console.log(`Department ${action} successfully`);
+      console.log('=== DEPARTMENT SUBMIT END ===');
+
     } catch (error) {
-      console.error('Error saving department:', error);
-      showError(error.response?.data?.message || 'Error saving department');
+      console.error('=== DEPARTMENT SUBMIT ERROR ===');
+      console.error('Full error object:', error);
+      console.error('Error response:', error.response);
+      console.error('Error response data:', error.response?.data);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+
+      const errorMessage = error.response?.data?.message || error.message || 'Error saving department';
+      console.error('Showing error to user:', errorMessage);
+      showError(errorMessage);
     }
   };
 
@@ -608,6 +627,7 @@ const CollegeSettings = () => {
         return;
       }
 
+      // Create year/semester configuration for all existing departments
       const response = await api.post('/api/admin/academic-details/years-semesters', yearSemFormData);
       if (response) {
         await fetchAcademicDetails();
@@ -616,7 +636,6 @@ const CollegeSettings = () => {
           year: 1,
           semesters: [1, 2]
         });
-        setSelectedDept(null);
       }
     } catch (error) {
       console.error('Error saving year/semester configuration:', error);
@@ -626,13 +645,19 @@ const CollegeSettings = () => {
 
   const handleDeleteYearConfig = async (department, year) => {
     showConfirmation(
-      `Are you sure you want to delete the configuration for ${department} in Year ${year}? This action cannot be undone.`,
+      `Are you sure you want to delete all Year ${year} configurations? This will remove Year ${year} from all departments and cannot be undone.`,
       async () => {
         try {
-          const response = await api.delete(`/api/admin/academic-details/years-semesters/${department}/${year}`);
-          if (response) {
-            await fetchAcademicDetails();
-          }
+          // Delete all academic details for the given year across all departments
+          const detailsToDelete = academicDetails.filter(detail => detail.year === year);
+
+          await Promise.all(
+            detailsToDelete.map(detail =>
+              api.delete(`/api/academic-details/${detail._id}`)
+            )
+          );
+
+          await fetchAcademicDetails();
         } catch (error) {
           console.error('Error deleting year/semester configuration:', error);
           showError('Error deleting year/semester configuration');
@@ -643,13 +668,38 @@ const CollegeSettings = () => {
 
   const fetchDepartments = async () => {
     try {
+      console.log('=== FETCHING DEPARTMENTS ===');
       const response = await api.get('/api/admin/settings/departments');
-      if (response && response.departments) {
+      console.log('Departments API response:', response);
+      console.log('Response type:', typeof response);
+      console.log('Response keys:', Object.keys(response || {}));
+
+      // The backend returns { departments: [...] }
+      if (response && response.departments && Array.isArray(response.departments)) {
+        console.log('Setting departments:', response.departments);
+        console.log('Number of departments:', response.departments.length);
         setDepartments(response.departments);
+      } else {
+        console.log('No departments found in response or invalid format');
+        console.log('Response structure:', JSON.stringify(response, null, 2));
+        setDepartments([]);
       }
+      console.log('Current departments state after fetch:', departments);
+      console.log('=== FETCH DEPARTMENTS COMPLETE ===');
     } catch (error) {
-      console.error('Error fetching departments:', error);
-      showError('Error fetching departments');
+      console.error('=== FETCH DEPARTMENTS ERROR ===');
+      console.error('Full error:', error);
+      console.error('Error response:', error.response);
+      console.error('Error status:', error.response?.status);
+      console.error('Error data:', error.response?.data);
+
+      // Check if it's an authentication error
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        showError('Authentication error. Please check if you are logged in as admin.');
+      } else {
+        showError('Error fetching departments: ' + (error.response?.data?.message || error.message));
+      }
+      setDepartments([]);
     }
   };
 
@@ -665,7 +715,6 @@ const CollegeSettings = () => {
                 variant="contained"
                 startIcon={<AddIcon />}
                 onClick={() => {
-                  setSelectedDept(null);
                   setYearSemFormData({
                     year: 1,
                     semesters: [1, 2]
@@ -681,69 +730,75 @@ const CollegeSettings = () => {
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell><strong>Department</strong></TableCell>
                     <TableCell><strong>Year</strong></TableCell>
                     <TableCell><strong>Semesters</strong></TableCell>
                     <TableCell><strong>Actions</strong></TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {departments.map((dept) => {
-                    const yearConfigs = academicDetails
-                      .filter(detail => detail.department === dept.name)
-                      .reduce((acc, detail) => {
-                        const year = detail.year;
-                        if (!acc[year]) {
-                          acc[year] = new Set();
-                        }
-                        acc[year].add(detail.semester);
-                        return acc;
-                      }, {});
+                  {(() => {
+                    // Get unique year configurations across all departments
+                    const yearConfigs = academicDetails.reduce((acc, detail) => {
+                      if (!detail) return acc;
+                      const year = detail.year;
+                      if (!acc[year]) {
+                        acc[year] = new Set();
+                      }
+                      acc[year].add(detail.semester);
+                      return acc;
+                    }, {});
 
-                    return Object.entries(yearConfigs).map(([year, semesters]) => (
-                      <TableRow key={`${dept.name}-${year}`}>
-                        <TableCell>{dept.name}</TableCell>
-                        <TableCell>Year {year}</TableCell>
-                        <TableCell>
-                          {Array.from(semesters).sort((a, b) => a - b).map((sem) => (
-                            <Chip
-                              key={sem}
-                              label={`Semester ${sem}`}
-                              size="small"
-                              sx={{ mr: 1 }}
-                            />
-                          ))}
-                        </TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', gap: 1 }}>
-                            <IconButton
-                              size="small"
-                              onClick={() => {
-                                setSelectedDept(dept);
-                                setDeptFormData({
-                                  name: dept.name,
-                                  code: dept.code,
-                                  description: dept.description,
-                                  year: Number(year),
-                                  semesters: Array.from(semesters)
-                                });
-                                setOpenYearSemDialog(true);
-                              }}
-                            >
-                              <EditIcon />
-                            </IconButton>
-                            <IconButton
-                              color="error"
-                              size="small"
-                              onClick={() => handleDeleteYearConfig(dept.name, Number(year))}
-                            >
-                              <DeleteIcon />
-                            </IconButton>
-                          </Box>
+                    const yearEntries = Object.entries(yearConfigs);
+
+                    return yearEntries.length > 0 ? (
+                      yearEntries.map(([year, semesters]) => (
+                        <TableRow key={year}>
+                          <TableCell>Year {year}</TableCell>
+                          <TableCell>
+                            {Array.from(semesters).sort((a, b) => a - b).map((sem) => (
+                              <Chip
+                                key={sem}
+                                label={`Semester ${sem}`}
+                                size="small"
+                                sx={{ mr: 1 }}
+                              />
+                            ))}
+                          </TableCell>
+                          <TableCell>
+                            <Box sx={{ display: 'flex', gap: 1 }}>
+                              <IconButton
+                                size="small"
+                                onClick={() => {
+                                  setYearSemFormData({
+                                    year: Number(year),
+                                    semesters: Array.from(semesters)
+                                  });
+                                  setOpenYearSemDialog(true);
+                                }}
+                              >
+                                <EditIcon />
+                              </IconButton>
+                              <IconButton
+                                color="error"
+                                size="small"
+                                onClick={() => handleDeleteYearConfig('', Number(year))}
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={3} align="center">
+                          <Typography variant="body2" color="text.secondary">
+                            No year configurations found. Click "Add Year Configuration" to create one.
+                          </Typography>
                         </TableCell>
                       </TableRow>
-                    ));
-                  })}
+                    );
+                  })()}
                 </TableBody>
               </Table>
             </TableContainer>
@@ -788,37 +843,56 @@ const CollegeSettings = () => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {departments.map((dept) => (
-                    <TableRow key={dept._id}>
-                      <TableCell>{dept.name}</TableCell>
-                      <TableCell>{dept.code}</TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', gap: 1 }}>
-                          <IconButton
-                            size="small"
-                            onClick={() => {
-                              setSelectedDept(dept);
-                              setDeptFormData({
-                                name: dept.name,
-                                code: dept.code,
-                                description: dept.description
-                              });
-                              setOpenDeptDialog(true);
-                            }}
-                          >
-                            <EditIcon />
-                          </IconButton>
-                          <IconButton
-                            color="error"
-                            size="small"
-                            onClick={() => handleDeleteDepartment(dept._id)}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {(() => {
+                    console.log('Rendering departments table. Departments state:', departments);
+                    console.log('Departments length:', departments.length);
+                    console.log('Departments array:', JSON.stringify(departments, null, 2));
+
+                    return departments.length > 0 ? (
+                      departments.map((dept) => {
+                        console.log('Rendering department:', dept);
+                        return (
+                          <TableRow key={dept._id}>
+                            <TableCell>{dept.name}</TableCell>
+                            <TableCell>{dept.code}</TableCell>
+                            <TableCell>
+                              <Box sx={{ display: 'flex', gap: 1 }}>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => {
+                                    setSelectedDept(dept);
+                                    setDeptFormData({
+                                      name: dept.name,
+                                      code: dept.code,
+                                      description: dept.description || ''
+                                    });
+                                    setOpenDeptDialog(true);
+                                  }}
+                                >
+                                  <EditIcon />
+                                </IconButton>
+                                <IconButton
+                                  color="error"
+                                  size="small"
+                                  onClick={() => handleDeleteDepartment(dept._id)}
+                                >
+                                  <DeleteIcon />
+                                </IconButton>
+                              </Box>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={3} align="center">
+                          <Typography variant="body2" color="text.secondary">
+                            No departments found. Click "Add Department" to create one.
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })()}
                 </TableBody>
               </Table>
             </TableContainer>
@@ -1107,7 +1181,7 @@ const CollegeSettings = () => {
           fullWidth
         >
           <DialogTitle>
-            {selectedDept ? 'Edit Year Configuration' : 'Add Year Configuration'}
+            Add Year Configuration
           </DialogTitle>
           <DialogContent>
             <Box sx={{ mt: 2 }}>
@@ -1158,7 +1232,7 @@ const CollegeSettings = () => {
               onClick={handleYearSemSubmit}
               disabled={!yearSemFormData.year || yearSemFormData.semesters.length === 0}
             >
-              {selectedDept ? 'Update' : 'Add'} Configuration
+              Add Configuration
             </Button>
           </DialogActions>
         </Dialog>
