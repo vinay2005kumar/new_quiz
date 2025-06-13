@@ -11,6 +11,7 @@ const bcrypt = require('bcryptjs');
 const EventQuizAccount = require('../models/EventQuizAccount');
 const Department = require('../models/Department');
 const AcademicDetail = require('../models/AcademicDetail');
+const College = require('../models/College');
 const { encrypt, decrypt } = require('../utils/encryption');
 
 // Configure multer for file uploads
@@ -1305,4 +1306,176 @@ router.get('/stats', auth, authorize('admin'), async (req, res) => {
   }
 });
 
-module.exports = router; 
+// College Information Management Routes
+
+// Get college information
+router.get('/college-info', async (req, res) => {
+  try {
+    let college = await College.findOne();
+
+    // If no college info exists, create default with sample data
+    if (!college) {
+      college = new College({
+        name: 'R.V.R & J.C College of Engineering',
+        address: 'chowdavaram',
+        email: 'rvr@gmail.com',
+        phone: '1234567890',
+        website: 'rvr.com',
+        establishedYear: 1985,
+        description: 'A premier engineering institution committed to excellence in education and research.',
+        backgroundType: 'gradient',
+        backgroundValue: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        backgroundImage: '',
+        headerStyle: 'transparent',
+        headerColor: 'rgba(255, 255, 255, 0.1)',
+        headerTextColor: 'white',
+        footerStyle: 'solid',
+        footerColor: 'rgba(0, 0, 0, 0.8)',
+        footerTextColor: 'white',
+        isSetup: false
+      });
+      await college.save();
+    }
+
+    res.json(college);
+  } catch (error) {
+    console.error('Error fetching college info:', error);
+    res.status(500).json({ message: 'Error fetching college information', error: error.message });
+  }
+});
+
+// Update college information
+router.put('/college-info', isAdmin, async (req, res) => {
+  try {
+    const updateData = {
+      ...req.body,
+      isSetup: true
+    };
+
+    let college = await College.findOne();
+
+    if (!college) {
+      college = new College(updateData);
+    } else {
+      Object.assign(college, updateData);
+    }
+
+    await college.save();
+
+    res.json({ message: 'College information updated successfully', college });
+  } catch (error) {
+    console.error('Error updating college info:', error);
+    res.status(500).json({ message: 'Error updating college information', error: error.message });
+  }
+});
+
+// Check if initial setup is required
+router.get('/setup-status', async (req, res) => {
+  try {
+    // Check if any admin exists
+    const adminExists = await User.findOne({ role: 'admin' });
+
+    // Check if college is set up
+    const college = await College.findOne();
+    const collegeSetup = college && college.isSetup;
+
+    res.json({
+      adminExists: !!adminExists,
+      collegeSetup: !!collegeSetup,
+      requiresSetup: !adminExists || !collegeSetup
+    });
+  } catch (error) {
+    console.error('Error checking setup status:', error);
+    res.status(500).json({ message: 'Error checking setup status', error: error.message });
+  }
+});
+
+// Initial admin registration with college setup
+router.post('/initial-setup', async (req, res) => {
+  try {
+    const {
+      adminName,
+      adminEmail,
+      adminPassword,
+      collegeName,
+      collegeAddress,
+      collegeEmail,
+      collegePhone,
+      collegeWebsite,
+      establishedYear,
+      description
+    } = req.body;
+
+    // Check if admin already exists
+    const existingAdmin = await User.findOne({ role: 'admin' });
+    if (existingAdmin) {
+      return res.status(400).json({ message: 'Admin already exists. Setup not required.' });
+    }
+
+    // Validate required fields
+    if (!adminName || !adminEmail || !adminPassword || !collegeName) {
+      return res.status(400).json({
+        message: 'Admin name, email, password, and college name are required'
+      });
+    }
+
+    // Check if user with admin email already exists
+    const existingUser = await User.findOne({ email: adminEmail });
+    if (existingUser) {
+      return res.status(400).json({ message: 'User with this email already exists' });
+    }
+
+    // Create admin user
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(adminPassword, salt);
+    const encryptedPassword = encrypt(adminPassword);
+
+    const admin = new User({
+      name: adminName,
+      email: adminEmail,
+      password: hashedPassword,
+      originalPassword: encryptedPassword,
+      role: 'admin'
+    });
+
+    await admin.save();
+
+    // Create or update college information
+    let college = await College.findOne();
+    const collegeData = {
+      name: collegeName,
+      address: collegeAddress,
+      email: collegeEmail,
+      phone: collegePhone,
+      website: collegeWebsite,
+      establishedYear: establishedYear ? parseInt(establishedYear) : undefined,
+      description: description,
+      isSetup: true
+    };
+
+    if (!college) {
+      college = new College(collegeData);
+    } else {
+      Object.assign(college, collegeData);
+    }
+
+    await college.save();
+
+    res.status(201).json({
+      message: 'Initial setup completed successfully',
+      admin: {
+        id: admin._id,
+        name: admin.name,
+        email: admin.email,
+        role: admin.role
+      },
+      college: college
+    });
+
+  } catch (error) {
+    console.error('Error in initial setup:', error);
+    res.status(500).json({ message: 'Error during initial setup', error: error.message });
+  }
+});
+
+module.exports = router;

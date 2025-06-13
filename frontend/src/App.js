@@ -14,8 +14,66 @@ import QuizAttempt from './components/quiz/QuizAttempt';
 import QuizReview from './components/quiz/QuizReview';
 import Profile from './components/profile/Profile';
 import AdminRoutes from './routes/AdminRoutes';
+import InitialSetup from './components/setup/InitialSetup';
+import { useSetupCheck } from './hooks/useSetupCheck';
+import { CircularProgress, Box, Typography } from '@mui/material';
 
 function App() {
+  const { requiresSetup, loading, error, refetch } = useSetupCheck();
+
+  // Show loading spinner while checking setup status
+  if (loading) {
+    return (
+      <Box
+        display="flex"
+        flexDirection="column"
+        justifyContent="center"
+        alignItems="center"
+        minHeight="100vh"
+      >
+        <CircularProgress size={60} />
+        <Typography variant="h6" sx={{ mt: 2 }}>
+          Checking system status...
+        </Typography>
+      </Box>
+    );
+  }
+
+  // Show error if setup check failed
+  if (error) {
+    return (
+      <Box
+        display="flex"
+        flexDirection="column"
+        justifyContent="center"
+        alignItems="center"
+        minHeight="100vh"
+        p={3}
+      >
+        <Typography variant="h5" color="error" gutterBottom>
+          System Error
+        </Typography>
+        <Typography variant="body1" color="text.secondary" paragraph>
+          {error}
+        </Typography>
+        <button onClick={refetch}>Retry</button>
+      </Box>
+    );
+  }
+
+  // Show initial setup if required
+  if (requiresSetup) {
+    return (
+      <Router>
+        <InitialSetup onSetupComplete={() => {
+          // Refresh setup status after completion
+          refetch();
+        }} />
+      </Router>
+    );
+  }
+
+  // Normal app flow
   return (
     <Router>
       <AuthProvider>

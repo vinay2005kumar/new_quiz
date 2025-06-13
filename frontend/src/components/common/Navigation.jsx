@@ -40,12 +40,14 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme as useAppTheme } from '../../context/ThemeContext';
+import { useCollegeInfo } from '../../hooks/useCollegeInfo';
 
 const Navigation = () => {
   const [anchorElUser, setAnchorElUser] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { user, logout } = useAuth();
   const { mode, toggleTheme } = useAppTheme();
+  const { name: collegeName, email: collegeEmail, phone: collegePhone, address: collegeAddress } = useCollegeInfo();
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
@@ -219,12 +221,9 @@ const Navigation = () => {
             </IconButton>
           )}
 
-          <Typography
-            variant="h6"
-            noWrap
-            component="div"
-            sx={{ 
-              flexGrow: { xs: 1, md: 0 }, 
+          <Box
+            sx={{
+              flexGrow: { xs: 1, md: 0 },
               mr: { md: 4 },
               display: 'flex',
               alignItems: 'center',
@@ -232,9 +231,34 @@ const Navigation = () => {
             }}
             onClick={() => handleNavigation('/dashboard')}
           >
-            <QuizIcon sx={{ mr: 1 }} />
-            Quiz Platform
-          </Typography>
+            <QuizIcon sx={{ mr: 2 }} />
+            <Box>
+              <Typography variant="h6" component="div" sx={{ lineHeight: 1.2 }}>
+                {collegeName}
+              </Typography>
+              {collegeAddress && (
+                <Typography variant="caption" component="div" sx={{ opacity: 0.8, lineHeight: 1 }}>
+                  {collegeAddress}
+                </Typography>
+              )}
+            </Box>
+          </Box>
+
+          {/* College Contact Info - Desktop Only */}
+          {!isMobile && (collegeEmail || collegePhone) && (
+            <Box sx={{ mr: 2, display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+              {collegeEmail && (
+                <Typography variant="caption" sx={{ opacity: 0.9 }}>
+                  📧 {collegeEmail}
+                </Typography>
+              )}
+              {collegePhone && (
+                <Typography variant="caption" sx={{ opacity: 0.9 }}>
+                  📞 {collegePhone}
+                </Typography>
+              )}
+            </Box>
+          )}
 
           {/* Desktop Navigation */}
           {!isMobile && (

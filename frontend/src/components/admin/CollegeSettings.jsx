@@ -45,6 +45,7 @@ import {
 } from '@mui/icons-material';
 import api from '../../config/axios';
 import * as XLSX from 'xlsx';
+import CollegeInformation from './CollegeInformation';
 
 const CollegeSettings = () => {
   const [departments, setDepartments] = useState([]);
@@ -102,6 +103,7 @@ const CollegeSettings = () => {
   });
   
   const [openUploadDialog, setOpenUploadDialog] = useState(false);
+  const [tabValue, setTabValue] = useState(0);
 
   useEffect(() => {
     fetchAcademicDetails();
@@ -705,7 +707,23 @@ const CollegeSettings = () => {
 
   return (
     <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-      <Grid container spacing={3}>
+      <Typography variant="h4" gutterBottom>
+        College Settings
+      </Typography>
+
+      <Paper sx={{ mb: 3 }}>
+        <Tabs
+          value={tabValue}
+          onChange={(e, newValue) => setTabValue(newValue)}
+          sx={{ borderBottom: 1, borderColor: 'divider' }}
+        >
+          <Tab label="Academic Configuration" />
+          <Tab label="College Information" />
+        </Tabs>
+      </Paper>
+
+      {tabValue === 0 && (
+        <Grid container spacing={3}>
         {/* Top Row with Years/Semesters and Departments */}
         <Grid item xs={12} md={7}>
           <Paper sx={{ p: 2, height: '100%' }}>
@@ -1900,7 +1918,12 @@ const CollegeSettings = () => {
             </Button>
           </DialogActions>
         </Dialog>
-      </Grid>
+        </Grid>
+      )}
+
+      {tabValue === 1 && (
+        <CollegeInformation />
+      )}
     </Container>
   );
 };

@@ -11,6 +11,7 @@ import {
   CircularProgress
 } from '@mui/material';
 import { useAuth } from '../../context/AuthContext';
+import { useCollegeInfo } from '../../hooks/useCollegeInfo';
 
 // Helper function to get dashboard path based on role
 const getDashboardPath = (role) => {
@@ -34,6 +35,7 @@ const Login = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { login, user } = useAuth();
+  const { name: collegeName, email: collegeEmail, phone: collegePhone, address: collegeAddress } = useCollegeInfo();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -77,7 +79,31 @@ const Login = () => {
         }}
       >
         <Paper elevation={3} sx={{ p: 4, width: '100%' }}>
-          <Typography component="h1" variant="h5" align="center" gutterBottom>
+          {/* College Header */}
+          <Box sx={{ textAlign: 'center', mb: 3 }}>
+            <Typography component="h1" variant="h4" gutterBottom sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+              {collegeName}
+            </Typography>
+            {collegeAddress && (
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                📍 {collegeAddress}
+              </Typography>
+            )}
+            <Box sx={{ display: 'flex', justifyContent: 'center', gap: 3, mt: 1 }}>
+              {collegeEmail && (
+                <Typography variant="body2" color="text.secondary">
+                  📧 {collegeEmail}
+                </Typography>
+              )}
+              {collegePhone && (
+                <Typography variant="body2" color="text.secondary">
+                  📞 {collegePhone}
+                </Typography>
+              )}
+            </Box>
+          </Box>
+
+          <Typography component="h2" variant="h5" align="center" gutterBottom>
             Sign In
           </Typography>
 

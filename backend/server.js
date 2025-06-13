@@ -16,6 +16,7 @@ const quizRouter = require('./routes/quiz');
 const academicDetailsRouter = require('./routes/academicDetails');
 const adminRouter = require('./routes/admin');
 const eventQuizRouter = require('./routes/eventQuiz');
+const setupRouter = require('./routes/setup');
 
 const app = express();
 
@@ -48,6 +49,7 @@ app.use('/api/quiz', quizRouter);
 app.use('/api/academic-details', academicDetailsRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/event-quiz', eventQuizRouter);
+app.use('/api/setup', setupRouter);
 
 // Serve static files in production
 // if (process.env.NODE_ENV === 'production') {
