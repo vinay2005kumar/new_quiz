@@ -56,6 +56,7 @@ const EventQuizzes = () => {
         await api.delete(`/api/quiz/${quizId}`);
         fetchQuizzes();
       } catch (error) {
+        console.error('Failed to delete quiz:', error);
         setError(error.response?.data?.message || 'Failed to delete quiz');
       }
     }

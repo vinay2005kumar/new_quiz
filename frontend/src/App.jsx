@@ -52,6 +52,7 @@ import EventQuizSubmissions from './components/event/EventQuizSubmissions';
 import EventQuizSubmissionView from './components/event/EventQuizSubmissionView';
 import CollegeSettings from './components/admin/CollegeSettings';
 import AdminQuizzes from './components/admin/AdminQuizzes';
+import QuizSubmissionView from './components/quiz/QuizSubmissionView';
 
 
 
@@ -88,8 +89,9 @@ const AppRoutes = () => {
                 <Route path="/quiz/edit/:id" element={<EventQuizEdit />} />
                 <Route path="/quiz/:id/registrations" element={<EventQuizRegistrations />} />
                 <Route path="/quiz/:id/submissions" element={<EventQuizSubmissions />} />
-                <Route path="/quiz/:quizId/submission/:studentId" element={<EventQuizSubmissionView />} />
+                <Route path="/quiz/:id/submission/:studentId" element={<EventQuizSubmissionView />} />
                 <Route path="/profile" element={<Profile />} />
+                <Route path="*" element={<Navigate to="/event/dashboard" replace />} />
               </Routes>
             </Box>
           </PrivateRoute>
@@ -107,6 +109,7 @@ const AppRoutes = () => {
                 <Route path="/quizzes/:id/attempt" element={<QuizAttempt />} />
                 <Route path="/quizzes/:id/review" element={<QuizReview />} />
                 <Route path="/profile" element={<Profile />} />
+                <Route path="*" element={<Navigate to="/student/dashboard" replace />} />
               </Routes>
             </Box>
           </PrivateRoute>
@@ -123,7 +126,9 @@ const AppRoutes = () => {
                 <Route path="/quizzes/create" element={<QuizCreate />} />
                 <Route path="/quizzes/:id/edit" element={<QuizEdit />} />
                 <Route path="/quizzes/:id/submissions" element={<QuizSubmissions />} />
+                <Route path="/quizzes/:id/submissions/:studentId" element={<QuizSubmissionView />} />
                 <Route path="/profile" element={<Profile />} />
+                <Route path="*" element={<Navigate to="/faculty/dashboard" replace />} />
               </Routes>
             </Box>
           </PrivateRoute>
@@ -143,8 +148,10 @@ const AppRoutes = () => {
                 <Route path="/quizzes" element={<AdminQuizzes />} />
                 <Route path="/quiz/:id/edit" element={<QuizEdit />} />
                 <Route path="/quiz/:id/submissions" element={<QuizSubmissions />} />
+                <Route path="/quiz/:id/submissions/:studentId" element={<QuizSubmissionView />} />
                 <Route path="/event-quiz/:id/edit" element={<EventQuizEdit />} />
                 <Route path="/event-quiz/:id/submissions" element={<EventQuizSubmissions />} />
+                <Route path="/event-quiz/:id/submissions/:studentId" element={<EventQuizSubmissionView />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
               </Routes>

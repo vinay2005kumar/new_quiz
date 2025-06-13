@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Container,
   Paper,
@@ -51,9 +51,29 @@ const SEMESTERS = ['All Semesters', '1', '2'];
 const EventQuizEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // Function to determine the correct back navigation path
+  const getBackPath = () => {
+    const currentPath = location.pathname;
+    console.log('EventQuizEdit - Current path:', currentPath);
+
+    // If accessed from admin routes, go back to admin quizzes
+    if (currentPath.includes('/admin/')) {
+      return '/admin/quizzes';
+    }
+    // Default to event quizzes page
+    return '/event/quizzes';
+  };
+
+  const handleBackNavigation = () => {
+    const backPath = getBackPath();
+    console.log('EventQuizEdit - Navigating back to:', backPath);
+    navigate(backPath);
+  };
   const [academicStructure, setAcademicStructure] = useState({
     departments: DEPARTMENTS,
     years: YEARS,
@@ -258,7 +278,7 @@ const EventQuizEdit = () => {
       setLoading(true);
       await api.put(`/api/event-quiz/${id}`, formData);
       setSuccess('Quiz updated successfully');
-      setTimeout(() => navigate('/event/quizzes'), 1500);
+      setTimeout(() => handleBackNavigation(), 1500);
     } catch (error) {
       console.error('Error updating quiz:', error);
       setError(error.response?.data?.message || 'Failed to update quiz');
@@ -655,7 +675,7 @@ const EventQuizEdit = () => {
               <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
                 <Button
                   variant="outlined"
-                  onClick={() => navigate('/event/quizzes')}
+                  onClick={handleBackNavigation}
                 >
                   Cancel
                 </Button>

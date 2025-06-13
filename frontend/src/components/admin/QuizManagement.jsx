@@ -95,6 +95,7 @@ const QuizManagement = () => {
         await api.delete(`/api/quiz/${quizId}`);
         fetchQuizzes();
       } catch (err) {
+        console.error('Failed to delete quiz:', err);
         setError('Failed to delete quiz');
       }
     }

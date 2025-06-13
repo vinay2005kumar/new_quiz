@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Container,
   Paper,
@@ -38,10 +38,42 @@ const SEMESTERS = ['1', '2'];
 const QuizEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // Function to determine the correct back navigation path
+  const getBackPath = () => {
+    const currentPath = location.pathname;
+    console.log('Current path:', currentPath);
+    console.log('User role:', user?.role);
+
+    // If accessed from admin routes, go back to admin quizzes
+    if (currentPath.includes('/admin/')) {
+      return '/admin/quizzes';
+    }
+    // If accessed from faculty routes, go back to faculty quizzes
+    else if (currentPath.includes('/faculty/')) {
+      return '/faculty/quizzes';
+    }
+    // Default fallback based on user role
+    else if (user?.role === 'admin') {
+      return '/admin/quizzes';
+    }
+    else if (user?.role === 'faculty') {
+      return '/faculty/quizzes';
+    }
+    // Final fallback
+    return '/faculty/quizzes';
+  };
+
+  const handleBackNavigation = () => {
+    const backPath = getBackPath();
+    console.log('Navigating back to:', backPath);
+    navigate(backPath);
+  };
   const [subjects, setSubjects] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [academicStructure, setAcademicStructure] = useState(null);
@@ -306,7 +338,7 @@ const QuizEdit = () => {
       
       setSuccess('Quiz updated successfully');
       setTimeout(() => {
-        navigate(-1);
+        handleBackNavigation();
       }, 2000);
     } catch (error) {
       console.error('Error updating quiz:', error);
@@ -426,7 +458,7 @@ const QuizEdit = () => {
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
       <Paper sx={{ p: 3 }}>
         <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 2 }}>
-          <IconButton onClick={() => navigate(-1)}>
+          <IconButton onClick={handleBackNavigation}>
             <ArrowBackIcon />
           </IconButton>
           <Typography variant="h4">Edit Quiz</Typography>
@@ -692,7 +724,7 @@ const QuizEdit = () => {
         <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 3 }}>
           <Button
             variant="outlined"
-            onClick={() => navigate(-1)}
+            onClick={handleBackNavigation}
           >
             Cancel
           </Button>

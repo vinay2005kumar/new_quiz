@@ -111,6 +111,73 @@ router.post('/', auth, isEventAdmin, async (req, res) => {
     console.log('Quiz after save:', quiz.toObject());
     console.log('Saved participantTypes:', quiz.participantTypes);
 
+    // Handle pre-filled students if provided
+    if (req.body.prefilledStudents && Array.isArray(req.body.prefilledStudents) && req.body.prefilledStudents.length > 0) {
+      console.log(`🎯 Creating credentials for ${req.body.prefilledStudents.length} pre-filled students`);
+
+      try {
+        const { generateCredentials, sendRegistrationEmail } = require('../services/emailService');
+        let successCount = 0;
+        let failureCount = 0;
+
+        for (const email of req.body.prefilledStudents) {
+          try {
+            // Create a mock registration object for credential generation
+            const mockRegistration = {
+              email: email,
+              name: email.split('@')[0], // Use email prefix as name
+              participantType: 'external', // Default to external
+              college: 'Pre-selected Student',
+              department: 'N/A',
+              year: 'N/A',
+              phoneNumber: 'N/A',
+              admissionNumber: 'N/A',
+              isTeamRegistration: false,
+              registeredAt: new Date()
+            };
+
+            // Generate credentials
+            const credentials = generateCredentials(mockRegistration, quiz);
+
+            // Check if credentials already exist
+            let quizCredentials = await QuizCredentials.findOne({
+              quiz: quiz._id,
+              username: credentials.username
+            });
+
+            if (!quizCredentials) {
+              // Create new credentials
+              quizCredentials = new QuizCredentials({
+                quiz: quiz._id,
+                username: credentials.username,
+                password: credentials.password,
+                participantDetails: mockRegistration,
+                createdAt: new Date()
+              });
+              await quizCredentials.save();
+            }
+
+            // Send email with credentials
+            const emailSent = await sendRegistrationEmail(mockRegistration, quiz, credentials);
+            if (emailSent) {
+              successCount++;
+              console.log(`✅ Credentials created and email sent to: ${email}`);
+            } else {
+              failureCount++;
+              console.log(`❌ Failed to send email to: ${email}`);
+            }
+          } catch (studentError) {
+            failureCount++;
+            console.error(`❌ Error processing student ${email}:`, studentError);
+          }
+        }
+
+        console.log(`📊 Pre-filled students processing complete: ${successCount} successful, ${failureCount} failed`);
+      } catch (error) {
+        console.error('❌ Error processing pre-filled students:', error);
+      }
+    }
+
     res.status(201).json(quiz);
   } catch (error) {
     console.error('Error creating event quiz:', error);
@@ -1903,12 +1970,20 @@ router.get('/:quizId/submission/:studentId', auth, authorize('event', 'admin'), 
 
     // Get submission from EventQuizResult (event quiz results use participantInfo, not student field)
     // For event quizzes, we need to find by participantInfo.email or _id
-    let submission = await EventQuizResult.findOne({
-      quiz: req.params.quizId,
-      _id: req.params.studentId
-    }).lean();
+    let submission = null;
 
-    // If not found by _id, try to find by participantInfo.email (in case studentId is actually an email)
+    // Check if studentId is a valid ObjectId (24 hex characters) or an email
+    const isValidObjectId = /^[0-9a-fA-F]{24}$/.test(req.params.studentId);
+
+    if (isValidObjectId) {
+      // Try to find by _id first if it's a valid ObjectId
+      submission = await EventQuizResult.findOne({
+        quiz: req.params.quizId,
+        _id: req.params.studentId
+      }).lean();
+    }
+
+    // If not found by _id or if studentId is an email, try to find by participantInfo.email
     if (!submission) {
       submission = await EventQuizResult.findOne({
         quiz: req.params.quizId,
@@ -1964,4 +2039,203 @@ router.get('/:quizId/submission/:studentId', auth, authorize('event', 'admin'), 
   }
 });
 
-module.exports = router; 
+// Send bulk email to students
+router.post('/:id/send-bulk-email', auth, isEventAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { emails, subject, message, quizTitle } = req.body;
+
+    if (!emails || !Array.isArray(emails) || emails.length === 0) {
+      return res.status(400).json({ message: 'Email list is required' });
+    }
+
+    if (!subject || !message) {
+      return res.status(400).json({ message: 'Subject and message are required' });
+    }
+
+    // Verify the quiz exists
+    const quiz = await EventQuiz.findById(id);
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    console.log(`📧 Sending bulk email to ${emails.length} students for quiz: ${quiz.title}`);
+
+    const { sendBulkEmail } = require('../services/emailService');
+
+    // Send bulk email
+    const result = await sendBulkEmail({
+      emails,
+      subject,
+      message,
+      quizTitle: quiz.title,
+      senderName: req.user.name || 'Quiz Management Team'
+    });
+
+    if (result.success) {
+      res.json({
+        message: `Email sent successfully to ${result.successCount} students`,
+        successCount: result.successCount,
+        failureCount: result.failureCount,
+        failures: result.failures
+      });
+    } else {
+      res.status(500).json({
+        message: 'Failed to send emails',
+        error: result.error,
+        successCount: result.successCount,
+        failureCount: result.failureCount
+      });
+    }
+  } catch (error) {
+    console.error('Error sending bulk email:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Send bulk email to students
+router.post('/:id/send-bulk-email', auth, isEventAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { emails, subject, message, quizTitle } = req.body;
+
+    if (!emails || !Array.isArray(emails) || emails.length === 0) {
+      return res.status(400).json({ message: 'Email list is required' });
+    }
+
+    if (!subject || !message) {
+      return res.status(400).json({ message: 'Subject and message are required' });
+    }
+
+    // Verify the quiz exists
+    const quiz = await EventQuiz.findById(id);
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    console.log(`📧 Sending bulk email to ${emails.length} students for quiz: ${quiz.title}`);
+
+    const { sendBulkEmail } = require('../services/emailService');
+
+    // Send bulk email
+    const result = await sendBulkEmail({
+      emails,
+      subject,
+      message,
+      quizTitle: quiz.title,
+      senderName: req.user.name || 'Quiz Management Team'
+    });
+
+    if (result.success) {
+      res.json({
+        message: `Email sent successfully to ${result.successCount} students`,
+        successCount: result.successCount,
+        failureCount: result.failureCount,
+        failures: result.failures
+      });
+    } else {
+      res.status(500).json({
+        message: 'Failed to send emails',
+        error: result.error,
+        successCount: result.successCount,
+        failureCount: result.failureCount
+      });
+    }
+  } catch (error) {
+    console.error('Error sending bulk email:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Allow reattempt for a student/team
+router.post('/:id/reattempt', auth, authorize('event', 'admin'), async (req, res) => {
+  try {
+    const { email, isTeamRegistration, teamName } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    // First check if quiz exists
+    const quiz = await EventQuiz.findById(req.params.id);
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    // Only check createdBy for non-admin, non-event roles
+    if (req.userRole !== 'admin' && req.userRole !== 'event') {
+      if (!quiz.createdBy.equals(req.user._id)) {
+        return res.status(403).json({ message: 'You do not have permission to manage this quiz' });
+      }
+    }
+
+    // Find and delete existing submission(s)
+    const deletedSubmissions = await EventQuizResult.deleteMany({
+      quiz: req.params.id,
+      'participantInfo.email': email
+    });
+
+    // For team registrations, also delete submissions for all team members
+    if (isTeamRegistration && teamName) {
+      // Find the team registration to get all team member emails
+      const teamRegistration = quiz.registrations.find(reg =>
+        reg.teamName === teamName && reg.isTeamRegistration
+      );
+
+      if (teamRegistration && teamRegistration.teamMembers) {
+        const teamMemberEmails = teamRegistration.teamMembers.map(member => member.email);
+        await EventQuizResult.deleteMany({
+          quiz: req.params.id,
+          'participantInfo.email': { $in: teamMemberEmails }
+        });
+      }
+    }
+
+    // Reset quiz credentials to allow reattempt
+    await QuizCredentials.updateMany(
+      {
+        quiz: req.params.id,
+        'participantDetails.email': email
+      },
+      {
+        $set: {
+          hasAttemptedQuiz: false,
+          isActive: true
+        }
+      }
+    );
+
+    // For team registrations, reset all team member credentials
+    if (isTeamRegistration && teamName) {
+      await QuizCredentials.updateMany(
+        {
+          quiz: req.params.id,
+          'participantDetails.teamName': teamName
+        },
+        {
+          $set: {
+            hasAttemptedQuiz: false,
+            isActive: true
+          }
+        }
+      );
+    }
+
+    const participantType = isTeamRegistration ? 'team' : 'individual';
+    const participantName = isTeamRegistration ? `team "${teamName}"` : `student "${email}"`;
+
+    res.json({
+      message: `Reattempt enabled successfully for ${participantName}`,
+      deletedSubmissions: deletedSubmissions.deletedCount,
+      participantType,
+      email,
+      teamName: isTeamRegistration ? teamName : null
+    });
+
+  } catch (error) {
+    console.error('Error enabling reattempt:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+module.exports = router;

@@ -802,20 +802,33 @@ router.get('/:id/authorized-students', auth, authorize('faculty', 'admin'), asyn
   }
 });
 
-// Delete quiz (faculty only)
+// Delete quiz (faculty and admin)
 router.delete('/:id', auth, authorize('faculty', 'admin'), async (req, res) => {
   try {
-    const quiz = await Quiz.findOneAndDelete({
-      _id: req.params.id,
-      createdBy: req.user._id
-    });
+    console.log(`🗑️ Delete request for quiz ${req.params.id} by user ${req.user._id} (role: ${req.user.role})`);
+
+    // Build query based on user role
+    const query = { _id: req.params.id };
+
+    // If faculty, only allow deleting their own quizzes
+    if (req.user.role === 'faculty') {
+      query.createdBy = req.user._id;
+    }
+    // Admin can delete any quiz (no createdBy restriction)
+
+    console.log('Delete query:', query);
+
+    const quiz = await Quiz.findOneAndDelete(query);
 
     if (!quiz) {
+      console.log('❌ Quiz not found or access denied');
       return res.status(404).json({ message: 'Quiz not found' });
     }
 
+    console.log('✅ Quiz deleted successfully:', quiz.title);
     res.json({ message: 'Quiz deleted successfully' });
   } catch (error) {
+    console.error('❌ Error deleting quiz:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
@@ -1312,4 +1325,82 @@ router.post('/image', auth, authorize(['faculty', 'event']), upload.array('image
   }
 });
 
-module.exports = router; 
+// Delete a student's quiz submission (faculty only)
+router.delete('/:quizId/submissions/:studentId', auth, authorize('faculty', 'admin'), async (req, res) => {
+  try {
+    const quiz = await Quiz.findById(req.params.quizId);
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    // Check if faculty owns this quiz (skip check for admin)
+    if (req.user.role === 'faculty' && quiz.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Access denied. Not your quiz.' });
+    }
+
+    const submission = await QuizSubmission.findOneAndDelete({
+      quiz: req.params.quizId,
+      student: req.params.studentId
+    });
+
+    if (!submission) {
+      return res.status(404).json({ message: 'Submission not found' });
+    }
+
+    res.json({
+      message: 'Submission deleted successfully',
+      deletedSubmission: {
+        studentId: req.params.studentId,
+        quizId: req.params.quizId,
+        score: submission.totalMarks
+      }
+    });
+  } catch (error) {
+    console.error('Error deleting submission:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Allow reattempt for a student (faculty only)
+router.post('/:quizId/reattempt', auth, authorize('faculty', 'admin'), async (req, res) => {
+  try {
+    const { studentId, email } = req.body;
+
+    if (!studentId) {
+      return res.status(400).json({ message: 'Student ID is required' });
+    }
+
+    const quiz = await Quiz.findById(req.params.quizId);
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    // Check if faculty owns this quiz (skip check for admin)
+    if (req.user.role === 'faculty' && quiz.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Access denied. Not your quiz.' });
+    }
+
+    // Delete existing submission to allow reattempt
+    const deletedSubmission = await QuizSubmission.findOneAndDelete({
+      quiz: req.params.quizId,
+      student: studentId
+    });
+
+    if (!deletedSubmission) {
+      return res.status(404).json({ message: 'No submission found to reset' });
+    }
+
+    res.json({
+      message: 'Reattempt enabled successfully',
+      studentId,
+      quizId: req.params.quizId,
+      previousScore: deletedSubmission.totalMarks
+    });
+
+  } catch (error) {
+    console.error('Error enabling reattempt:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+module.exports = router;

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Container,
   Paper,
@@ -21,17 +21,45 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  TableSortLabel
+  TableSortLabel,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Stack
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import FilterListIcon from '@mui/icons-material/FilterList';
+import DeleteIcon from '@mui/icons-material/Delete';
+import QuizIcon from '@mui/icons-material/Quiz';
 import api from '../../config/axios';
 import { useAuth } from '../../context/AuthContext';
+import { toast } from 'react-toastify';
 
 const QuizAuthorizedStudents = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
+
+  // Function to determine the correct submission details path
+  const getSubmissionDetailsPath = (studentId) => {
+    const currentPath = location.pathname;
+    console.log('Current path:', currentPath);
+    console.log('Quiz ID:', id);
+    console.log('Student ID:', studentId);
+
+    // If accessed from admin routes, use admin path with correct parameter name
+    if (currentPath.includes('/admin/')) {
+      const adminPath = `/admin/quiz/${id}/submissions/${studentId}`;
+      console.log('Generated admin path:', adminPath);
+      return adminPath;
+    }
+    // Default to faculty path
+    const facultyPath = `/faculty/quizzes/${id}/submissions/${studentId}`;
+    console.log('Generated faculty path:', facultyPath);
+    return facultyPath;
+  };
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [quiz, setQuiz] = useState(null);
@@ -51,6 +79,7 @@ const QuizAuthorizedStudents = () => {
     key: null,
     direction: 'asc'
   });
+  const [reattemptDialog, setReattemptDialog] = useState({ open: false, student: null });
 
   useEffect(() => {
     fetchData();
@@ -131,6 +160,48 @@ const QuizAuthorizedStudents = () => {
       direction = 'desc';
     }
     setSortConfig({ key, direction });
+  };
+
+  const handleDeleteSubmission = async (studentData) => {
+    if (window.confirm(`Are you sure you want to delete the submission for "${studentData.student.name}"? This action cannot be undone.`)) {
+      try {
+        await api.delete(`/api/quiz/${id}/submissions/${studentData.student._id}`);
+        toast.success('Submission deleted successfully!');
+        fetchData(); // Refresh the data
+      } catch (error) {
+        console.error('Error deleting submission:', error);
+        toast.error('Failed to delete submission: ' + (error.response?.data?.message || error.message));
+      }
+    }
+  };
+
+  const handleReattempt = (studentData) => {
+    setReattemptDialog({ open: true, student: studentData });
+  };
+
+  const handleConfirmReattempt = async () => {
+    const studentData = reattemptDialog.student;
+    const studentName = studentData.student.name;
+
+    try {
+      // Call backend API to reset the submission
+      await api.post(`/api/quiz/${id}/reattempt`, {
+        studentId: studentData.student._id,
+        email: studentData.student.email || `${studentData.student.admissionNumber}@college.edu`
+      });
+
+      toast.success(`${studentName} can now reattempt the quiz!`);
+      setReattemptDialog({ open: false, student: null });
+      fetchData(); // Refresh the data to update the UI
+    } catch (error) {
+      console.error('Error allowing reattempt:', error);
+      toast.error('Failed to allow reattempt: ' + (error.response?.data?.message || error.message));
+      setReattemptDialog({ open: false, student: null });
+    }
+  };
+
+  const handleCancelReattempt = () => {
+    setReattemptDialog({ open: false, student: null });
   };
 
   // Helper function to format duration
@@ -426,6 +497,8 @@ const QuizAuthorizedStudents = () => {
                 <TableCell>Submit Time</TableCell>
                 <TableCell>Duration</TableCell>
                 <TableCell>Actions</TableCell>
+                <TableCell>Reattempt</TableCell>
+                <TableCell>Delete</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -471,17 +544,40 @@ const QuizAuthorizedStudents = () => {
                     <Button
                       size="small"
                       variant="outlined"
-                      onClick={() => navigate(`/faculty/quizzes/${id}/submissions/${studentData.student._id}`)}
+                      onClick={() => navigate(getSubmissionDetailsPath(studentData.student._id))}
                       disabled={!studentData.hasSubmitted}
                     >
                       View Details
+                    </Button>
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      color="warning"
+                      onClick={() => handleReattempt(studentData)}
+                      disabled={!studentData.hasSubmitted}
+                    >
+                      Reattempt
+                    </Button>
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="error"
+                      startIcon={<DeleteIcon />}
+                      onClick={() => handleDeleteSubmission(studentData)}
+                      disabled={!studentData.hasSubmitted}
+                    >
+                      Delete
                     </Button>
                   </TableCell>
                 </TableRow>
               ))}
               {sortedStudents.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={10} align="center">
+                  <TableCell colSpan={12} align="center">
                     No submissions found
                   </TableCell>
                 </TableRow>
@@ -490,6 +586,84 @@ const QuizAuthorizedStudents = () => {
           </Table>
         </TableContainer>
       </Paper>
+
+      {/* Reattempt Confirmation Dialog */}
+      <Dialog
+        open={reattemptDialog.open}
+        onClose={handleCancelReattempt}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1}>
+            <QuizIcon color="warning" />
+            Confirm Quiz Reattempt
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 1 }}>
+            {reattemptDialog.student && (
+              <>
+                <Typography variant="body1" gutterBottom>
+                  Are you sure you want to allow <strong>
+                    {reattemptDialog.student.student.name}
+                  </strong> to reattempt this quiz?
+                </Typography>
+
+                <Alert severity="warning" sx={{ mt: 2, mb: 2 }}>
+                  <Typography variant="body2">
+                    <strong>Warning:</strong> This action will:
+                  </Typography>
+                  <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>
+                    <li>Delete their previous submission and score</li>
+                    <li>Reset their quiz credentials</li>
+                    <li>Allow them to take the quiz again</li>
+                  </ul>
+                  <Typography variant="body2" sx={{ mt: 1 }}>
+                    This action cannot be undone.
+                  </Typography>
+                </Alert>
+
+                <Box sx={{ bgcolor: 'background.default', p: 2, borderRadius: 1, mt: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Student Details:
+                  </Typography>
+                  <Typography variant="body2">
+                    <strong>Name:</strong> {reattemptDialog.student.student.name}
+                  </Typography>
+                  <Typography variant="body2">
+                    <strong>Admission No:</strong> {reattemptDialog.student.student.admissionNumber}
+                  </Typography>
+                  <Typography variant="body2">
+                    <strong>Department:</strong> {reattemptDialog.student.student.department}
+                  </Typography>
+                  <Typography variant="body2">
+                    <strong>Current Score:</strong> {reattemptDialog.student.totalMarks}/{quiz?.totalMarks}
+                    ({calculateScorePercentage(reattemptDialog.student.totalMarks, quiz?.totalMarks).toFixed(1)}%)
+                  </Typography>
+                </Box>
+              </>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={handleCancelReattempt}
+            color="secondary"
+            variant="outlined"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirmReattempt}
+            color="warning"
+            variant="contained"
+            startIcon={<QuizIcon />}
+          >
+            Allow Reattempt
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

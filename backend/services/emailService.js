@@ -340,7 +340,90 @@ const sendIndividualRegistrationEmail = async (transporter, registrationData, qu
 
 
 
+// Send bulk email to multiple recipients
+const sendBulkEmail = async ({ emails, subject, message, quizTitle, senderName }) => {
+  try {
+    console.log('📧 Starting bulk email sending process...');
+    console.log(`Recipients: ${emails.length} emails`);
+    console.log(`Subject: ${subject}`);
+
+    const transporter = createTransporter();
+
+    let successCount = 0;
+    let failureCount = 0;
+    const failures = [];
+
+    // Send emails one by one to track individual failures
+    for (const email of emails) {
+      try {
+        const emailContent = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+            <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+              <div style="text-align: center; margin-bottom: 30px;">
+                <h1 style="color: #2e7d32; margin: 0; font-size: 28px;">📧 ${subject}</h1>
+                <p style="color: #666; margin: 10px 0 0 0; font-size: 16px;">Quiz Management System</p>
+              </div>
+
+              <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 25px;">
+                <h3 style="color: #1976d2; margin: 0 0 15px 0;">📚 Quiz: ${quizTitle}</h3>
+                <div style="white-space: pre-line; color: #333; font-size: 16px; line-height: 1.6;">
+                  ${message}
+                </div>
+              </div>
+
+              <div style="text-align: center; margin-top: 30px; padding: 20px; background-color: #f8f9fa; border-radius: 5px;">
+                <p style="color: #666; font-size: 14px; margin: 0;">
+                  Best regards,<br>
+                  <strong>${senderName}</strong><br>
+                  <em>Quiz Management Team</em>
+                </p>
+              </div>
+            </div>
+          </div>
+        `;
+
+        const mailOptions = {
+          from: process.env.EMAIL_USER || 'noreply@quizapp.com',
+          to: email,
+          subject: subject,
+          html: emailContent
+        };
+
+        await transporter.sendMail(mailOptions);
+        console.log(`✅ Email sent successfully to: ${email}`);
+        successCount++;
+      } catch (emailError) {
+        console.error(`❌ Failed to send email to ${email}:`, emailError.message);
+        failureCount++;
+        failures.push({
+          email,
+          error: emailError.message
+        });
+      }
+    }
+
+    console.log(`📊 Bulk email summary: ${successCount} successful, ${failureCount} failed`);
+
+    return {
+      success: successCount > 0,
+      successCount,
+      failureCount,
+      failures
+    };
+  } catch (error) {
+    console.error('❌ Error in bulk email sending:', error);
+    return {
+      success: false,
+      successCount: 0,
+      failureCount: emails.length,
+      error: error.message,
+      failures: emails.map(email => ({ email, error: error.message }))
+    };
+  }
+};
+
 module.exports = {
   generateCredentials,
-  sendRegistrationEmail
+  sendRegistrationEmail,
+  sendBulkEmail
 };

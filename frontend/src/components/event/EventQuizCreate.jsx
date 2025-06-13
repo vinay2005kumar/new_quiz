@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Container,
   Paper,
@@ -43,6 +43,7 @@ import ImageQuizForm from '../quiz/quiz-forms/ImageQuizForm';
 
 const EventQuizCreate = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -54,6 +55,11 @@ const EventQuizCreate = () => {
     semesters: []
   });
   const [academicDetails, setAcademicDetails] = useState([]);
+
+  // New state for pre-filled students
+  const [prefilledStudents, setPrefilledStudents] = useState([]);
+  const [isRegistrationDisabled, setIsRegistrationDisabled] = useState(false);
+  const [sourceQuizTitle, setSourceQuizTitle] = useState('');
   
   const [formData, setFormData] = useState({
     title: '',
@@ -78,6 +84,54 @@ const EventQuizCreate = () => {
   });
 
   const steps = ['Basic Details', 'Questions', 'Review'];
+
+  // Handle query parameters for pre-filled students
+  useEffect(() => {
+    console.log('🔍 Checking query parameters...');
+    console.log('Current location search:', location.search);
+
+    const searchParams = new URLSearchParams(location.search);
+    const prefilledStudentsParam = searchParams.get('prefilledStudents');
+    const disableRegistrationParam = searchParams.get('disableRegistration');
+    const sourceQuizParam = searchParams.get('sourceQuiz');
+
+    console.log('Query params:', {
+      prefilledStudentsParam,
+      disableRegistrationParam,
+      sourceQuizParam
+    });
+
+    if (prefilledStudentsParam) {
+      try {
+        const studentEmails = JSON.parse(prefilledStudentsParam);
+        setPrefilledStudents(studentEmails);
+        console.log('✅ Pre-filled students loaded:', studentEmails.length, 'students');
+        console.log('Student emails:', studentEmails);
+      } catch (error) {
+        console.error('❌ Error parsing pre-filled students:', error);
+      }
+    }
+
+    if (disableRegistrationParam === 'true') {
+      console.log('🔒 Registration disabled for pre-selected students');
+      setIsRegistrationDisabled(true);
+      setFormData(prev => ({
+        ...prev,
+        registrationEnabled: false,
+        spotRegistrationEnabled: false
+      }));
+    }
+
+    if (sourceQuizParam) {
+      console.log('📚 Source quiz:', sourceQuizParam);
+      setSourceQuizTitle(sourceQuizParam);
+      setFormData(prev => ({
+        ...prev,
+        title: `Follow-up Quiz - ${sourceQuizParam}`,
+        description: `This quiz is created for selected students from "${sourceQuizParam}"`
+      }));
+    }
+  }, [location.search]);
 
   // Fetch academic structure on component mount
   useEffect(() => {
@@ -416,6 +470,44 @@ const EventQuizCreate = () => {
           </>
         )}
 
+        {/* Show alert if this is a follow-up quiz */}
+        {sourceQuizTitle && (
+          <Grid item xs={12}>
+            <Alert severity="info" sx={{ mb: 2 }}>
+              <Typography variant="body2">
+                <strong>Follow-up Quiz:</strong> This quiz is being created for {prefilledStudents.length} selected students from "{sourceQuizTitle}".
+                Registration is automatically disabled since students are pre-selected.
+              </Typography>
+            </Alert>
+          </Grid>
+        )}
+
+        {/* Show pre-filled students list */}
+        {prefilledStudents.length > 0 && (
+          <Grid item xs={12}>
+            <Card sx={{ bgcolor: 'background.default', border: '1px solid', borderColor: 'primary.main' }}>
+              <CardContent>
+                <Typography variant="h6" color="primary" gutterBottom>
+                  📋 Pre-selected Students ({prefilledStudents.length})
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  This quiz will be available only to the following students:
+                </Typography>
+                <Box sx={{ maxHeight: 200, overflow: 'auto', bgcolor: 'background.paper', p: 2, borderRadius: 1 }}>
+                  {prefilledStudents.map((email, index) => (
+                    <Typography key={index} variant="body2" sx={{ mb: 0.5 }}>
+                      {index + 1}. {email}
+                    </Typography>
+                  ))}
+                </Box>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  💡 These students will receive login credentials via email after quiz creation
+                </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        )}
+
         <Grid item xs={12}>
           <FormControlLabel
             control={
@@ -425,10 +517,14 @@ const EventQuizCreate = () => {
                   target: { name: 'registrationEnabled', value: e.target.checked }
                 })}
                 name="registrationEnabled"
+                disabled={isRegistrationDisabled}
               />
             }
             label="Enable Registration"
           />
+          {isRegistrationDisabled && (
+            <FormHelperText>Registration is disabled for this quiz as students are pre-selected</FormHelperText>
+          )}
         </Grid>
 
         <Grid item xs={12}>
@@ -440,10 +536,14 @@ const EventQuizCreate = () => {
                   target: { name: 'spotRegistrationEnabled', value: e.target.checked }
                 })}
                 name="spotRegistrationEnabled"
+                disabled={isRegistrationDisabled}
               />
             }
             label="Enable Spot Registration"
           />
+          {isRegistrationDisabled && (
+            <FormHelperText>Spot registration is disabled for this quiz as students are pre-selected</FormHelperText>
+          )}
         </Grid>
 
         {/* Participation Mode Section */}
@@ -673,11 +773,14 @@ const EventQuizCreate = () => {
         type: 'event',
         status: 'upcoming',
         createdBy: user._id,
-        totalMarks: formData.questions.reduce((sum, q) => sum + (q.marks || 1), 0)
+        totalMarks: formData.questions.reduce((sum, q) => sum + (q.marks || 1), 0),
+        // Include pre-filled students if available
+        prefilledStudents: prefilledStudents.length > 0 ? prefilledStudents : undefined
       };
 
       console.log('Sending quiz data to backend:', quizData);
       console.log('participantTypes being sent:', quizData.participantTypes);
+      console.log('prefilledStudents being sent:', quizData.prefilledStudents);
 
       const response = await api.post('/api/event-quiz', quizData);
       console.log('Quiz created successfully:', response);
