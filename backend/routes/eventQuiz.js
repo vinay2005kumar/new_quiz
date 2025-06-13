@@ -340,6 +340,8 @@ router.post('/:id/register-public', async (req, res) => {
 
     console.log('Public registration request for quiz:', id);
     console.log('Registration type:', isTeamRegistration ? 'Team' : 'Individual');
+    // DUPLICATE KEY FIX APPLIED - UPDATED CODE LOADED
+    console.log('🔧 DUPLICATE KEY FIX: Code updated to handle existing credentials');
 
     // Find the quiz
     const quiz = await EventQuiz.findById(id);
@@ -545,20 +547,37 @@ router.post('/:id/register-public', async (req, res) => {
       // Generate shared credentials for the team (based on team leader)
       const teamCredentials = generateCredentials(registration, quiz);
 
-      // Create credential record for the team
-      const quizCredentials = new QuizCredentials({
+      // Check if credentials already exist for this team leader and quiz
+      let quizCredentials = await QuizCredentials.findOne({
         quiz: quiz._id,
-        registration: registrationId,
-        username: teamCredentials.username, // Team leader's email
-        password: teamCredentials.password, // Generated password
-        originalPassword: teamCredentials.password,
-        isTeam: true,
-        teamName: teamName,
-        participantDetails: teamLeader,
-        teamMembers: teamMembers
+        username: teamCredentials.username
       });
 
-      await quizCredentials.save();
+      if (quizCredentials) {
+        // Update existing credentials with new team registration
+        quizCredentials.registration = registrationId;
+        quizCredentials.teamName = teamName;
+        quizCredentials.participantDetails = teamLeader;
+        quizCredentials.teamMembers = teamMembers;
+        await quizCredentials.save();
+        console.log('Updated existing team credentials for user:', teamCredentials.username);
+      } else {
+        // Create new credential record for the team
+        quizCredentials = new QuizCredentials({
+          quiz: quiz._id,
+          registration: registrationId,
+          username: teamCredentials.username, // Team leader's email
+          password: teamCredentials.password, // Generated password
+          originalPassword: teamCredentials.password,
+          isTeam: true,
+          teamName: teamName,
+          participantDetails: teamLeader,
+          teamMembers: teamMembers
+        });
+
+        await quizCredentials.save();
+        console.log('Created new team credentials for user:', teamCredentials.username);
+      }
 
       // Send registration confirmation emails to all team members with team details
       try {
@@ -572,15 +591,16 @@ router.post('/:id/register-public', async (req, res) => {
       // Individual registration - generate single credentials
       const credentials = generateCredentials(registration, quiz);
 
-      // Create quiz credentials record
-      const quizCredentials = new QuizCredentials({
+      // Check if credentials already exist for this user and quiz
+      let quizCredentials = await QuizCredentials.findOne({
         quiz: quiz._id,
-        registration: registrationId,
-        username: credentials.username,
-        password: credentials.password,
-        originalPassword: credentials.password,
-        isTeam: false,
-        participantDetails: {
+        username: credentials.username
+      });
+
+      if (quizCredentials) {
+        // Update existing credentials with new registration
+        quizCredentials.registration = registrationId;
+        quizCredentials.participantDetails = {
           name,
           email,
           college,
@@ -589,10 +609,33 @@ router.post('/:id/register-public', async (req, res) => {
           phoneNumber,
           admissionNumber,
           participantType
-        }
-      });
+        };
+        await quizCredentials.save();
+        console.log('Updated existing credentials for user:', credentials.username);
+      } else {
+        // Create new quiz credentials record
+        quizCredentials = new QuizCredentials({
+          quiz: quiz._id,
+          registration: registrationId,
+          username: credentials.username,
+          password: credentials.password,
+          originalPassword: credentials.password,
+          isTeam: false,
+          participantDetails: {
+            name,
+            email,
+            college,
+            department,
+            year,
+            phoneNumber,
+            admissionNumber,
+            participantType
+          }
+        });
 
-      await quizCredentials.save();
+        await quizCredentials.save();
+        console.log('Created new credentials for user:', credentials.username);
+      }
 
       // Send registration confirmation email with credentials
       try {

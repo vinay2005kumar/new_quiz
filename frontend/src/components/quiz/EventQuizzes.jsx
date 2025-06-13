@@ -43,10 +43,13 @@ import {
   LocationOn as LocationIcon,
   Person as PersonIcon,
   Group as GroupIcon,
-  Refresh as RefreshIcon
+  Refresh as RefreshIcon,
+  DarkMode as DarkModeIcon,
+  LightMode as LightModeIcon
 } from '@mui/icons-material';
 import api from '../../config/axios';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme as useAppTheme } from '../../context/ThemeContext';
 
 const EventQuizzes = () => {
   const [activeQuizzes, setActiveQuizzes] = useState([]);
@@ -89,6 +92,7 @@ const EventQuizzes = () => {
   });
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { mode, toggleTheme } = useAppTheme();
 
   useEffect(() => {
     fetchEventQuizzes();
@@ -874,6 +878,14 @@ const EventQuizzes = () => {
           >
             Refresh
           </Button>
+          <IconButton
+            color="inherit"
+            onClick={toggleTheme}
+            sx={{ mr: 1 }}
+            title={mode === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+          >
+            {mode === 'light' ? <DarkModeIcon /> : <LightModeIcon />}
+          </IconButton>
           <Button color="inherit" startIcon={<HomeIcon />} onClick={() => navigate('/')}>
             Home
           </Button>
