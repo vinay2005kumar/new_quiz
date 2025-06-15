@@ -255,58 +255,9 @@ const Dashboard = () => {
           </Card>
         </Grid>
 
-        {user?.role === 'student' && (
-          <Grid item xs={12}>
-            <Paper sx={{ p: 3, mt: 3 }}>
-              <Typography variant="h6" gutterBottom>
-                Recent Submissions
-              </Typography>
-              {stats.submissions.length > 0 ? (
-                <Grid container spacing={2}>
-                  {stats.submissions.slice(0, 3).map((submission) => (
-                    <Grid item xs={12} sm={4} key={submission.quizId}>
-                      <Card>
-                        <CardContent>
-                          <Typography variant="subtitle1" gutterBottom>
-                            {submission.quiz?.title || 'Quiz'}
-                          </Typography>
-                          <Typography variant="h6" color="primary">
-                            Score: {submission.totalScore || 0}
-                          </Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            Submitted: {new Date(submission.submitTime).toLocaleString()}
-                          </Typography>
-                        </CardContent>
-                        <CardActions>
-                          <Button 
-                            size="small" 
-                            onClick={() => navigate(`/student/quizzes/${submission.quizId}/review`)}
-                          >
-                            View Details
-                          </Button>
-                        </CardActions>
-                      </Card>
-                    </Grid>
-                  ))}
-                </Grid>
-              ) : (
-                <Alert severity="info" sx={{ mt: 2 }}>
-                  You haven't completed any quizzes yet. Check the available quizzes section to get started!
-                </Alert>
-              )}
-            </Paper>
-          </Grid>
-        )}
 
-        <Grid item xs={12}>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={() => navigate('/student/quizzes')}
-          >
-            View Available Quizzes
-          </Button>
-        </Grid>
+
+
       </Grid>
     );
   };

@@ -38,59 +38,68 @@ const ReviewQuizzes = () => {
       setLoading(true);
       setError('');
 
-      // Use the same approach as QuizList.jsx for consistency
-      // Fetch all submissions using the bulk endpoint
+      console.log('🚀 REVIEW QUIZZES - FETCHING SUBMISSIONS...');
       const submissionsResponse = await api.get('/api/quiz/my-submissions');
-      const submissions = Array.isArray(submissionsResponse.data) ? submissionsResponse.data : [];
 
-      console.log('Review Quizzes - Fetched submissions:', submissions);
-      console.log('Review Quizzes - Raw response structure:', {
-        isArray: Array.isArray(submissions),
-        length: submissions.length,
-        firstSubmission: submissions[0],
-        hasQuiz: submissions[0]?.quiz,
-        hasAnswers: submissions[0]?.answers,
-        submissionStatus: submissions[0]?.status
+      // Handle different response formats (same as QuizList)
+      const responseData = submissionsResponse.data || submissionsResponse || [];
+
+      console.log('📥 REVIEW QUIZZES - FRONTEND RECEIVED:', {
+        fullResponse: submissionsResponse,
+        responseData: responseData,
+        dataType: typeof responseData,
+        isArray: Array.isArray(responseData),
+        length: Array.isArray(responseData) ? responseData.length : 'N/A'
       });
 
-      // Debug submissions for troubleshooting
-      console.log('Review Quizzes - Submissions received:', {
-        count: submissions.length,
-        firstSubmission: submissions[0]
-      });
+      if (Array.isArray(responseData)) {
+        // Filter for evaluated submissions only and process them
+        const validSubmissions = responseData
+          .filter(submission => {
+            const isEvaluated = submission.status === 'evaluated';
+            const hasQuiz = !!submission.quiz;
 
-      // Transform submissions to match the expected format
-      const validSubmissions = submissions
-        .filter(submission => {
-          console.log('Filtering submission:', {
-            hasQuiz: !!submission.quiz,
-            status: submission.status,
-            quizTitle: submission.quiz?.title
+            console.log('📝 REVIEW QUIZZES - FILTERING SUBMISSION:', {
+              hasQuiz: hasQuiz,
+              status: submission.status,
+              isEvaluated: isEvaluated,
+              quizTitle: submission.quiz?.title,
+              willInclude: isEvaluated && hasQuiz
+            });
+
+            return isEvaluated && hasQuiz;
+          })
+          .map(submission => {
+            const totalScore = Array.isArray(submission.answers)
+              ? submission.answers.reduce((total, ans) => total + (Number(ans.marks) || 0), 0)
+              : 0;
+
+            const processedSubmission = {
+              quizId: submission.quiz._id,
+              quiz: submission.quiz,
+              ...submission,
+              totalScore
+            };
+
+            console.log('✅ REVIEW QUIZZES - PROCESSED SUBMISSION:', {
+              quizTitle: submission.quiz.title,
+              status: submission.status,
+              totalScore: totalScore
+            });
+
+            return processedSubmission;
           });
-          return submission.quiz && submission.status === 'evaluated';
-        })
-        .map(submission => {
-          const totalScore = Array.isArray(submission.answers)
-            ? submission.answers.reduce((total, ans) => total + (Number(ans.marks) || 0), 0)
-            : 0;
 
-          console.log('Processing submission:', {
-            quizTitle: submission.quiz.title,
-            hasAnswers: !!submission.answers,
-            answersLength: submission.answers?.length,
-            totalScore
-          });
-
-          return {
-            quizId: submission.quiz._id,
-            quiz: submission.quiz,
-            ...submission,
-            totalScore
-          };
+        console.log('🎯 REVIEW QUIZZES - FINAL EVALUATED SUBMISSIONS:', {
+          total: validSubmissions.length,
+          submissions: validSubmissions.map(s => ({ title: s.quiz.title, status: s.status }))
         });
 
-      console.log('Review Quizzes - Valid submissions:', validSubmissions);
-      setSubmittedQuizzes(validSubmissions);
+        setSubmittedQuizzes(validSubmissions);
+      } else {
+        console.log('❌ REVIEW QUIZZES - RESPONSE DATA IS NOT ARRAY:', responseData);
+        setSubmittedQuizzes([]);
+      }
     } catch (error) {
       console.error('Error fetching submitted quizzes:', error);
       setError('Failed to fetch submitted quizzes. Please try again later.');

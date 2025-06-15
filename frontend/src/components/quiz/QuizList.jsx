@@ -167,23 +167,14 @@ const QuizList = () => {
     }
   }, []);
 
-  // Refresh data when user role changes or component remounts
+  // Refresh submissions when quizzes are loaded (for students)
   useEffect(() => {
-    if (user?.role === 'student') {
-      // Reset submissions loaded flag to force refresh
+    if (user?.role === 'student' && Array.isArray(quizzes) && quizzes.length > 0) {
+      console.log('🔄 Quizzes loaded - fetching submissions');
       window.submissionsLoaded = false;
       fetchSubmissions();
     }
-  }, [user?.role]);
-
-  // Force refresh submissions when component mounts or pathname changes
-  useEffect(() => {
-    if (user?.role === 'student') {
-      console.log('🔄 Component mounted or pathname changed - forcing submission refresh');
-      window.submissionsLoaded = false;
-      fetchSubmissions();
-    }
-  }, [window.location.pathname, user?.role]);
+  }, [quizzes, user?.role]);
 
   // Add interval to refresh submissions every 30 seconds for students
   useEffect(() => {
@@ -312,84 +303,60 @@ const QuizList = () => {
     try {
       if (user?.role !== 'student') return;
 
-      // Temporarily use complete submissions to test
+      console.log('🚀 FETCHING SUBMISSIONS...');
       const response = await api.get('/api/quiz/my-submissions');
-      console.log('Student submissions response:', {
-        status: response.status,
-        data: response.data,
-        dataType: typeof response.data,
-        isArray: Array.isArray(response.data)
+
+      // Handle different response formats
+      const responseData = response.data || response || [];
+
+      console.log('📥 FRONTEND RECEIVED:', {
+        fullResponse: response,
+        responseData: responseData,
+        dataType: typeof responseData,
+        isArray: Array.isArray(responseData),
+        length: Array.isArray(responseData) ? responseData.length : 'N/A'
       });
 
-      // Convert array to object with quiz ID as key
       const submissionsMap = {};
-      if (Array.isArray(response.data)) {
-        response.data.forEach(submission => {
-          // Handle complete submission format: { quiz: {...}, status, submitTime, answers }
+
+      if (Array.isArray(responseData)) {
+        responseData.forEach((submission, index) => {
+          console.log(`📝 PROCESSING SUBMISSION ${index + 1}:`, {
+            submission: submission,
+            hasQuiz: !!submission.quiz,
+            quizId: submission.quiz?._id,
+            status: submission.status
+          });
+
           const quizId = submission.quiz?._id;
           if (quizId) {
-            // Convert ObjectId to string for consistent comparison
             const quizIdString = quizId.toString();
-            const submissionData = {
+            submissionsMap[quizIdString] = {
               quizId: quizId,
               quizTitle: submission.quiz.title,
               status: submission.status,
-              submitTime: submission.submitTime
+              submitTime: submission.submitTime,
+              totalScore: Array.isArray(submission.answers)
+                ? submission.answers.reduce((total, ans) => total + (Number(ans.marks) || 0), 0)
+                : 0
             };
-            submissionsMap[quizIdString] = submissionData;
 
-            // Debug: Log each submission mapping
-            console.log('🔍 MAPPING SUBMISSION:', {
-              originalQuizId: quizId,
-              quizIdString: quizIdString,
-              quizIdType: typeof quizId,
-              stringType: typeof quizIdString,
-              quizTitle: submission.quiz.title,
-              submissionData: submissionData,
-              mapKey: quizIdString
+            console.log(`✅ MAPPED:`, {
+              key: quizIdString,
+              status: submission.status,
+              title: submission.quiz.title
             });
           }
         });
-      }
-
-      console.log('Fetched submissions:', {
-        rawData: response.data,
-        submissionsMap: submissionsMap,
-        submissionCount: Object.keys(submissionsMap).length,
-        submissionKeys: Object.keys(submissionsMap)
-      });
-
-      // CRITICAL: Log the exact submission data for debugging
-      console.log('🔍 SUBMISSION MAPPING DEBUG:', {
-        rawSubmissions: response.data,
-        processedSubmissions: submissionsMap,
-        submissionKeys: Object.keys(submissionsMap)
-      });
-
-      // CRITICAL: Check if we have the "hi" quiz submission
-      if (Array.isArray(response.data)) {
-        const hiSubmission = response.data.find(sub => sub.quiz?.title === 'hi');
-        if (hiSubmission) {
-          console.log('🎯 FOUND "hi" SUBMISSION:', {
-            quizId: hiSubmission.quiz._id,
-            quizIdString: hiSubmission.quiz._id.toString(),
-            status: hiSubmission.status,
-            mappedCorrectly: !!submissionsMap[hiSubmission.quiz._id.toString()],
-            fullSubmissionData: hiSubmission
-          });
-        } else {
-          console.log('❌ NO "hi" SUBMISSION FOUND in response.data:', response.data);
-        }
       } else {
-        console.log('❌ response.data is not an array:', response.data);
+        console.log('❌ RESPONSE DATA IS NOT ARRAY:', responseData);
       }
 
+      console.log('🎯 FINAL MAP:', submissionsMap);
       setSubmissions(submissionsMap);
-
-      // Set flag to indicate submissions have been loaded
       window.submissionsLoaded = true;
     } catch (error) {
-      console.error('Error fetching submissions:', error);
+      console.error('❌ FETCH ERROR:', error);
       setSubmissions({});
     }
   };
@@ -569,10 +536,10 @@ const QuizList = () => {
     const startTime = new Date(quiz.startTime).getTime();
     const endTime = new Date(quiz.endTime).getTime();
 
-    // Check if quiz has been submitted
-    if (submission && (submission.status === 'submitted' || submission.status === 'evaluated')) {
+    // Check if quiz has been attempted (status = 'evaluated')
+    if (submission && submission.status === 'evaluated') {
       return {
-        label: 'View Results',
+        label: 'Review Quiz',
         color: 'info',
         onClick: () => navigate(`/student/quizzes/${quiz._id}/review`),
         icon: <AssessmentIcon />,
@@ -588,7 +555,7 @@ const QuizList = () => {
       };
     }
 
-    // Quiz is ongoing
+    // Quiz is ongoing and not attempted
     if (now >= startTime && now <= endTime) {
       return {
         label: 'Start Quiz',
@@ -640,110 +607,42 @@ const QuizList = () => {
   };
 
   const getFilteredQuizzes = () => {
-    console.log('Current pathname:', window.location.pathname);
-    console.log('All quizzes before filtering:', quizzes);
-    console.log('Submissions state:', submissions);
-    console.log('User role:', user?.role);
-
     if (!Array.isArray(quizzes)) {
-      console.warn('Quizzes is not an array:', quizzes);
       return [];
     }
 
     // For students, ensure submissions have been fetched
-    // Don't filter quizzes until submissions are loaded
     if (user?.role === 'student' && !window.submissionsLoaded) {
-      console.log('⏳ Waiting for submissions to load...');
       return [];
     }
 
-    // Only show academic quizzes (event quizzes are accessed from public events page)
+    // Only show academic quizzes
     const typeFilteredQuizzes = quizzes.filter(quiz => {
-      if (!quiz) return false;
-
-      const isAcademic = quiz.type === 'academic';
-
-      console.log('Quiz filtering:', {
-        title: quiz.title,
-        type: quiz.type,
-        isAcademic,
-        showingOnlyAcademic: true
-      });
-
-      return isAcademic;
+      return quiz && quiz.type === 'academic';
     });
 
-    console.log('Quizzes after type filtering:', typeFilteredQuizzes);
-
-    // Apply additional filters
-    return typeFilteredQuizzes.filter(quiz => {
+    // Apply filtering logic
+    const filteredQuizzes = typeFilteredQuizzes.filter(quiz => {
       if (!quiz.startTime || !quiz.endTime) return false;
 
-      const now = new Date();
-      const startTime = new Date(quiz.startTime);
-      const endTime = new Date(quiz.endTime);
-      const submission = submissions[quiz._id.toString()];
-
-      const isUpcoming = now < startTime;
-      const isActive = now >= startTime && now <= endTime;
-      const isSubmitted = submission && (submission.status === 'submitted' || submission.status === 'evaluated');
-
-      // Debug quiz filtering for troubleshooting
-      if (quiz.title === 'hi') {
-        console.log('🔍 Quiz "hi" filtering DETAILED:', {
-          quizId: quiz._id,
-          quizIdString: quiz._id.toString(),
-          quizIdType: typeof quiz._id,
-          submission: submission,
-          isSubmitted: isSubmitted,
-          submissionKeys: Object.keys(submissions),
-          submissionKeysTypes: Object.keys(submissions).map(key => ({ key, type: typeof key })),
-          submissionsObject: submissions,
-          lookupResult: submissions[quiz._id.toString()],
-          directLookup: submissions[quiz._id],
-          submissionStatus: submission?.status,
-          isEvaluated: submission?.status === 'evaluated',
-          isSubmittedCheck: submission && (submission.status === 'submitted' || submission.status === 'evaluated')
-        });
-
-        // Try all possible lookups
-        console.log('🔍 ALL LOOKUP ATTEMPTS:', {
-          byToString: submissions[quiz._id.toString()],
-          byDirect: submissions[quiz._id],
-          byStringify: submissions[JSON.stringify(quiz._id)],
-          allSubmissionEntries: Object.entries(submissions)
-        });
-      }
-
-      // For student view, filter based on route
+      // For student view, filter based on submission status
       if (user.role === 'student') {
-        console.log('Student filtering:', {
-          quizTitle: quiz.title,
-          pathname: window.location.pathname,
-          isUpcoming,
-          isActive,
-          isSubmitted,
-          submission: submission
-        });
+        const currentPath = window.location.pathname;
+        const quizSubmission = submissions[quiz._id.toString()];
+        const isEvaluated = quizSubmission && quizSubmission.status === 'evaluated';
 
-        if (window.location.pathname === '/student/review-quizzes') {
-          return isSubmitted;
-        } else if (window.location.pathname === '/student/upcoming-quizzes') {
-          return isUpcoming && !isSubmitted;
-        } else if (window.location.pathname === '/student/quizzes') {
-          // Only show active or upcoming quizzes that haven't been submitted
-          const shouldShow = (isActive || isUpcoming) && !isSubmitted;
-          // Debug: Uncomment for troubleshooting
-          // console.log('Quiz filtering decision:', {
-          //   quizTitle: quiz.title,
-          //   quizId: quiz._id,
-          //   isActive,
-          //   isUpcoming,
-          //   isSubmitted,
-          //   shouldShow,
-          //   submissionData: submission
-          // });
-          return shouldShow;
+        if (currentPath === '/student/review-quizzes') {
+          // Show only evaluated quizzes
+          return isEvaluated;
+        } else if (currentPath === '/student/quizzes') {
+          // Show only non-evaluated quizzes
+          return !isEvaluated;
+        } else if (currentPath === '/student/upcoming-quizzes') {
+          // Show upcoming non-evaluated quizzes
+          const now = new Date();
+          const startTime = new Date(quiz.startTime);
+          const isUpcoming = now < startTime;
+          return isUpcoming && !isEvaluated;
         }
       }
 
@@ -753,9 +652,35 @@ const QuizList = () => {
       const semesterMatch = !filters.semester || (quiz.allowedGroups && quiz.allowedGroups.some(g => g && g.semester === Number(filters.semester)));
       const sectionMatch = !filters.section || (quiz.allowedGroups && quiz.allowedGroups.some(g => g && g.section === filters.section));
       const statusMatch = !filters.status || getQuizStatus(quiz).label.toLowerCase() === filters.status.toLowerCase();
-      
+
       return departmentMatch && yearMatch && semesterMatch && sectionMatch && statusMatch;
     });
+
+    // Simple debug test
+    if (user?.role === 'student') {
+      const path = window.location.pathname;
+      const testQuizId = '684e54d9bf44b772c4a4f65c';
+      const testQuiz = typeFilteredQuizzes.find(q => q._id === testQuizId);
+
+      if (testQuiz) {
+        const quizSubmission = submissions[testQuizId];
+        const isEvaluated = quizSubmission && quizSubmission.status === 'evaluated';
+        const isShowing = filteredQuizzes.some(q => q._id === testQuizId);
+
+        console.log(`🧪 FILTER TEST [${path}]:`, {
+          quiz: testQuiz.title,
+          hasSubmission: !!quizSubmission,
+          status: quizSubmission?.status,
+          isEvaluated: isEvaluated,
+          isShowing: isShowing,
+          correct: (path === '/student/review-quizzes' && isEvaluated && isShowing) ||
+                  (path === '/student/quizzes' && !isEvaluated && isShowing) ||
+                  (path === '/student/quizzes' && isEvaluated && !isShowing)
+        });
+      }
+    }
+
+    return filteredQuizzes;
   };
 
   const handleFilterChange = (name, value) => {
@@ -1229,15 +1154,29 @@ const QuizList = () => {
         )}
 
         {/* Quiz Cards */}
-        <Grid container spacing={3}>
-          {getFilteredQuizzes().map((quiz) => (
-            <Grid item xs={12} sm={6} md={4} key={quiz._id}>
-                  <Box sx={{ width: '100%', maxWidth: '320px' }}>
-                    {renderQuizCard(quiz)}
-                  </Box>
-                </Grid>
-          ))}
-          </Grid>
+        {getFilteredQuizzes().length === 0 ? (
+          <Paper sx={{ p: 3, textAlign: 'center', mt: 3 }}>
+            <Typography variant="h6" color="text.secondary">
+              No available quizzes
+            </Typography>
+            <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
+              {user?.role === 'student'
+                ? 'There are no quizzes available for you at the moment. Check back later!'
+                : 'No quizzes found matching your criteria.'
+              }
+            </Typography>
+          </Paper>
+        ) : (
+          <Grid container spacing={3}>
+            {getFilteredQuizzes().map((quiz) => (
+              <Grid item xs={12} sm={6} md={4} key={quiz._id}>
+                    <Box sx={{ width: '100%', maxWidth: '320px' }}>
+                      {renderQuizCard(quiz)}
+                    </Box>
+                  </Grid>
+            ))}
+            </Grid>
+        )}
       </Box>
 
       {/* Delete Confirmation Dialog */}
