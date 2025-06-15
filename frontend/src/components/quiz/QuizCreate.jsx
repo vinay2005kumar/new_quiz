@@ -60,7 +60,8 @@ const QuizCreate = () => {
     duration: 30,
     startTime: '',
     endTime: '',
-    allowedGroups: []
+    allowedGroups: [],
+    questionDisplayMode: 'oneByOne'
   });
 
   // Questions state for manual quiz creation
@@ -165,7 +166,7 @@ const QuizCreate = () => {
       // Prepare form data
       const formData = {
         title: basicDetails.title.trim(),
-        subject: typeof basicDetails.subject === 'string' 
+        subject: typeof basicDetails.subject === 'string'
           ? { code: basicDetails.subject, name: basicDetails.subject }
           : basicDetails.subject,
         duration: parseInt(basicDetails.duration),
@@ -184,7 +185,8 @@ const QuizCreate = () => {
           marks: parseInt(q.marks)
         })),
         totalMarks,
-        type: 'academic'
+        type: 'academic',
+        questionDisplayMode: basicDetails.questionDisplayMode || 'oneByOne'
       };
   
       // Check network connectivity

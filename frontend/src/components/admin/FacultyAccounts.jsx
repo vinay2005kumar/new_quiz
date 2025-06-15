@@ -55,6 +55,8 @@ import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import api from '../../config/axios';
 import CountDisplayPaper from '../common/CountDisplayPaper';
+import AcademicFilter from '../common/AcademicFilter';
+import useAcademicFilters from '../../hooks/useAcademicFilters';
 
 const YEARS = ['1', '2', '3', '4'];
 const SEMESTERS = ['1', '2', '3', '4', '5', '6', '7', '8'];
@@ -69,7 +71,12 @@ const FacultyAccounts = () => {
   const [openDialog, setOpenDialog] = useState(false);
   const [openUploadDialog, setOpenUploadDialog] = useState(false);
   const [selectedFaculty, setSelectedFaculty] = useState(null);
-  const [filters, setFilters] = useState({
+  const {
+    filters,
+    handleFilterChange,
+    clearFilters,
+    getFilterParams
+  } = useAcademicFilters({
     department: '',
     email: '',
     name: '',
@@ -1080,37 +1087,22 @@ const FacultyAccounts = () => {
                   />
                 </Grid>
 
-                {/* Existing Filters */}
-                <Grid item xs={12} sm={6} md={3}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Department</InputLabel>
-                    <Select
-                      value={filters.department}
-                      onChange={(e) => setFilters({ ...filters, department: e.target.value })}
-                      label="Department"
-                    >
-                      <MenuItem value="">All</MenuItem>
-                      {departments.map((dept) => (
-                        <MenuItem key={dept} value={dept}>
-                          {dept}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                <Grid item xs={12} sm={6} md={3}>
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    onClick={() => {
-                      setFilters({ department: '', email: '', name: '' });
+                {/* Academic Filters */}
+                <Grid item xs={12}>
+                  <AcademicFilter
+                    filters={filters}
+                    onFilterChange={handleFilterChange}
+                    onClearFilters={() => {
+                      clearFilters();
                       setSearchQuery('');
                     }}
-                    disabled={!filters.department && !filters.email && !searchQuery}
-                  >
-                    Clear Filters
-                  </Button>
+                    showFilters={['department']}
+                    title="Faculty Filters"
+                    showRefreshButton={true}
+                    onRefresh={fetchFaculty}
+                    customFilters={[]}
+                    sx={{ p: 0, boxShadow: 'none', bgcolor: 'transparent' }}
+                  />
                 </Grid>
               </Grid>
 

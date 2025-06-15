@@ -7,7 +7,9 @@ import {
   Button,
   Alert,
   CircularProgress,
-  Box
+  Box,
+  TextField,
+  Paper
 } from '@mui/material';
 import { Add as AddIcon, Refresh as RefreshIcon } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
@@ -21,6 +23,7 @@ const EventQuizList = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [infoMessage, setInfoMessage] = useState('');
+  const [searchTitle, setSearchTitle] = useState('');
 
   const fetchQuizzes = async () => {
     try {
@@ -42,6 +45,15 @@ const EventQuizList = () => {
   useEffect(() => {
     fetchQuizzes();
   }, []);
+
+  // Filter quizzes by search title
+  const getFilteredQuizzes = () => {
+    if (!searchTitle.trim()) return quizzes;
+
+    return quizzes.filter(quiz =>
+      quiz.title?.toLowerCase().includes(searchTitle.toLowerCase().trim())
+    );
+  };
 
   const handleDelete = async (quizId) => {
     try {
@@ -142,20 +154,39 @@ const EventQuizList = () => {
           </Alert>
         )}
 
-        {quizzes.length === 0 ? (
+        {/* Search Filter */}
+        <Paper sx={{ p: 2, mb: 3 }}>
+          <TextField
+            fullWidth
+            label="Search quizzes by title..."
+            variant="outlined"
+            value={searchTitle}
+            onChange={(e) => setSearchTitle(e.target.value)}
+            placeholder="Enter quiz title to search"
+            InputProps={{
+              startAdornment: (
+                <Box sx={{ mr: 1, display: 'flex', alignItems: 'center' }}>
+                  🔍
+                </Box>
+              ),
+            }}
+          />
+        </Paper>
+
+        {getFilteredQuizzes().length === 0 ? (
           <Alert severity="info">
-            No event quizzes found.
+            {searchTitle.trim() ? 'No event quizzes match your search.' : 'No event quizzes found.'}
           </Alert>
         ) : (
-          <Grid 
-            container 
-            spacing={3} 
-            sx={{ 
+          <Grid
+            container
+            spacing={3}
+            sx={{
               width: '100%',
               margin: '0 auto'
             }}
           >
-            {quizzes.map((quiz) => (
+            {getFilteredQuizzes().map((quiz) => (
               <Grid 
                 item 
                 xs={12} 

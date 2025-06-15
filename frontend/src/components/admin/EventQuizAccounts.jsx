@@ -46,6 +46,8 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import api from '../../config/axios';
+import AcademicFilter from '../common/AcademicFilter';
+import useAcademicFilters from '../../hooks/useAcademicFilters';
 import { useAuth } from '../../context/AuthContext';
 import CountDisplayPaper from '../common/CountDisplayPaper';
 
@@ -75,7 +77,12 @@ const EventQuizAccounts = () => {
   const [uploadError, setUploadError] = useState('');
   const [uploadStatus, setUploadStatus] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [filters, setFilters] = useState({
+  const {
+    filters,
+    handleFilterChange,
+    clearFilters,
+    getFilterParams
+  } = useAcademicFilters({
     search: '',
     eventType: 'all',
     department: 'all'
@@ -539,58 +546,45 @@ const EventQuizAccounts = () => {
         </Alert>
       )}
 
-      {/* Add Filter Section */}
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} sm={4}>
-            <TextField
-              fullWidth
-              label="Search by name or email"
-              variant="outlined"
-              size="small"
-              value={filters.search}
-              onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-            />
-          </Grid>
-          <Grid item xs={12} sm={4}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Event Type</InputLabel>
-              <Select
-                value={filters.eventType}
-                label="Event Type"
-                onChange={(e) => setFilters(prev => ({ 
-                  ...prev, 
-                  eventType: e.target.value,
-                  // Reset department if organization is selected
-                  department: e.target.value === 'organization' ? 'all' : prev.department
-                }))}
-              >
-                <MenuItem value="all">All Types</MenuItem>
-                <MenuItem value="department">Department</MenuItem>
-                <MenuItem value="organization">Organization</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} sm={4}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Department</InputLabel>
-              <Select
-                value={filters.department}
-                label="Department"
-                onChange={(e) => setFilters(prev => ({ ...prev, department: e.target.value }))}
-                disabled={filters.eventType === 'organization'}
-              >
-                <MenuItem value="all">All Departments</MenuItem>
-                {departments.map((dept) => (
-                  <MenuItem key={dept} value={dept}>
-                    {dept}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-        </Grid>
-      </Paper>
+      <AcademicFilter
+        filters={filters}
+        onFilterChange={handleFilterChange}
+        onClearFilters={clearFilters}
+        showFilters={['department']}
+        title="Event Quiz Account Filters"
+        showRefreshButton={true}
+        onRefresh={fetchAccounts}
+        customFilters={[
+          <TextField
+            key="search"
+            fullWidth
+            size="small"
+            label="Search by name or email"
+            value={filters.search || ''}
+            onChange={(e) => handleFilterChange('search', e.target.value)}
+            placeholder="Search by name or email..."
+          />,
+          <FormControl key="eventType" fullWidth size="small">
+            <InputLabel>Event Type</InputLabel>
+            <Select
+              value={filters.eventType || 'all'}
+              label="Event Type"
+              onChange={(e) => {
+                handleFilterChange('eventType', e.target.value);
+                // Reset department if organization is selected
+                if (e.target.value === 'organization') {
+                  handleFilterChange('department', 'all');
+                }
+              }}
+            >
+              <MenuItem value="all">All Types</MenuItem>
+              <MenuItem value="department">Department</MenuItem>
+              <MenuItem value="organization">Organization</MenuItem>
+            </Select>
+          </FormControl>
+        ]}
+        sx={{ mb: 3 }}
+      />
 
       {/* Count Display */}
       <CountDisplayPaper sx={{ p: 2, mb: 2 }}>

@@ -26,12 +26,20 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import InfoIcon from '@mui/icons-material/Info';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import api from '../../config/axios';
+import AcademicFilter from '../common/AcademicFilter';
+import useAcademicFilters from '../../hooks/useAcademicFilters';
 
 const QuizOverview = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [filters, setFilters] = useState({
+
+  const {
+    filters,
+    handleFilterChange: handleAcademicFilterChange,
+    clearFilters,
+    getFilterParams
+  } = useAcademicFilters({
     department: 'all',
     year: 'all',
     section: 'all',
@@ -95,12 +103,8 @@ const QuizOverview = () => {
     }
   };
 
-  const handleFilterChange = (event) => {
-    const { name, value } = event.target;
-    setFilters(prev => ({
-      ...prev,
-      [name]: value
-    }));
+  const handleFilterChange = (name, value) => {
+    handleAcademicFilterChange(name, value);
   };
 
   const formatPercentage = (value) => {
@@ -140,99 +144,16 @@ const QuizOverview = () => {
         </Box>
 
         {/* Filters */}
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid item xs={12} sm={6} md={3}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Department</InputLabel>
-              <Select
-                name="department"
-                value={filters.department}
-                onChange={handleFilterChange}
-                label="Department"
-              >
-                <MenuItem value="all">All Departments</MenuItem>
-                {['Computer Science', 'ECE', 'EEE', 'MECH', 'CIVIL'].map(dept => (
-                  <MenuItem key={dept} value={dept}>{dept}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-
-          <Grid item xs={12} sm={6} md={3}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Year</InputLabel>
-              <Select
-                name="year"
-                value={filters.year}
-                onChange={handleFilterChange}
-                label="Year"
-              >
-                <MenuItem value="all">All Years</MenuItem>
-                {[1, 2, 3, 4].map(year => (
-                  <MenuItem key={year} value={year}>Year {year}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-
-          <Grid item xs={12} sm={6} md={3}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Semester</InputLabel>
-              <Select
-                name="semester"
-                value={filters.semester}
-                onChange={handleFilterChange}
-                label="Semester"
-              >
-                <MenuItem value="all">All Semesters</MenuItem>
-                <MenuItem value={1}>Semester 1</MenuItem>
-                <MenuItem value={2}>Semester 2</MenuItem>
-                <MenuItem value={3}>Semester 3</MenuItem>
-                <MenuItem value={4}>Semester 4</MenuItem>
-                <MenuItem value={5}>Semester 5</MenuItem>
-                <MenuItem value={6}>Semester 6</MenuItem>
-                <MenuItem value={7}>Semester 7</MenuItem>
-                <MenuItem value={8}>Semester 8</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-
-          <Grid item xs={12} sm={6} md={3}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Section</InputLabel>
-              <Select
-                name="section"
-                value={filters.section}
-                onChange={handleFilterChange}
-                label="Section"
-              >
-                <MenuItem value="all">All Sections</MenuItem>
-                {['A', 'B', 'C', 'D'].map(section => (
-                  <MenuItem key={section} value={section}>Section {section}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-
-          <Grid item xs={12} sm={6} md={3}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Subject</InputLabel>
-              <Select
-                name="subject"
-                value={filters.subject}
-                onChange={handleFilterChange}
-                label="Subject"
-              >
-                <MenuItem value="all">All Subjects</MenuItem>
-                {subjects.map(subject => (
-                  <MenuItem key={subject._id} value={subject._id}>
-                    {subject.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-        </Grid>
+        <AcademicFilter
+          filters={filters}
+          onFilterChange={handleFilterChange}
+          onClearFilters={clearFilters}
+          showFilters={['department', 'year', 'semester', 'section', 'subject']}
+          title="Quiz Overview Filters"
+          showRefreshButton={true}
+          onRefresh={fetchQuizzes}
+          sx={{ mb: 4 }}
+        />
 
         {/* Statistics Summary */}
         {statistics && (

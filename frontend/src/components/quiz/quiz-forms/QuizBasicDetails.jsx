@@ -10,7 +10,11 @@ import {
   Typography,
   Chip,
   OutlinedInput,
-  Alert
+  Alert,
+  FormLabel,
+  RadioGroup,
+  FormControlLabel,
+  Radio
 } from '@mui/material';
 import { useAuth } from '../../../context/AuthContext';
 import api from '../../../config/axios';
@@ -33,12 +37,20 @@ const QuizBasicDetails = ({
     const fetchAcademicStructure = async () => {
       try {
         setLoading(true);
+
+        // Fetch departments from college settings (now public)
+        const deptResponse = await api.get('/api/admin/settings/departments');
+        let collegeDepartments = [];
+        if (deptResponse && deptResponse.departments && Array.isArray(deptResponse.departments)) {
+          collegeDepartments = deptResponse.departments.map(dept => dept.name);
+        }
+
         // First get all academic details
         const allDetailsResponse = await api.get('/api/academic-details');
-        
+
         // Then get faculty-specific structure
         const facultyResponse = await api.get('/api/academic-details/faculty-structure');
-        
+
         if (allDetailsResponse && Array.isArray(allDetailsResponse)) {
           // Process all academic details into structure
           const structure = allDetailsResponse.reduce((acc, detail) => {
@@ -70,6 +82,13 @@ const QuizBasicDetails = ({
 
             return acc;
           }, {});
+
+          // Add departments from college settings that might not be in academic details
+          collegeDepartments.forEach(dept => {
+            if (!structure[dept]) {
+              structure[dept] = { years: {} };
+            }
+          });
 
           // Mark departments that faculty has access to
           if (facultyResponse?.data) {
@@ -108,15 +127,9 @@ const QuizBasicDetails = ({
     }
   }, [academicStructure, user?.assignments, filters.department]);
 
-  // Validate department selection based on faculty assignments
+  // Handle filter changes
   const handleFilterChange = useCallback((event) => {
     const { name, value } = event.target;
-    
-    // Check if faculty has access to selected department
-    if (name === 'department' && !academicStructure[value]?.hasAccess) {
-      setError('You do not have permission to create quizzes for this department');
-      return;
-    }
     
     setFilters(prev => {
       const newFilters = { ...prev };
@@ -180,20 +193,45 @@ const QuizBasicDetails = ({
     if (!academicStructure || !filters.department) return [];
     const deptData = academicStructure[filters.department];
     if (!deptData?.years) return [];
-    return Object.keys(deptData.years).map(Number).sort((a, b) => a - b);
+
+    let availableYears = Object.keys(deptData.years).map(Number).sort((a, b) => a - b);
+
+    // For faculty users, filter years based on their permissions
+    if (user?.role === 'faculty' && user?.years) {
+      const facultyYears = user.years.map(year => parseInt(year));
+      availableYears = availableYears.filter(year => facultyYears.includes(year));
+    }
+
+    return availableYears;
   };
 
   const getAvailableSemesters = () => {
     if (!academicStructure || !filters.department || !filters.year) return [];
     const yearData = academicStructure[filters.department]?.years[filters.year];
     if (!yearData?.semesters) return [];
-    return Object.keys(yearData.semesters).map(Number).sort((a, b) => a - b);
+
+    let availableSemesters = Object.keys(yearData.semesters).map(Number).sort((a, b) => a - b);
+
+    // For faculty users, filter semesters based on their permissions
+    if (user?.role === 'faculty' && user?.semesters) {
+      const facultySemesters = user.semesters.map(semester => parseInt(semester));
+      availableSemesters = availableSemesters.filter(semester => facultySemesters.includes(semester));
+    }
+
+    return availableSemesters;
   };
 
   const getAvailableSections = () => {
     if (!academicStructure || !filters.department || !filters.year || !filters.semester) return [];
     const semesterData = academicStructure[filters.department]?.years[filters.year]?.semesters[filters.semester];
-    return semesterData?.sections || [];
+    let availableSections = semesterData?.sections || [];
+
+    // For faculty users, filter sections based on their permissions
+    if (user?.role === 'faculty' && user?.sections) {
+      availableSections = availableSections.filter(section => user.sections.includes(section));
+    }
+
+    return availableSections;
   };
 
   // Handle basic details changes with enhanced date validation
@@ -278,11 +316,20 @@ const QuizBasicDetails = ({
             onChange={handleFilterChange}
             disabled={loading}
           >
-            {academicStructure && Object.keys(academicStructure).map(dept => (
-              <MenuItem key={dept} value={dept}>
-                {dept}
-              </MenuItem>
-            ))}
+            {academicStructure && Object.keys(academicStructure)
+              .filter(dept => {
+                // For faculty users, only show departments they have access to
+                if (user?.role === 'faculty') {
+                  return user?.departments?.includes(dept);
+                }
+                // For admin users, show all departments
+                return true;
+              })
+              .map(dept => (
+                <MenuItem key={dept} value={dept}>
+                  {dept}
+                </MenuItem>
+              ))}
           </Select>
         </FormControl>
       </Grid>
@@ -379,6 +426,31 @@ const QuizBasicDetails = ({
           inputProps={{ min: 1 }}
           required
         />
+      </Grid>
+
+      <Grid item xs={12} sm={6}>
+        <FormControl component="fieldset">
+          <FormLabel component="legend" sx={{ mb: 1, fontSize: '0.875rem', color: 'text.secondary' }}>
+            Question Display Mode
+          </FormLabel>
+          <RadioGroup
+            row
+            name="questionDisplayMode"
+            value={basicDetails.questionDisplayMode || 'oneByOne'}
+            onChange={handleBasicDetailsChange}
+          >
+            <FormControlLabel
+              value="oneByOne"
+              control={<Radio />}
+              label="One by One"
+            />
+            <FormControlLabel
+              value="allVertical"
+              control={<Radio />}
+              label="All Questions Vertically"
+            />
+          </RadioGroup>
+        </FormControl>
       </Grid>
 
       <Grid item xs={12} sm={6}>

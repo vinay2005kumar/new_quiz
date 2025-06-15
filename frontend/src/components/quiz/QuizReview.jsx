@@ -61,7 +61,7 @@ const QuizReview = () => {
           }
 
           if (submissionResponse.status === 'started') {
-            navigate(`/quizzes/${id}`);
+            navigate(`/student/quizzes/${id}/attempt`);
             return;
           }
 
@@ -154,7 +154,16 @@ const QuizReview = () => {
         <Box sx={{ mb: 3 }}>
           <Button
             startIcon={<ArrowBackIcon />}
-            onClick={() => navigate(-1)}
+            onClick={() => {
+              // Navigate to appropriate page based on user role
+              if (user.role === 'student') {
+                navigate('/student/review-quizzes');
+              } else if (user.role === 'faculty') {
+                navigate('/faculty/quizzes');
+              } else {
+                navigate(-1);
+              }
+            }}
             sx={{ mb: 2 }}
           >
             Back
@@ -295,9 +304,18 @@ const QuizReview = () => {
         <Box sx={{ mt: 3, display: 'flex', justifyContent: 'space-between' }}>
           <Button
             variant="outlined"
-            onClick={() => navigate(-1)}
+            onClick={() => {
+              // Navigate to appropriate page based on user role
+              if (user.role === 'student') {
+                navigate('/student/review-quizzes');
+              } else if (user.role === 'faculty') {
+                navigate('/faculty/quizzes');
+              } else {
+                navigate(-1);
+              }
+            }}
           >
-            Back to Previous Page
+            Back to Quiz List
           </Button>
         </Box>
       </Paper>

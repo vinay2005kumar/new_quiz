@@ -38,79 +38,35 @@ import GroupIcon from '@mui/icons-material/Group';
 import ClassIcon from '@mui/icons-material/Class';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import api from '../../config/axios';
+import AcademicFilter from '../common/AcademicFilter';
+import useAcademicFilters from '../../hooks/useAcademicFilters';
 
 const AdminQuizzes = () => {
   const [loading, setLoading] = useState(true);
   const [quizzes, setQuizzes] = useState([]);
   const [tabValue, setTabValue] = useState(0);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, quiz: null });
-  const [filters, setFilters] = useState({
+  const {
+    filters,
+    handleFilterChange: handleAcademicFilterChange,
+    clearFilters,
+    getFilterParams
+  } = useAcademicFilters({
     searchText: '',
-    year: 'all',
-    department: 'all',
-    semester: 'all'
-  });
-  const [academicStructure, setAcademicStructure] = useState({
-    departments: [],
-    years: [],
-    semesters: []
+    year: '',
+    department: '',
+    semester: ''
   });
   const navigate = useNavigate();
 
-  // Fetch academic structure from API
-  const fetchAcademicStructure = async () => {
-    try {
-      const response = await api.get('/api/academic-details/event-structure');
-      console.log('Academic structure response:', response);
-
-      // Handle the response data properly
-      const structureData = response.data || response;
-      setAcademicStructure({
-        departments: structureData.departments || [],
-        years: structureData.years || [],
-        semesters: structureData.semesters || []
-      });
-    } catch (error) {
-      console.error('Error fetching academic structure:', error);
-      // Fallback to extracting from quiz data if API fails
-      setAcademicStructure(getFilterOptionsFromQuizzes());
-    }
-  };
-
-  // Fallback: Extract unique filter options from quiz data
-  const getFilterOptionsFromQuizzes = () => {
-    const academicQuizzes = quizzes.filter(quiz => quiz.type === 'academic' || !quiz.type);
-
-    const years = new Set();
-    const departments = new Set();
-    const semesters = new Set();
-
-    academicQuizzes.forEach(quiz => {
-      if (quiz.allowedGroups && Array.isArray(quiz.allowedGroups)) {
-        quiz.allowedGroups.forEach(group => {
-          if (group.year) years.add(group.year);
-          if (group.department) departments.add(group.department);
-          if (group.semester) semesters.add(group.semester);
-        });
-      }
-    });
-
-    return {
-      years: Array.from(years).sort((a, b) => a - b),
-      departments: Array.from(departments).sort(),
-      semesters: Array.from(semesters).sort((a, b) => a - b)
-    };
-  };
-
   useEffect(() => {
     fetchQuizzes();
-    fetchAcademicStructure();
   }, []);
 
   // Clear search text when switching tabs since search logic is different
   useEffect(() => {
     if (filters.searchText) {
-      setFilters(prev => ({ ...prev, searchText: '' }));
+      handleAcademicFilterChange('searchText', '');
     }
   }, [tabValue]);
 
@@ -164,19 +120,11 @@ const AdminQuizzes = () => {
   };
 
   const handleFilterChange = (name, value) => {
-    setFilters(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    handleAcademicFilterChange(name, value);
   };
 
   const resetFilters = () => {
-    setFilters({
-      searchText: '',
-      year: 'all',
-      department: 'all',
-      semester: 'all'
-    });
+    clearFilters();
   };
 
   const getFilteredQuizzes = () => {
@@ -210,7 +158,7 @@ const AdminQuizzes = () => {
       // For academic quizzes, apply additional filters
       if (isAcademic && quiz.allowedGroups && Array.isArray(quiz.allowedGroups)) {
         // Year filter
-        if (filters.year !== 'all') {
+        if (filters.year && filters.year !== '') {
           const hasMatchingYear = quiz.allowedGroups.some(group =>
             group.year === parseInt(filters.year)
           );
@@ -218,7 +166,7 @@ const AdminQuizzes = () => {
         }
 
         // Department filter
-        if (filters.department !== 'all') {
+        if (filters.department && filters.department !== '') {
           const hasMatchingDepartment = quiz.allowedGroups.some(group =>
             group.department === filters.department
           );
@@ -226,7 +174,7 @@ const AdminQuizzes = () => {
         }
 
         // Semester filter
-        if (filters.semester !== 'all') {
+        if (filters.semester && filters.semester !== '') {
           const hasMatchingSemester = quiz.allowedGroups.some(group =>
             group.semester === parseInt(filters.semester)
           );
@@ -343,112 +291,26 @@ const AdminQuizzes = () => {
       </Paper>
 
       {/* Filters Section */}
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          Filters
-        </Typography>
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} sm={6} md={3}>
-            <TextField
-              fullWidth
-              size="small"
-              label={tabValue === 0 ? "Search by Subject" : "Search by Title"}
-              value={filters.searchText}
-              onChange={(e) => handleFilterChange('searchText', e.target.value)}
-              placeholder={tabValue === 0 ? "Enter subject name or code" : "Enter quiz title"}
-            />
-          </Grid>
-
-          {/* Show additional filters only for Academic Quizzes */}
-          {tabValue === 0 && (
-              <>
-                <Grid item xs={12} sm={6} md={2}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Year {academicStructure.years.length > 0 ? `(${academicStructure.years.length})` : ''}</InputLabel>
-                    <Select
-                      value={filters.year}
-                      label={`Year ${academicStructure.years.length > 0 ? `(${academicStructure.years.length})` : ''}`}
-                      onChange={(e) => handleFilterChange('year', e.target.value)}
-                      disabled={academicStructure.years.length === 0}
-                    >
-                      <MenuItem value="all">All Years</MenuItem>
-                      {academicStructure.years.length > 0 ? (
-                        academicStructure.years.map((year) => (
-                          <MenuItem key={year} value={year}>
-                            {year === 1 ? '1st Year' :
-                             year === 2 ? '2nd Year' :
-                             year === 3 ? '3rd Year' :
-                             year === 4 ? '4th Year' :
-                             `Year ${year}`}
-                          </MenuItem>
-                        ))
-                      ) : (
-                        <MenuItem disabled>No years available</MenuItem>
-                      )}
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                <Grid item xs={12} sm={6} md={2}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Department {academicStructure.departments.length > 0 ? `(${academicStructure.departments.length})` : ''}</InputLabel>
-                    <Select
-                      value={filters.department}
-                      label={`Department ${academicStructure.departments.length > 0 ? `(${academicStructure.departments.length})` : ''}`}
-                      onChange={(e) => handleFilterChange('department', e.target.value)}
-                      disabled={academicStructure.departments.length === 0}
-                    >
-                      <MenuItem value="all">All Departments</MenuItem>
-                      {academicStructure.departments.length > 0 ? (
-                        academicStructure.departments.map((dept) => (
-                          <MenuItem key={dept} value={dept}>
-                            {dept}
-                          </MenuItem>
-                        ))
-                      ) : (
-                        <MenuItem disabled>No departments available</MenuItem>
-                      )}
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                <Grid item xs={12} sm={6} md={2}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Semester {academicStructure.semesters.length > 0 ? `(${academicStructure.semesters.length})` : ''}</InputLabel>
-                    <Select
-                      value={filters.semester}
-                      label={`Semester ${academicStructure.semesters.length > 0 ? `(${academicStructure.semesters.length})` : ''}`}
-                      onChange={(e) => handleFilterChange('semester', e.target.value)}
-                      disabled={academicStructure.semesters.length === 0}
-                    >
-                      <MenuItem value="all">All Semesters</MenuItem>
-                      {academicStructure.semesters.length > 0 ? (
-                        academicStructure.semesters.map((semester) => (
-                          <MenuItem key={semester} value={semester}>
-                            Semester {semester}
-                          </MenuItem>
-                        ))
-                      ) : (
-                        <MenuItem disabled>No semesters available</MenuItem>
-                      )}
-                    </Select>
-                  </FormControl>
-                </Grid>
-              </>
-          )}
-
-          <Grid item xs={12} sm={6} md={tabValue === 0 ? 3 : 9}>
-            <Button
-              variant="outlined"
-              onClick={resetFilters}
-              fullWidth
-              sx={{ height: '40px' }}
-            >
-              Reset Filters
-            </Button>
-          </Grid>
-        </Grid>
-      </Paper>
+      <AcademicFilter
+        filters={filters}
+        onFilterChange={handleAcademicFilterChange}
+        onClearFilters={clearFilters}
+        showFilters={tabValue === 0 ? ['search', 'department', 'year', 'semester'] : ['search']}
+        title={`${tabValue === 0 ? 'Academic' : 'Event'} Quiz Filters`}
+        showRefreshButton={true}
+        onRefresh={fetchQuizzes}
+        customFilters={[
+          <TextField
+            key="searchText"
+            fullWidth
+            size="small"
+            label={tabValue === 0 ? "Search by Subject" : "Search by Title"}
+            value={filters.searchText || ''}
+            onChange={(e) => handleFilterChange('searchText', e.target.value)}
+            placeholder={tabValue === 0 ? "Enter subject name or code" : "Enter quiz title"}
+          />
+        ]}
+      />
 
       {/* Results Summary */}
       <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -460,7 +322,7 @@ const AdminQuizzes = () => {
         </Typography>
 
         {/* Show active filters */}
-        {(filters.searchText || filters.year !== 'all' || filters.department !== 'all' || filters.semester !== 'all') && (
+        {(filters.searchText || filters.year || filters.department || filters.semester) && (
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             {filters.searchText && (
               <Chip
@@ -469,25 +331,25 @@ const AdminQuizzes = () => {
                 onDelete={() => handleFilterChange('searchText', '')}
               />
             )}
-            {filters.year !== 'all' && (
+            {filters.year && (
               <Chip
                 label={`Year: ${filters.year}`}
                 size="small"
-                onDelete={() => handleFilterChange('year', 'all')}
+                onDelete={() => handleFilterChange('year', '')}
               />
             )}
-            {filters.department !== 'all' && (
+            {filters.department && (
               <Chip
                 label={`Dept: ${filters.department}`}
                 size="small"
-                onDelete={() => handleFilterChange('department', 'all')}
+                onDelete={() => handleFilterChange('department', '')}
               />
             )}
-            {filters.semester !== 'all' && (
+            {filters.semester && (
               <Chip
                 label={`Sem: ${filters.semester}`}
                 size="small"
-                onDelete={() => handleFilterChange('semester', 'all')}
+                onDelete={() => handleFilterChange('semester', '')}
               />
             )}
           </Box>

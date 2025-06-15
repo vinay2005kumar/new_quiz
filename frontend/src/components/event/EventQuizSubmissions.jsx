@@ -51,6 +51,8 @@ import {
 } from '@mui/icons-material';
 import api from '../../config/axios';
 import { toast } from 'react-toastify';
+import AcademicFilter from '../common/AcademicFilter';
+import useAcademicFilters from '../../hooks/useAcademicFilters';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -80,7 +82,12 @@ const EventQuizSubmissions = () => {
   const [editMode, setEditMode] = useState(false);
   const [editedTeamData, setEditedTeamData] = useState(null);
   const [editedIndividualData, setEditedIndividualData] = useState(null);
-  const [filters, setFilters] = useState({
+  const {
+    filters,
+    handleFilterChange,
+    clearFilters,
+    getFilterParams
+  } = useAcademicFilters({
     name: '',
     email: '',
     college: '',
@@ -213,24 +220,7 @@ const EventQuizSubmissions = () => {
     }
   };
 
-  const handleFilterChange = (name, value) => {
-    setFilters(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const resetFilters = () => {
-    setFilters({
-      name: '',
-      email: '',
-      college: '',
-      department: '',
-      year: '',
-      scoreRange: 'all',
-      participationStatus: 'all'
-    });
-  };
+  // handleFilterChange and clearFilters are now provided by useAcademicFilters hook
 
   const handleShortlist = (studentData) => {
     const isAlreadyShortlisted = shortlistedCandidates.some(
@@ -827,61 +817,46 @@ const EventQuizSubmissions = () => {
           </Grid>
         </Box>
 
-        {/* Filters */}
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-          {/* Row 1: Basic Info Filters */}
-          <Grid item xs={12} sm={6} md={3}>
+        <AcademicFilter
+          filters={filters}
+          onFilterChange={handleFilterChange}
+          onClearFilters={clearFilters}
+          showFilters={['department', 'year']}
+          title="Event Quiz Submission Filters"
+          showRefreshButton={true}
+          onRefresh={fetchData}
+          customFilters={[
             <TextField
+              key="name"
               fullWidth
+              size="small"
               label="Name"
-              value={filters.name}
+              value={filters.name || ''}
               onChange={(e) => handleFilterChange('name', e.target.value)}
-              size="small"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+              placeholder="Search by name..."
+            />,
             <TextField
+              key="email"
               fullWidth
+              size="small"
               label="Email"
-              value={filters.email}
+              value={filters.email || ''}
               onChange={(e) => handleFilterChange('email', e.target.value)}
-              size="small"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+              placeholder="Search by email..."
+            />,
             <TextField
+              key="college"
               fullWidth
+              size="small"
               label="College"
-              value={filters.college}
+              value={filters.college || ''}
               onChange={(e) => handleFilterChange('college', e.target.value)}
-              size="small"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <TextField
-              fullWidth
-              label="Department"
-              value={filters.department}
-              onChange={(e) => handleFilterChange('department', e.target.value)}
-              size="small"
-            />
-          </Grid>
-
-          {/* Row 2: Status and Score Filters */}
-          <Grid item xs={12} sm={6} md={3}>
-            <TextField
-              fullWidth
-              label="Year"
-              value={filters.year}
-              onChange={(e) => handleFilterChange('year', e.target.value)}
-              size="small"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <FormControl fullWidth size="small">
+              placeholder="Search by college..."
+            />,
+            <FormControl key="scoreRange" fullWidth size="small">
               <InputLabel>Score Range</InputLabel>
               <Select
-                value={filters.scoreRange}
+                value={filters.scoreRange || 'all'}
                 label="Score Range"
                 onChange={(e) => handleFilterChange('scoreRange', e.target.value)}
               >
@@ -892,13 +867,11 @@ const EventQuizSubmissions = () => {
                 <MenuItem value="70-90">70% - 90%</MenuItem>
                 <MenuItem value="90-100">Above 90%</MenuItem>
               </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <FormControl fullWidth size="small">
+            </FormControl>,
+            <FormControl key="participationStatus" fullWidth size="small">
               <InputLabel>Participation Status</InputLabel>
               <Select
-                value={filters.participationStatus}
+                value={filters.participationStatus || 'all'}
                 label="Participation Status"
                 onChange={(e) => handleFilterChange('participationStatus', e.target.value)}
               >
@@ -913,18 +886,9 @@ const EventQuizSubmissions = () => {
                 </MenuItem>
               </Select>
             </FormControl>
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <Button
-              variant="outlined"
-              onClick={resetFilters}
-              fullWidth
-              sx={{ height: '40px' }}
-            >
-              Reset Filters
-            </Button>
-          </Grid>
-        </Grid>
+          ]}
+          sx={{ mb: 3 }}
+        />
 
         <TableContainer>
           <Table>

@@ -139,22 +139,34 @@ const EventQuizCreate = () => {
       try {
         setLoading(true);
         console.log('Fetching academic structure...');
+
+        // Fetch departments from college settings (now public)
+        const deptResponse = await api.get('/api/admin/settings/departments');
+        let departments = [];
+        if (deptResponse && deptResponse.departments && Array.isArray(deptResponse.departments)) {
+          departments = deptResponse.departments.map(dept => dept.name);
+        }
+
+        // Fetch academic details for years and semesters
         const response = await api.get('/api/academic-details');
         console.log('Academic structure response:', response);
-        
+
         if (response && Array.isArray(response)) {
-          // Extract unique departments, years, and semesters
-          const departments = [...new Set(response.map(detail => detail.department))].filter(Boolean);
+          // Extract unique departments from academic details as fallback
+          const academicDepartments = [...new Set(response.map(detail => detail.department))].filter(Boolean);
           const years = [...new Set(response.map(detail => detail.year))].filter(Boolean).sort((a, b) => a - b);
           const semesters = [...new Set(response.map(detail => detail.semester))].filter(Boolean).sort((a, b) => a - b);
-          
+
+          // Use departments from college settings, fallback to academic details
+          const finalDepartments = departments.length > 0 ? departments : academicDepartments;
+
           setAcademicStructure({
-            departments: ['all', ...departments],
+            departments: ['all', ...finalDepartments],
             years: ['all', ...years.map(String)],
             semesters: ['all', ...semesters.map(String)]
           });
           setAcademicDetails(response);
-          console.log('Updated academic structure:', { departments, years, semesters });
+          console.log('Updated academic structure:', { departments: finalDepartments, years, semesters });
         } else {
           console.warn('Using default academic structure');
           setAcademicStructure({

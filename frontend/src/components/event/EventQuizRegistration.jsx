@@ -41,12 +41,47 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  // Fetch quiz details when dialog opens
+  // Academic data from college settings
+  const [academicData, setAcademicData] = useState({
+    departments: [],
+    years: []
+  });
+
+  // Fetch quiz details and academic data when dialog opens
   useEffect(() => {
     if (open && quizId) {
       fetchQuizDetails();
+      fetchAcademicData();
     }
   }, [open, quizId]);
+
+  const fetchAcademicData = async () => {
+    try {
+      // Fetch departments from college settings (now public)
+      const deptResponse = await api.get('/api/admin/settings/departments');
+      let departments = [];
+      if (deptResponse && deptResponse.departments && Array.isArray(deptResponse.departments)) {
+        departments = deptResponse.departments.map(dept => dept.name);
+      }
+
+      // Fetch academic details for years
+      const academicResponse = await api.get('/api/academic-details');
+      const academicDetails = Array.isArray(academicResponse) ? academicResponse : [];
+      const years = [...new Set(academicDetails.map(detail => detail.year))].filter(Boolean).sort((a, b) => a - b);
+
+      setAcademicData({
+        departments: departments.length > 0 ? departments : ['Computer Science and Engineering', 'Electronics and Communication Engineering', 'Mechanical Engineering', 'Civil Engineering', 'Other'],
+        years: years.length > 0 ? years : [1, 2, 3, 4]
+      });
+    } catch (error) {
+      console.error('Error fetching academic data:', error);
+      // Fallback data
+      setAcademicData({
+        departments: ['Computer Science and Engineering', 'Electronics and Communication Engineering', 'Mechanical Engineering', 'Civil Engineering', 'Other'],
+        years: [1, 2, 3, 4]
+      });
+    }
+  };
 
   const fetchQuizDetails = async () => {
     try {
@@ -117,8 +152,7 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
     }
   };
 
-  const yearOptions = ['1', '2', '3', '4'];
-  const departmentOptions = ['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL', 'Other'];
+  // Remove hardcoded arrays - will use AcademicFilter data instead
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -224,7 +258,7 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
                 value={formData.department}
                 onChange={handleChange}
               >
-                {departmentOptions.map(option => (
+                {academicData.departments.map(option => (
                   <MenuItem key={option} value={option}>
                     {option}
                   </MenuItem>
@@ -242,7 +276,7 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
                 value={formData.year}
                 onChange={handleChange}
               >
-                {yearOptions.map(option => (
+                {academicData.years.map(option => (
                   <MenuItem key={option} value={option}>
                     Year {option}
                   </MenuItem>
@@ -329,7 +363,7 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
                         value={member.department}
                         onChange={(e) => handleTeamMemberChange(index, 'department', e.target.value)}
                       >
-                        {departmentOptions.map(option => (
+                        {academicData.departments.map(option => (
                           <MenuItem key={option} value={option}>
                             {option}
                           </MenuItem>
@@ -346,7 +380,7 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
                         value={member.year}
                         onChange={(e) => handleTeamMemberChange(index, 'year', e.target.value)}
                       >
-                        {yearOptions.map(option => (
+                        {academicData.years.map(option => (
                           <MenuItem key={option} value={option}>
                             Year {option}
                           </MenuItem>

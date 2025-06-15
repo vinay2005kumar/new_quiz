@@ -35,6 +35,8 @@ import { Upload as UploadIcon } from '@mui/icons-material';
 import * as XLSX from 'xlsx';
 import api from '../../config/axios';
 import { useAuth } from '../../context/AuthContext';
+import AcademicFilter from '../common/AcademicFilter';
+import useAcademicFilters from '../../hooks/useAcademicFilters';
 
 const SubjectList = () => {
   const [subjects, setSubjects] = useState([]);
@@ -49,8 +51,13 @@ const SubjectList = () => {
   const [openUploadDialog, setOpenUploadDialog] = useState(false);
   const [uploadError, setUploadError] = useState('');
 
-  // Filter states
-  const [filters, setFilters] = useState({
+  // Filter states using common hook
+  const {
+    filters,
+    handleFilterChange,
+    clearFilters,
+    getFilterParams
+  } = useAcademicFilters({
     search: '',
     department: '',
     year: '',
@@ -58,34 +65,7 @@ const SubjectList = () => {
     section: ''
   });
 
-  const years = [
-    { value: 1, label: 'First Year' },
-    { value: 2, label: 'Second Year' },
-    { value: 3, label: 'Third Year' },
-    { value: 4, label: 'Fourth Year' }
-  ];
-
-  const getSemestersByYear = (year) => {
-    switch (parseInt(year)) {
-      case 1: return [
-        { value: 1, label: 'First Semester' },
-        { value: 2, label: 'Second Semester' }
-      ];
-      case 2: return [
-        { value: 3, label: 'Third Semester' },
-        { value: 4, label: 'Fourth Semester' }
-      ];
-      case 3: return [
-        { value: 5, label: 'Fifth Semester' },
-        { value: 6, label: 'Sixth Semester' }
-      ];
-      case 4: return [
-        { value: 7, label: 'Seventh Semester' },
-        { value: 8, label: 'Eighth Semester' }
-      ];
-      default: return [];
-    }
-  };
+  // Remove hardcoded arrays - now using AcademicFilter component
 
   useEffect(() => {
     fetchSubjects();
@@ -169,22 +149,7 @@ const SubjectList = () => {
     setSubjects(filtered);
   };
 
-  const handleFilterChange = (field, value) => {
-    setFilters(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const clearFilters = () => {
-    setFilters({
-      search: '',
-      department: '',
-      year: '',
-      semester: '',
-      section: ''
-    });
-  };
+  // handleFilterChange and clearFilters are now provided by useAcademicFilters hook
 
   const formatYearSemester = (year, semester) => {
     const yearNames = ['First', 'Second', 'Third', 'Fourth'];
@@ -324,105 +289,30 @@ const SubjectList = () => {
         </Alert>
       )}
 
-      <Paper sx={{ p: 2, mb: 2 }}>
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <FilterListIcon /> Filters
-          </Typography>
-        </Box>
-        <Grid container spacing={2}>
-          <Grid item xs={12} sm={6} md={3}>
-            <TextField
-              fullWidth
-              size="small"
-              label="Search"
-              value={filters.search}
-              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              placeholder="Search by name or code"
-              InputProps={{
-                startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />
-              }}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Department</InputLabel>
-              <Select
-                value={filters.department}
-                onChange={(e) => setFilters({ ...filters, department: e.target.value, year: '', semester: '', section: '' })}
-                label="Department"
-              >
-                <MenuItem value="">All</MenuItem>
-                {departments.map((dept) => (
-                  <MenuItem key={dept._id} value={dept.name}>
-                    {dept.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} sm={6} md={2}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Year</InputLabel>
-              <Select
-                value={filters.year}
-                onChange={(e) => setFilters({ ...filters, year: e.target.value, semester: '', section: '' })}
-                label="Year"
-                disabled={!filters.department}
-              >
-                <MenuItem value="">All</MenuItem>
-                {[1, 2, 3, 4].map(year => (
-                  <MenuItem key={year} value={year}>Year {year}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} sm={6} md={2}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Semester</InputLabel>
-              <Select
-                value={filters.semester}
-                onChange={(e) => setFilters({ ...filters, semester: e.target.value, section: '' })}
-                label="Semester"
-                disabled={!filters.year}
-              >
-                <MenuItem value="">All</MenuItem>
-                {[1, 2, 3, 4, 5, 6, 7, 8].map(sem => (
-                  <MenuItem key={sem} value={sem}>Semester {sem}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} sm={6} md={2}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Section</InputLabel>
-              <Select
-                value={filters.section}
-                onChange={(e) => setFilters({ ...filters, section: e.target.value })}
-                label="Section"
-                disabled={!filters.department || !filters.year || !filters.semester}
-              >
-                <MenuItem value="">All</MenuItem>
-                {getAvailableSections(filters.department, filters.year, filters.semester).map(section => (
-                  <MenuItem key={section} value={section}>
-                    Section {section}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} sm={6} md={2}>
-            <Button
-              fullWidth
-              variant="outlined"
-              onClick={() => setFilters({ search: '', department: '', year: '', semester: '', section: '' })}
-              disabled={!filters.search && !filters.department && !filters.year && !filters.semester && !filters.section}
-            >
-              Clear Filters
-            </Button>
-          </Grid>
-        </Grid>
-      </Paper>
+      <AcademicFilter
+        filters={filters}
+        onFilterChange={handleFilterChange}
+        onClearFilters={clearFilters}
+        showFilters={['department', 'year', 'semester', 'section']}
+        title="Subject Filters"
+        showRefreshButton={true}
+        onRefresh={fetchSubjects}
+        customFilters={[
+          <TextField
+            key="search"
+            fullWidth
+            size="small"
+            label="Search"
+            value={filters.search || ''}
+            onChange={(e) => handleFilterChange('search', e.target.value)}
+            placeholder="Search by name or code"
+            InputProps={{
+              startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />
+            }}
+          />
+        ]}
+        sx={{ mb: 2 }}
+      />
 
       <TableContainer component={Paper}>
         <Table>

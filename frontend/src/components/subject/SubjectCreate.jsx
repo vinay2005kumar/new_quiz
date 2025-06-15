@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -17,19 +17,12 @@ import {
 import api from '../../config/axios';
 import { useAuth } from '../../context/AuthContext';
 
-const DEPARTMENTS = [
-  'Computer Science and Engineering',
-  'Electronics and Communication Engineering',
-  'Electrical and Electronics Engineering',
-  'Mechanical Engineering',
-  'Civil Engineering',
-  'Information Technology'
-];
-
 const SubjectCreate = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [departments, setDepartments] = useState([]);
   const [formData, setFormData] = useState({
     code: '',
     name: '',
@@ -40,6 +33,28 @@ const SubjectCreate = () => {
     credits: '',
     description: ''
   });
+
+  useEffect(() => {
+    fetchDepartments();
+  }, []);
+
+  const fetchDepartments = async () => {
+    try {
+      const response = await api.get('/api/admin/departments');
+      if (response.data && Array.isArray(response.data)) {
+        const deptNames = response.data.map(dept => dept.name);
+        setDepartments(deptNames);
+      }
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+      // Fallback to some default departments if API fails
+      setDepartments([
+        'Computer Science and Engineering',
+        'Electronics and Communication Engineering',
+        'Electrical and Electronics Engineering'
+      ]);
+    }
+  };
 
   const years = [
     { value: 1, label: 'First Year' },
@@ -228,7 +243,7 @@ const SubjectCreate = () => {
                   <MenuItem value="" disabled>
                     {/* <em>Select Department</em> */}
                   </MenuItem>
-                  {DEPARTMENTS.map(dept => (
+                  {departments.map(dept => (
                     <MenuItem key={dept} value={dept}>
                       {dept}
                     </MenuItem>

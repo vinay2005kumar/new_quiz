@@ -18,21 +18,13 @@ import {
 import api from '../../config/axios';
 import { useAuth } from '../../context/AuthContext';
 
-const DEPARTMENTS = [
-  'Computer Science and Engineering',
-  'Electronics and Communication Engineering',
-  'Electrical and Electronics Engineering',
-  'Mechanical Engineering',
-  'Civil Engineering',
-  'Information Technology'
-];
-
 const SubjectEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [departments, setDepartments] = useState([]);
   const [formData, setFormData] = useState({
     code: '',
     name: '',
@@ -44,12 +36,7 @@ const SubjectEdit = () => {
     description: ''
   });
 
-  const years = [
-    { value: 1, label: 'First Year' },
-    { value: 2, label: 'Second Year' },
-    { value: 3, label: 'Third Year' },
-    { value: 4, label: 'Fourth Year' }
-  ];
+  // Remove hardcoded years - now using dynamic data from academic details
 
   const sequences = Array.from({ length: 9 }, (_, i) => ({
     value: (i + 1).toString(),
@@ -58,15 +45,34 @@ const SubjectEdit = () => {
 
   useEffect(() => {
     fetchSubject();
+    fetchDepartments();
   }, [id]);
+
+  const fetchDepartments = async () => {
+    try {
+      const response = await api.get('/api/admin/departments');
+      if (response.data && Array.isArray(response.data)) {
+        const deptNames = response.data.map(dept => dept.name);
+        setDepartments(deptNames);
+      }
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+      // Fallback to some default departments if API fails
+      setDepartments([
+        'Computer Science and Engineering',
+        'Electronics and Communication Engineering',
+        'Electrical and Electronics Engineering'
+      ]);
+    }
+  };
 
   const fetchSubject = async () => {
     try {
       const subject = await api.get(`/subject/${id}`);
-      
+
       // Extract sequence number from code (last digit)
       const sequence = subject.code.slice(-1);
-      
+
       setFormData({
         ...subject,
         sequence
@@ -251,7 +257,7 @@ const SubjectEdit = () => {
                   <MenuItem value="" disabled>
                     Select Department
                   </MenuItem>
-                  {DEPARTMENTS.map(dept => (
+                  {departments.map(dept => (
                     <MenuItem key={dept} value={dept}>
                       {dept}
                     </MenuItem>

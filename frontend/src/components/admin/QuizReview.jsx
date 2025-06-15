@@ -24,6 +24,8 @@ import {
 } from '@mui/material';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import api from '../../config/axios';
+import AcademicFilter from '../common/AcademicFilter';
+import useAcademicFilters from '../../hooks/useAcademicFilters';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
@@ -45,7 +47,12 @@ const QuizReview = () => {
     },
     departmentWiseStats: []
   });
-  const [filters, setFilters] = useState({
+  const {
+    filters,
+    handleFilterChange,
+    clearFilters,
+    getFilterParams
+  } = useAcademicFilters({
     department: 'all',
     year: 'all',
     section: 'all',
@@ -61,7 +68,7 @@ const QuizReview = () => {
       setLoading(true);
       setError('');
       console.log('Fetching statistics with filters:', filters);
-      const response = await api.get('/quiz/statistics', { params: filters });
+      const response = await api.get('/quiz/statistics', { params: getFilterParams() });
       console.log('Statistics response:', response);
       setStats(response);
     } catch (error) {
@@ -70,14 +77,6 @@ const QuizReview = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleFilterChange = (event) => {
-    const { name, value } = event.target;
-    setFilters(prev => ({
-      ...prev,
-      [name]: value
-    }));
   };
 
   const formatPercentage = (value) => {
@@ -131,77 +130,15 @@ const QuizReview = () => {
         </Typography>
 
         {/* Filters */}
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid item xs={12} sm={6} md={3}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Department</InputLabel>
-              <Select
-                name="department"
-                value={filters.department}
-                onChange={handleFilterChange}
-                label="Department"
-              >
-                <MenuItem value="all">All Departments</MenuItem>
-                {['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL'].map(dept => (
-                  <MenuItem key={dept} value={dept}>{dept}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-
-          <Grid item xs={12} sm={6} md={3}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Year</InputLabel>
-              <Select
-                name="year"
-                value={filters.year}
-                onChange={handleFilterChange}
-                label="Year"
-              >
-                <MenuItem value="all">All Years</MenuItem>
-                {[1, 2, 3, 4].map(year => (
-                  <MenuItem key={year} value={year}>Year {year}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-
-          <Grid item xs={12} sm={6} md={3}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Section</InputLabel>
-              <Select
-                name="section"
-                value={filters.section}
-                onChange={handleFilterChange}
-                label="Section"
-              >
-                <MenuItem value="all">All Sections</MenuItem>
-                {['A', 'B', 'C', 'D'].map(section => (
-                  <MenuItem key={section} value={section}>Section {section}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-
-          <Grid item xs={12} sm={6} md={3}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Subject</InputLabel>
-              <Select
-                name="subject"
-                value={filters.subject}
-                onChange={handleFilterChange}
-                label="Subject"
-              >
-                <MenuItem value="all">All Subjects</MenuItem>
-                {stats.subjectWiseStats?.map(subject => (
-                  <MenuItem key={subject.code} value={subject.code}>
-                    {subject.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-        </Grid>
+        <AcademicFilter
+          filters={filters}
+          onFilterChange={handleFilterChange}
+          onClearFilters={clearFilters}
+          showFilters={['department', 'year', 'section', 'subject']}
+          title="Quiz Statistics Filters"
+          showRefreshButton={true}
+          onRefresh={fetchStatistics}
+        />
 
         {/* Summary Cards */}
         <Grid container spacing={3} sx={{ mb: 4 }}>

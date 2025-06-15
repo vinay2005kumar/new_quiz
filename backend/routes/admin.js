@@ -941,8 +941,8 @@ router.get('/event-quiz-accounts/passwords/:id', isAdmin, async (req, res) => {
   }
 });
 
-// Department routes
-router.get('/settings/departments', isAdmin, async (req, res) => {
+// Department routes - Made public so all users can access college settings
+router.get('/settings/departments', async (req, res) => {
   try {
     const departments = await Department.find().sort('name');
     res.json({ departments });

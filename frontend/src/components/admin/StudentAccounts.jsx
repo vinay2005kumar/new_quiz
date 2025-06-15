@@ -47,6 +47,8 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import CountDisplayPaper from '../common/CountDisplayPaper';
+import AcademicFilter from '../common/AcademicFilter';
+import useAcademicFilters from '../../hooks/useAcademicFilters';
 
 const YEARS = ['1', '2', '3', '4'];
 const SEMESTERS = ['1', '2', '3', '4', '5', '6', '7', '8'];
@@ -62,7 +64,12 @@ const StudentAccounts = () => {
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [visiblePasswords, setVisiblePasswords] = useState({});
   const [showAllPasswords, setShowAllPasswords] = useState(false);
-  const [filters, setFilters] = useState({
+  const {
+    filters,
+    handleFilterChange,
+    clearFilters,
+    getFilterParams
+  } = useAcademicFilters({
     department: '',
     year: '',
     semester: '',
@@ -686,93 +693,26 @@ const StudentAccounts = () => {
           </Alert>
         ) : (
           <>
-            <Paper sx={{ p: 2, mb: 2 }}>
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <FilterListIcon className="filter-icon" /> Filters
-                </Typography>
-              </Box>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6} md={3}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Department</InputLabel>
-                    <Select
-                      value={filters.department}
-                      onChange={(e) => setFilters({ ...filters, department: e.target.value })}
-                      label="Department"
-                    >
-                      <MenuItem value="">All</MenuItem>
-                      {departments.map((dept) => (
-                        <MenuItem key={dept} value={dept}>
-                          {dept}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Year</InputLabel>
-                    <Select
-                      value={filters.year}
-                      onChange={(e) => setFilters({ ...filters, year: e.target.value })}
-                      label="Year"
-                    >
-                      <MenuItem value="">All</MenuItem>
-                      {years.map((year) => (
-                        <MenuItem key={year} value={year}>
-                          {year}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Semester</InputLabel>
-                    <Select
-                      value={filters.semester}
-                      onChange={(e) => setFilters({ ...filters, semester: e.target.value })}
-                      label="Semester"
-                    >
-                      <MenuItem value="">All</MenuItem>
-                      {getAvailableSemesters().map((sem) => (
-                        <MenuItem key={sem} value={sem}>
-                          {sem}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Section</InputLabel>
-                    <Select
-                      value={filters.section}
-                      onChange={(e) => setFilters({ ...filters, section: e.target.value })}
-                      label="Section"
-                    >
-                      <MenuItem value="">All</MenuItem>
-                      {getAvailableSections().map((sec) => (
-                        <MenuItem key={sec} value={sec}>
-                          {sec}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Admission Number"
-                    value={filters.admissionNumber}
-                    onChange={(e) => setFilters({ ...filters, admissionNumber: e.target.value })}
-                    placeholder="Search..."
-                  />
-                </Grid>
-              </Grid>
-            </Paper>
+            <AcademicFilter
+              filters={filters}
+              onFilterChange={handleFilterChange}
+              onClearFilters={clearFilters}
+              showFilters={['department', 'year', 'semester', 'section']}
+              title="Student Filters"
+              showRefreshButton={true}
+              onRefresh={fetchStudents}
+              customFilters={[
+                <TextField
+                  key="admissionNumber"
+                  fullWidth
+                  size="small"
+                  label="Admission Number"
+                  value={filters.admissionNumber || ''}
+                  onChange={(e) => handleFilterChange('admissionNumber', e.target.value)}
+                  placeholder="Search by admission number..."
+                />
+              ]}
+            />
 
             {/* Count Display */}
             <CountDisplayPaper sx={{ p: 2, mb: 2 }}>

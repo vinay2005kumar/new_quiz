@@ -53,6 +53,7 @@ import EventQuizSubmissionView from './components/event/EventQuizSubmissionView'
 import CollegeSettings from './components/admin/CollegeSettings';
 import AdminQuizzes from './components/admin/AdminQuizzes';
 import QuizSubmissionView from './components/quiz/QuizSubmissionView';
+import ReviewQuizzes from './components/student/ReviewQuizzes';
 
 
 
@@ -105,7 +106,7 @@ const AppRoutes = () => {
               <Routes>
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/quizzes" element={<QuizList type="academic" />} />
-                <Route path="/event-quizzes" element={<EventQuizList />} />
+                <Route path="/review-quizzes" element={<ReviewQuizzes />} />
                 <Route path="/quizzes/:id/attempt" element={<QuizAttempt />} />
                 <Route path="/quizzes/:id/review" element={<QuizReview />} />
                 <Route path="/profile" element={<Profile />} />

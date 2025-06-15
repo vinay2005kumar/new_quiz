@@ -62,6 +62,8 @@ const EventQuizzes = () => {
   const [selectedQuiz, setSelectedQuiz] = useState(null);
   const [academicDetails, setAcademicDetails] = useState([]);
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
+  const [searchTitle, setSearchTitle] = useState('');
+  const [collegeInfo, setCollegeInfo] = useState(null);
   const [registrationData, setRegistrationData] = useState({
     // Participant type selection
     participantType: '', // 'college' or 'external'
@@ -97,12 +99,56 @@ const EventQuizzes = () => {
   useEffect(() => {
     fetchEventQuizzes();
     fetchAcademicDetails();
+    fetchCollegeInfo();
   }, []);
+
+  const fetchCollegeInfo = async () => {
+    try {
+      const response = await api.get('/api/setup/college-info');
+      if (response) {
+        setCollegeInfo(response);
+      }
+    } catch (error) {
+      console.error('Error fetching college info:', error);
+    }
+  };
 
   const fetchAcademicDetails = async () => {
     try {
+      // Fetch departments from college settings (now public)
+      const deptResponse = await api.get('/api/admin/settings/departments');
+      let collegeDepartments = [];
+      if (deptResponse && deptResponse.departments && Array.isArray(deptResponse.departments)) {
+        collegeDepartments = deptResponse.departments.map(dept => dept.name);
+      }
+
+      // Fetch academic details
       const response = await api.get('/api/academic-details');
-      setAcademicDetails(response || []);
+      const academicData = response || [];
+
+      // Get departments from academic details as fallback
+      const academicDepartments = [...new Set(academicData.map(detail => detail.department))].filter(Boolean);
+
+      // Use college departments if available, otherwise use academic departments
+      const finalDepartments = collegeDepartments.length > 0 ? collegeDepartments : academicDepartments;
+
+      // Create enhanced academic details with college departments
+      const enhancedAcademicDetails = [...academicData];
+
+      // Add any missing departments from college settings
+      finalDepartments.forEach(dept => {
+        if (!enhancedAcademicDetails.find(detail => detail.department === dept)) {
+          enhancedAcademicDetails.push({
+            department: dept,
+            year: 1, // Default values for departments not in academic details
+            semester: 1,
+            sections: 'A,B,C',
+            subjects: ''
+          });
+        }
+      });
+
+      setAcademicDetails(enhancedAcademicDetails);
     } catch (error) {
       console.error('Error fetching academic details:', error);
       // Set default academic details if API fails
@@ -463,23 +509,26 @@ const EventQuizzes = () => {
   };
 
   const formatParticipantTypes = (quiz) => {
+    // Get college name from college info, fallback to "College Students"
+    const collegeName = collegeInfo?.name || 'College Students';
+
     // Check for new array format first (participantTypes)
     if (quiz?.participantTypes && Array.isArray(quiz.participantTypes) && quiz.participantTypes.length > 0) {
       return quiz.participantTypes.map(type =>
-        type === 'college' ? 'College Students' : 'External Students'
+        type === 'college' ? collegeName : 'External Students'
       ).join(', ');
     }
 
     // Check for old string format (participantType) for backward compatibility
     if (quiz?.participantType) {
       if (quiz.participantType === 'any') {
-        return 'College Students, External Students';
+        return `${collegeName}, External Students`;
       } else if (quiz.participantType === 'college') {
-        return 'College Students';
+        return collegeName;
       }
     }
 
-    return 'College Students';
+    return collegeName;
   };
 
   const formatEligibility = (quiz) => {
@@ -508,6 +557,15 @@ const EventQuizzes = () => {
     }
 
     return parts.length > 0 ? parts.join(' • ') : 'Open to All';
+  };
+
+  // Filter quizzes by search title
+  const getFilteredQuizzes = (quizzes) => {
+    if (!searchTitle.trim()) return quizzes;
+
+    return quizzes.filter(quiz =>
+      quiz.title?.toLowerCase().includes(searchTitle.toLowerCase().trim())
+    );
   };
 
   const validateTeamRegistration = () => {
@@ -919,6 +977,25 @@ const EventQuizzes = () => {
           </Alert>
         )}
 
+        {/* Search Filter */}
+        <Paper sx={{ p: 2, mb: 3 }}>
+          <TextField
+            fullWidth
+            label="Search quizzes by title..."
+            variant="outlined"
+            value={searchTitle}
+            onChange={(e) => setSearchTitle(e.target.value)}
+            placeholder="Enter quiz title to search"
+            InputProps={{
+              startAdornment: (
+                <Box sx={{ mr: 1, display: 'flex', alignItems: 'center' }}>
+                  🔍
+                </Box>
+              ),
+            }}
+          />
+        </Paper>
+
         {/* Tabs */}
         <Paper sx={{ mb: 3 }}>
           <Tabs
@@ -928,12 +1005,12 @@ const EventQuizzes = () => {
             indicatorColor="primary"
           >
             <Tab
-              label={`Active Quizzes (${activeQuizzes.length})`}
+              label={`Active Quizzes (${getFilteredQuizzes(activeQuizzes).length})`}
               icon={<EventIcon />}
               iconPosition="start"
             />
             <Tab
-              label={`Upcoming Quizzes (${upcomingQuizzes.length})`}
+              label={`Upcoming Quizzes (${getFilteredQuizzes(upcomingQuizzes).length})`}
               icon={<CalendarIcon />}
               iconPosition="start"
             />
@@ -946,19 +1023,19 @@ const EventQuizzes = () => {
             <Typography variant="h5" gutterBottom sx={{ mb: 3 }}>
               🔴 Live Quizzes - Join Now!
             </Typography>
-            {activeQuizzes.length === 0 ? (
+            {getFilteredQuizzes(activeQuizzes).length === 0 ? (
               <Paper sx={{ p: 4, textAlign: 'center' }}>
                 <EventIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
                 <Typography variant="h6" color="text.secondary">
-                  No active quizzes at the moment
+                  {searchTitle.trim() ? 'No active quizzes match your search' : 'No active quizzes at the moment'}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Check back later or browse upcoming quizzes
+                  {searchTitle.trim() ? 'Try a different search term or browse upcoming quizzes' : 'Check back later or browse upcoming quizzes'}
                 </Typography>
               </Paper>
             ) : (
               <Grid container spacing={3}>
-                {activeQuizzes.map((quiz) => (
+                {getFilteredQuizzes(activeQuizzes).map((quiz) => (
                   <Grid item xs={12} sm={6} md={4} key={quiz._id}>
                     <QuizCard quiz={quiz} isActive={true} />
                   </Grid>
@@ -973,14 +1050,14 @@ const EventQuizzes = () => {
             <Typography variant="h5" gutterBottom sx={{ mb: 3 }}>
               📅 Upcoming Quizzes - Register Now!
             </Typography>
-            {upcomingQuizzes.length === 0 ? (
+            {getFilteredQuizzes(upcomingQuizzes).length === 0 ? (
               <Paper sx={{ p: 4, textAlign: 'center' }}>
                 <CalendarIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
                 <Typography variant="h6" color="text.secondary">
-                  No upcoming quizzes scheduled
+                  {searchTitle.trim() ? 'No upcoming quizzes match your search' : 'No upcoming quizzes scheduled'}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  New quizzes will be announced soon
+                  {searchTitle.trim() ? 'Try a different search term or check active quizzes' : 'New quizzes will be announced soon'}
                 </Typography>
                 {/* Debug info */}
                 <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
@@ -989,7 +1066,7 @@ const EventQuizzes = () => {
               </Paper>
             ) : (
               <Grid container spacing={3}>
-                {upcomingQuizzes.map((quiz) => (
+                {getFilteredQuizzes(upcomingQuizzes).map((quiz) => (
                   <Grid item xs={12} sm={6} md={4} key={quiz._id}>
                     <QuizCard quiz={quiz} />
                   </Grid>

@@ -44,6 +44,8 @@ import {
 } from 'recharts';
 import api from '../../config/axios';
 import { useAuth } from '../../context/AuthContext';
+import AcademicFilter from '../common/AcademicFilter';
+import useAcademicFilters from '../../hooks/useAcademicFilters';
 import AddIcon from '@mui/icons-material/Add';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import AssessmentIcon from '@mui/icons-material/Assessment';
@@ -54,6 +56,7 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import GroupIcon from '@mui/icons-material/Group';
 import ClassIcon from '@mui/icons-material/Class';
 import QuizIcon from '@mui/icons-material/Quiz';
+import RefreshIcon from '@mui/icons-material/Refresh';
 
 const COLORS = {
   excellent: '#4caf50',
@@ -112,14 +115,19 @@ const QuizList = () => {
   const [departments, setDepartments] = useState([]);
   const [sections, setSections] = useState([]);
   const [submissions, setSubmissions] = useState({});
+  const [submissionsLoaded, setSubmissionsLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const { user } = useAuth();
   const navigate = useNavigate();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [quizToDelete, setQuizToDelete] = useState(null);
-  const [tabValue, setTabValue] = useState(0);
-  const [filters, setFilters] = useState({
+  const {
+    filters,
+    handleFilterChange: handleAcademicFilterChange,
+    clearFilters,
+    getFilterParams
+  } = useAcademicFilters({
     department: '',
     year: '',
     semester: '',
@@ -146,15 +154,47 @@ const QuizList = () => {
   });
 
   const [deleteDialog, setDeleteDialog] = useState(false);
-  const [selectedDepartment, setSelectedDepartment] = useState('');
-  const [selectedYear, setSelectedYear] = useState('');
-  const [selectedSection, setSelectedSection] = useState('');
-  const [filter, setFilter] = useState('all');
+  // Removed old filter state - now using useAcademicFilters hook
 
   useEffect(() => {
+    // Initialize submissions loading flag
+    window.submissionsLoaded = false;
+
     fetchQuizzes();
     fetchFacultyStructure();
+    if (user?.role === 'student') {
+      fetchSubmissions();
+    }
   }, []);
+
+  // Refresh data when user role changes or component remounts
+  useEffect(() => {
+    if (user?.role === 'student') {
+      // Reset submissions loaded flag to force refresh
+      window.submissionsLoaded = false;
+      fetchSubmissions();
+    }
+  }, [user?.role]);
+
+  // Force refresh submissions when component mounts or pathname changes
+  useEffect(() => {
+    if (user?.role === 'student') {
+      console.log('🔄 Component mounted or pathname changed - forcing submission refresh');
+      window.submissionsLoaded = false;
+      fetchSubmissions();
+    }
+  }, [window.location.pathname, user?.role]);
+
+  // Add interval to refresh submissions every 30 seconds for students
+  useEffect(() => {
+    if (user?.role === 'student') {
+      const interval = setInterval(() => {
+        fetchSubmissions();
+      }, 30000); // Refresh every 30 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [user?.role]);
 
   useEffect(() => {
     if (user?.role === 'admin') {
@@ -171,12 +211,49 @@ const QuizList = () => {
   // Add a focus effect to refresh data when tab becomes active
   useEffect(() => {
     const handleFocus = () => {
+      console.log('Window focused - refreshing data');
       fetchQuizzes();
+      if (user?.role === 'student') {
+        fetchSubmissions();
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log('Page became visible - refreshing data');
+        fetchQuizzes();
+        if (user?.role === 'student') {
+          fetchSubmissions();
+        }
+      }
     };
 
     window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, []);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user?.role]);
+
+  // Add navigation listener to refresh submissions when returning to quiz list
+  useEffect(() => {
+    const handlePopState = () => {
+      console.log('Navigation detected - refreshing submissions');
+      if (user?.role === 'student') {
+        // Reset submissions loaded flag to force refresh
+        window.submissionsLoaded = false;
+        fetchSubmissions();
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [user?.role]);
 
   const fetchQuizzes = async () => {
     try {
@@ -210,12 +287,110 @@ const QuizList = () => {
       }
 
       console.log('Final quizzes array:', allQuizzes);
+
+      // CRITICAL: Check if we have the "hi" quiz and its ID
+      const hiQuiz = allQuizzes.find(q => q.title === 'hi');
+      if (hiQuiz) {
+        console.log('🎯 FOUND "hi" QUIZ:', {
+          quizId: hiQuiz._id,
+          quizIdString: hiQuiz._id.toString(),
+          title: hiQuiz.title,
+          type: hiQuiz.type
+        });
+      }
+
       setQuizzes(allQuizzes);
     } catch (error) {
       console.error('Error fetching quizzes:', error);
       setError(error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSubmissions = async () => {
+    try {
+      if (user?.role !== 'student') return;
+
+      // Temporarily use complete submissions to test
+      const response = await api.get('/api/quiz/my-submissions');
+      console.log('Student submissions response:', {
+        status: response.status,
+        data: response.data,
+        dataType: typeof response.data,
+        isArray: Array.isArray(response.data)
+      });
+
+      // Convert array to object with quiz ID as key
+      const submissionsMap = {};
+      if (Array.isArray(response.data)) {
+        response.data.forEach(submission => {
+          // Handle complete submission format: { quiz: {...}, status, submitTime, answers }
+          const quizId = submission.quiz?._id;
+          if (quizId) {
+            // Convert ObjectId to string for consistent comparison
+            const quizIdString = quizId.toString();
+            const submissionData = {
+              quizId: quizId,
+              quizTitle: submission.quiz.title,
+              status: submission.status,
+              submitTime: submission.submitTime
+            };
+            submissionsMap[quizIdString] = submissionData;
+
+            // Debug: Log each submission mapping
+            console.log('🔍 MAPPING SUBMISSION:', {
+              originalQuizId: quizId,
+              quizIdString: quizIdString,
+              quizIdType: typeof quizId,
+              stringType: typeof quizIdString,
+              quizTitle: submission.quiz.title,
+              submissionData: submissionData,
+              mapKey: quizIdString
+            });
+          }
+        });
+      }
+
+      console.log('Fetched submissions:', {
+        rawData: response.data,
+        submissionsMap: submissionsMap,
+        submissionCount: Object.keys(submissionsMap).length,
+        submissionKeys: Object.keys(submissionsMap)
+      });
+
+      // CRITICAL: Log the exact submission data for debugging
+      console.log('🔍 SUBMISSION MAPPING DEBUG:', {
+        rawSubmissions: response.data,
+        processedSubmissions: submissionsMap,
+        submissionKeys: Object.keys(submissionsMap)
+      });
+
+      // CRITICAL: Check if we have the "hi" quiz submission
+      if (Array.isArray(response.data)) {
+        const hiSubmission = response.data.find(sub => sub.quiz?.title === 'hi');
+        if (hiSubmission) {
+          console.log('🎯 FOUND "hi" SUBMISSION:', {
+            quizId: hiSubmission.quiz._id,
+            quizIdString: hiSubmission.quiz._id.toString(),
+            status: hiSubmission.status,
+            mappedCorrectly: !!submissionsMap[hiSubmission.quiz._id.toString()],
+            fullSubmissionData: hiSubmission
+          });
+        } else {
+          console.log('❌ NO "hi" SUBMISSION FOUND in response.data:', response.data);
+        }
+      } else {
+        console.log('❌ response.data is not an array:', response.data);
+      }
+
+      setSubmissions(submissionsMap);
+
+      // Set flag to indicate submissions have been loaded
+      window.submissionsLoaded = true;
+    } catch (error) {
+      console.error('Error fetching submissions:', error);
+      setSubmissions({});
     }
   };
 
@@ -235,12 +410,12 @@ const QuizList = () => {
 
   // Get available sections based on faculty assignments
   const getAvailableSections = () => {
-    if (!selectedDepartment || !selectedYear || !filters.semester || !user?.assignments) return [];
+    if (!filters.department || !filters.year || !filters.semester || !user?.assignments) return [];
     return [...new Set(
       user.assignments
-        .filter(a => 
-          a.department === selectedDepartment && 
-          a.year.toString() === selectedYear.toString() && 
+        .filter(a =>
+          a.department === filters.department &&
+          a.year.toString() === filters.year.toString() &&
           a.semester.toString() === filters.semester.toString()
         )
         .flatMap(a => a.sections)
@@ -249,22 +424,22 @@ const QuizList = () => {
 
   // Get available years based on faculty assignments
   const getAvailableYears = () => {
-    if (!selectedDepartment || !user?.assignments) return [];
+    if (!filters.department || !user?.assignments) return [];
     return [...new Set(
       user.assignments
-        .filter(a => a.department === selectedDepartment)
+        .filter(a => a.department === filters.department)
         .map(a => a.year)
     )].sort((a, b) => a - b);
   };
 
   // Get available semesters based on faculty assignments
   const getAvailableSemesters = () => {
-    if (!selectedDepartment || !selectedYear || !user?.assignments) return [];
+    if (!filters.department || !filters.year || !user?.assignments) return [];
     return [...new Set(
       user.assignments
-        .filter(a => 
-          a.department === selectedDepartment && 
-          a.year.toString() === selectedYear.toString()
+        .filter(a =>
+          a.department === filters.department &&
+          a.year.toString() === filters.year.toString()
         )
         .map(a => parseInt(a.semester))
     )].sort((a, b) => a - b);
@@ -467,30 +642,35 @@ const QuizList = () => {
   const getFilteredQuizzes = () => {
     console.log('Current pathname:', window.location.pathname);
     console.log('All quizzes before filtering:', quizzes);
+    console.log('Submissions state:', submissions);
+    console.log('User role:', user?.role);
 
     if (!Array.isArray(quizzes)) {
       console.warn('Quizzes is not an array:', quizzes);
       return [];
     }
 
-    // First filter by quiz type based on tab
+    // For students, ensure submissions have been fetched
+    // Don't filter quizzes until submissions are loaded
+    if (user?.role === 'student' && !window.submissionsLoaded) {
+      console.log('⏳ Waiting for submissions to load...');
+      return [];
+    }
+
+    // Only show academic quizzes (event quizzes are accessed from public events page)
     const typeFilteredQuizzes = quizzes.filter(quiz => {
       if (!quiz) return false;
-      
+
       const isAcademic = quiz.type === 'academic';
-      const isEvent = quiz.type === 'event';
-      const matchesTab = tabValue === 0 ? isAcademic : isEvent;
-      
+
       console.log('Quiz filtering:', {
         title: quiz.title,
         type: quiz.type,
         isAcademic,
-        isEvent,
-        tabValue,
-        matchesTab
+        showingOnlyAcademic: true
       });
-      
-      return matchesTab;
+
+      return isAcademic;
     });
 
     console.log('Quizzes after type filtering:', typeFilteredQuizzes);
@@ -502,20 +682,68 @@ const QuizList = () => {
       const now = new Date();
       const startTime = new Date(quiz.startTime);
       const endTime = new Date(quiz.endTime);
-      const submission = submissions[quiz._id];
-      
+      const submission = submissions[quiz._id.toString()];
+
       const isUpcoming = now < startTime;
       const isActive = now >= startTime && now <= endTime;
       const isSubmitted = submission && (submission.status === 'submitted' || submission.status === 'evaluated');
 
+      // Debug quiz filtering for troubleshooting
+      if (quiz.title === 'hi') {
+        console.log('🔍 Quiz "hi" filtering DETAILED:', {
+          quizId: quiz._id,
+          quizIdString: quiz._id.toString(),
+          quizIdType: typeof quiz._id,
+          submission: submission,
+          isSubmitted: isSubmitted,
+          submissionKeys: Object.keys(submissions),
+          submissionKeysTypes: Object.keys(submissions).map(key => ({ key, type: typeof key })),
+          submissionsObject: submissions,
+          lookupResult: submissions[quiz._id.toString()],
+          directLookup: submissions[quiz._id],
+          submissionStatus: submission?.status,
+          isEvaluated: submission?.status === 'evaluated',
+          isSubmittedCheck: submission && (submission.status === 'submitted' || submission.status === 'evaluated')
+        });
+
+        // Try all possible lookups
+        console.log('🔍 ALL LOOKUP ATTEMPTS:', {
+          byToString: submissions[quiz._id.toString()],
+          byDirect: submissions[quiz._id],
+          byStringify: submissions[JSON.stringify(quiz._id)],
+          allSubmissionEntries: Object.entries(submissions)
+        });
+      }
+
       // For student view, filter based on route
       if (user.role === 'student') {
+        console.log('Student filtering:', {
+          quizTitle: quiz.title,
+          pathname: window.location.pathname,
+          isUpcoming,
+          isActive,
+          isSubmitted,
+          submission: submission
+        });
+
         if (window.location.pathname === '/student/review-quizzes') {
           return isSubmitted;
         } else if (window.location.pathname === '/student/upcoming-quizzes') {
           return isUpcoming && !isSubmitted;
         } else if (window.location.pathname === '/student/quizzes') {
-          return (isActive || isUpcoming) && !isSubmitted;
+          // Only show active or upcoming quizzes that haven't been submitted
+          const shouldShow = (isActive || isUpcoming) && !isSubmitted;
+          // Debug: Uncomment for troubleshooting
+          // console.log('Quiz filtering decision:', {
+          //   quizTitle: quiz.title,
+          //   quizId: quiz._id,
+          //   isActive,
+          //   isUpcoming,
+          //   isSubmitted,
+          //   shouldShow,
+          //   submissionData: submission
+          // });
+          return shouldShow;
         }
       }
 
@@ -530,27 +758,12 @@ const QuizList = () => {
     });
   };
 
-  const handleFilterChange = (event) => {
-    const { name, value } = event.target;
-    setFilters(prev => ({
-      ...prev,
-      [name]: value
-    }));
+  const handleFilterChange = (name, value) => {
+    handleAcademicFilterChange(name, value);
   };
 
-  const handleDepartmentChange = (event) => {
-    setSelectedDepartment(event.target.value);
-    setSelectedSection(''); // Reset section when department changes
-  };
-
-  const handleYearChange = (event) => {
-    setSelectedYear(event.target.value);
-    setSelectedSection(''); // Reset section when year changes
-  };
-
-  const handleSectionChange = (event) => {
-    setSelectedSection(event.target.value);
-  };
+  // These handlers are now handled by the AcademicFilter component
+  // through the handleFilterChange function
 
   const handleCreateQuiz = () => {
     navigate('/faculty/quizzes/create');
@@ -564,119 +777,34 @@ const QuizList = () => {
     navigate(`/faculty/quizzes/${quizId}/edit`);
   };
 
-  const handleTabChange = (event, newValue) => {
-    setTabValue(newValue);
-    setError('');
-  };
+  // Tab functionality removed - only showing academic quizzes
 
   const renderFilters = () => (
-    <Paper sx={{ p: 2, mb: 2 }}>
-      <Box sx={{ mb: 2 }}>
-        <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <FilterListIcon /> Filters
-        </Typography>
-      </Box>
-      <Grid container spacing={2}>
-        <Grid item xs={12} sm={6} md={2}>
-          <FormControl fullWidth size="small">
-            <InputLabel>Department</InputLabel>
-            <Select
-              name="department"
-              value={selectedDepartment}
-              onChange={handleDepartmentChange}
-              label="Department"
-            >
-              <MenuItem value="">All</MenuItem>
-              {departments.map(dept => (
-                <MenuItem key={dept} value={dept}>
-                  {dept}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={2}>
-          <FormControl fullWidth size="small">
-            <InputLabel>Year</InputLabel>
-            <Select
-              name="year"
-              value={selectedYear}
-              onChange={handleYearChange}
-              label="Year"
-              disabled={!selectedDepartment}
-            >
-              <MenuItem value="">All</MenuItem>
-              {getAvailableYears().map(year => (
-                <MenuItem key={year} value={year}>Year {year}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={2}>
-          <FormControl fullWidth size="small">
-            <InputLabel>Semester</InputLabel>
-            <Select
-              name="semester"
-              value={filters.semester}
-              onChange={(e) => setFilters(prev => ({ ...prev, semester: e.target.value }))}
-              label="Semester"
-              disabled={!selectedYear}
-            >
-              <MenuItem value="">All</MenuItem>
-              {getAvailableSemesters().map(sem => (
-                <MenuItem key={sem} value={sem.toString()}>
-                  Semester {sem}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={2}>
-          <FormControl fullWidth size="small">
-            <InputLabel>Section</InputLabel>
-            <Select
-              name="section"
-              value={selectedSection}
-              onChange={handleSectionChange}
-              label="Section"
-              disabled={!filters.semester}
-            >
-              <MenuItem value="">All</MenuItem>
-              {getAvailableSections().map(section => (
-                <MenuItem key={section} value={section}>
-                  Section {section}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Grid>
-
-        <Grid item xs={12} sm={6} md={2}>
-          <Button
-            fullWidth
-            variant="outlined"
-            onClick={() => {
-              setSelectedDepartment('');
-              setSelectedYear('');
-              setSelectedSection('');
-              setFilters({
-                department: '',
-                year: '',
-                semester: '',
-                section: '',
-                status: ''
-              });
-            }}
-            disabled={!selectedDepartment && !selectedYear && !selectedSection && !filters.status}
+    <AcademicFilter
+      filters={filters}
+      onFilterChange={handleFilterChange}
+      onClearFilters={clearFilters}
+      showFilters={['department', 'year', 'semester', 'section']}
+      title="Quiz Filters"
+      showRefreshButton={true}
+      onRefresh={fetchQuizzes}
+      customFilters={[
+        <FormControl key="status" fullWidth size="small">
+          <InputLabel>Status</InputLabel>
+          <Select
+            value={filters.status || ''}
+            onChange={(e) => handleFilterChange('status', e.target.value)}
+            label="Status"
           >
-            Clear Filters
-          </Button>
-        </Grid>
-      </Grid>
-    </Paper>
+            <MenuItem value="">All Status</MenuItem>
+            <MenuItem value="upcoming">Upcoming</MenuItem>
+            <MenuItem value="active">Active</MenuItem>
+            <MenuItem value="expired">Expired</MenuItem>
+            <MenuItem value="submitted">Submitted</MenuItem>
+          </Select>
+        </FormControl>
+      ]}
+    />
   );
 
   const renderStatisticsCharts = () => {
@@ -899,7 +1027,7 @@ const QuizList = () => {
   };
 
   const renderQuizCard = (quiz) => {
-    const submission = submissions[quiz._id];
+    const submission = submissions[quiz._id.toString()];
     const status = getQuizStatus(quiz, submission);
     const buttonConfig = getButtonConfig(quiz, status, submission);
 
@@ -1056,13 +1184,7 @@ const QuizList = () => {
       </Box>
 
       <Box sx={{ width: '100%', maxWidth: '1200px' }}>
-        {/* Add Tabs */}
-        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-          <Tabs value={tabValue} onChange={handleTabChange}>
-            <Tab label="Academic Quizzes" />
-            <Tab label="Event Quizzes" />
-          </Tabs>
-        </Box>
+        {/* Remove tabs - only show academic quizzes for faculty and students */}
 
         {/* Show filters and statistics only for admin */}
         {user?.role === 'admin' && (
@@ -1077,113 +1199,32 @@ const QuizList = () => {
 
         {/* Show filters based on role */}
         {(user?.role === 'faculty' || user?.role === 'event') && (
-          <Box sx={{ width: '100%', mb: 3 }}>
-            <Paper sx={{ p: 2 }}>
-              <Box sx={{ mb: 2, display: 'flex', alignItems: 'center' }}>
-                <FilterListIcon sx={{ mr: 1 }} />
-                <Typography variant="h6">Filters</Typography>
-              </Box>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6} md={2}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Department</InputLabel>
-                    <Select
-                      name="department"
-                      value={selectedDepartment}
-                      onChange={handleDepartmentChange}
-                      label="Department"
-                    >
-                      <MenuItem value="">All</MenuItem>
-                      {departments.map(dept => (
-                        <MenuItem key={dept} value={dept}>
-                          {dept}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
+          <AcademicFilter
+            filters={filters}
+            onFilterChange={handleFilterChange}
+            onClearFilters={clearFilters}
+            showFilters={['department', 'year', 'semester', 'section']}
+            title="Faculty Quiz Filters"
+            showRefreshButton={true}
+            onRefresh={fetchQuizzes}
+            sx={{ mb: 3 }}
+          />
+        )}
 
-                <Grid item xs={12} sm={6} md={2}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Year</InputLabel>
-                    <Select
-                      name="year"
-                      value={selectedYear}
-                      onChange={handleYearChange}
-                      label="Year"
-                      disabled={!selectedDepartment}
-                    >
-                      <MenuItem value="">All</MenuItem>
-                      {getAvailableYears().map(year => (
-                        <MenuItem key={year} value={year}>Year {year}</MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                <Grid item xs={12} sm={6} md={2}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Semester</InputLabel>
-                    <Select
-                      name="semester"
-                      value={filters.semester}
-                      onChange={(e) => setFilters(prev => ({ ...prev, semester: e.target.value }))}
-                      label="Semester"
-                      disabled={!selectedYear}
-                    >
-                      <MenuItem value="">All</MenuItem>
-                      {getAvailableSemesters().map(sem => (
-                        <MenuItem key={sem} value={sem.toString()}>
-                          Semester {sem}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                <Grid item xs={12} sm={6} md={2}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Section</InputLabel>
-                    <Select
-                      name="section"
-                      value={selectedSection}
-                      onChange={handleSectionChange}
-                      label="Section"
-                      disabled={!filters.semester}
-                    >
-                      <MenuItem value="">All</MenuItem>
-                      {getAvailableSections().map(section => (
-                        <MenuItem key={section} value={section}>
-                          Section {section}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                <Grid item xs={12} sm={6} md={2}>
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    onClick={() => {
-                      setSelectedDepartment('');
-                      setSelectedYear('');
-                      setSelectedSection('');
-                      setFilters({
-                        department: '',
-                        year: '',
-                        semester: '',
-                        section: '',
-                        status: ''
-                      });
-                    }}
-                    disabled={!selectedDepartment && !selectedYear && !selectedSection && !filters.status}
-                  >
-                    Clear Filters
-                  </Button>
-                </Grid>
-              </Grid>
-            </Paper>
+        {/* Show refresh button for students */}
+        {user?.role === 'student' && (
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 3 }}>
+            <Button
+              variant="outlined"
+              startIcon={<RefreshIcon />}
+              onClick={() => {
+                fetchQuizzes();
+                fetchSubmissions();
+              }}
+              sx={{ minWidth: 120 }}
+            >
+              Refresh
+            </Button>
           </Box>
         )}
 

@@ -66,6 +66,7 @@ const EventQuizCard = ({
   const [error, setError] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [academicDetails, setAcademicDetails] = useState([]);
+  const [collegeInfo, setCollegeInfo] = useState(null);
 
   useEffect(() => {
     const fetchAcademicDetails = async () => {
@@ -79,7 +80,19 @@ const EventQuizCard = ({
       }
     };
 
+    const fetchCollegeInfo = async () => {
+      try {
+        const response = await api.get('/api/setup/college-info');
+        if (response) {
+          setCollegeInfo(response);
+        }
+      } catch (error) {
+        console.error('Error fetching college info:', error);
+      }
+    };
+
     fetchAcademicDetails();
+    fetchCollegeInfo();
   }, []);
 
   useEffect(() => {
@@ -248,23 +261,26 @@ const EventQuizCard = ({
   }
 
   const formatParticipantTypes = (quiz) => {
+    // Get college name from college info, fallback to "College Students"
+    const collegeName = collegeInfo?.name || 'College Students';
+
     // Check for new array format first (participantTypes)
     if (quiz?.participantTypes && Array.isArray(quiz.participantTypes) && quiz.participantTypes.length > 0) {
       return quiz.participantTypes.map(type =>
-        type === 'college' ? 'College Students' : 'External Students'
+        type === 'college' ? collegeName : 'External Students'
       ).join(', ');
     }
 
     // Check for old string format (participantType) for backward compatibility
     if (quiz?.participantType) {
       if (quiz.participantType === 'any') {
-        return 'College Students, External Students';
+        return `${collegeName}, External Students`;
       } else if (quiz.participantType === 'college') {
-        return 'College Students';
+        return collegeName;
       }
     }
 
-    return 'College Students';
+    return collegeName;
   };
 
   const formatEligibility = (quiz) => {

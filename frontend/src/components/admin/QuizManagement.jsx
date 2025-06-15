@@ -33,6 +33,8 @@ import EditIcon from '@mui/icons-material/Edit';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import DownloadIcon from '@mui/icons-material/Download';
 import api from '../../config/axios';
+import AcademicFilter from '../common/AcademicFilter';
+import useAcademicFilters from '../../hooks/useAcademicFilters';
 
 const QuizManagement = () => {
   const [quizzes, setQuizzes] = useState([]);
@@ -40,7 +42,13 @@ const QuizManagement = () => {
   const [error, setError] = useState('');
   const [tabValue, setTabValue] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filters, setFilters] = useState({
+
+  const {
+    filters,
+    handleFilterChange,
+    clearFilters,
+    getFilterParams
+  } = useAcademicFilters({
     subject: '',
     department: '',
     status: 'all'
@@ -153,57 +161,40 @@ const QuizManagement = () => {
         </Tabs>
       </Box>
 
-      <Box sx={{ mb: 3 }}>
-        <Grid container spacing={2} alignItems="center">
-          <Grid item xs={12} sm={4}>
-            <TextField
-              fullWidth
-              label="Search Quizzes"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </Grid>
-          <Grid item xs={12} sm={8}>
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <FormControl fullWidth>
-                <InputLabel>Subject</InputLabel>
-                <Select
-                  value={filters.subject}
-                  onChange={(e) => setFilters({ ...filters, subject: e.target.value })}
-                  label="Subject"
-                >
-                  <MenuItem value="">All</MenuItem>
-                  {/* Add subjects dynamically */}
-                </Select>
-              </FormControl>
-              <FormControl fullWidth>
-                <InputLabel>Department</InputLabel>
-                <Select
-                  value={filters.department}
-                  onChange={(e) => setFilters({ ...filters, department: e.target.value })}
-                  label="Department"
-                >
-                  <MenuItem value="">All</MenuItem>
-                  {/* Add departments dynamically */}
-                </Select>
-              </FormControl>
-              <FormControl fullWidth>
-                <InputLabel>Status</InputLabel>
-                <Select
-                  value={filters.status}
-                  onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-                  label="Status"
-                >
-                  <MenuItem value="all">All</MenuItem>
-                  <MenuItem value="upcoming">Upcoming</MenuItem>
-                  <MenuItem value="active">Active</MenuItem>
-                  <MenuItem value="completed">Completed</MenuItem>
-                </Select>
-              </FormControl>
-            </Box>
-          </Grid>
-        </Grid>
-      </Box>
+      <AcademicFilter
+        filters={filters}
+        onFilterChange={handleFilterChange}
+        onClearFilters={clearFilters}
+        showFilters={['department', 'subject']}
+        title="Quiz Management Filters"
+        showRefreshButton={true}
+        onRefresh={fetchQuizzes}
+        customFilters={[
+          <TextField
+            key="search"
+            fullWidth
+            size="small"
+            label="Search Quizzes"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search by quiz title..."
+          />,
+          <FormControl key="status" fullWidth size="small">
+            <InputLabel>Status</InputLabel>
+            <Select
+              value={filters.status || 'all'}
+              onChange={(e) => handleFilterChange('status', e.target.value)}
+              label="Status"
+            >
+              <MenuItem value="all">All</MenuItem>
+              <MenuItem value="upcoming">Upcoming</MenuItem>
+              <MenuItem value="active">Active</MenuItem>
+              <MenuItem value="completed">Completed</MenuItem>
+            </Select>
+          </FormControl>
+        ]}
+        sx={{ mb: 3 }}
+      />
 
       <TableContainer component={Paper}>
         <Table>

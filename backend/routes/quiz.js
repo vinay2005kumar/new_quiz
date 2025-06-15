@@ -259,11 +259,17 @@ router.get('/', auth, async (req, res) => {
     }
     
     console.log('Query:', query);
-    
+
     const quizzes = await Quiz.find(query)
       .populate('createdBy', 'name email department')
       .sort({ createdAt: -1 })
       .lean();
+
+    console.log('🔍 QUIZ ENDPOINT: Found quizzes:', {
+      totalQuizzes: quizzes.length,
+      quizTitles: quizzes.map(q => ({ id: q._id, title: q.title, type: q.type })),
+      hasHiQuiz: quizzes.some(q => q.title === 'hi')
+    });
 
     // Transform the data to ensure proper subject format
     const transformedQuizzes = quizzes.map(quiz => {
@@ -486,6 +492,79 @@ router.get('/statistics', auth, authorize('faculty', 'admin'), async (req, res) 
     res.json(statistics);
   } catch (error) {
     console.error('Error fetching quiz statistics:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Get all submissions for the current student (MUST be before ID-based routes)
+router.get('/my-submissions', auth, async (req, res) => {
+  try {
+    // Debug: Uncomment for troubleshooting
+    // console.log('MY-SUBMISSIONS ENDPOINT HIT:', {
+    //   userId: req.user._id,
+    //   userRole: req.user.role,
+    //   timestamp: new Date()
+    // });
+
+    if (req.user.role !== 'student') {
+      console.log('Access denied - not a student:', req.user.role);
+      return res.status(403).json({ message: 'Access denied. Students only.' });
+    }
+
+    const submissions = await QuizSubmission.find({
+      student: req.user._id
+    }).populate('quiz', 'title totalMarks duration questions allowedGroups subject startTime endTime');
+
+    // Filter out submissions where quiz was deleted (quiz is null)
+    const validSubmissions = submissions.filter(s => s.quiz !== null);
+
+    console.log('Fetched student submissions:', {
+      studentId: req.user._id,
+      totalSubmissions: submissions.length,
+      validSubmissions: validSubmissions.length,
+      deletedQuizSubmissions: submissions.length - validSubmissions.length,
+      submissions: validSubmissions.map(s => ({
+        quizId: s.quiz._id,
+        quizTitle: s.quiz.title,
+        status: s.status,
+        submitTime: s.submitTime
+      }))
+    });
+
+    // For QuizList component (filtering), return simplified data
+    // For ReviewQuizzes component, return complete data
+    if (req.query.simple === 'true') {
+      // Return simplified data for quiz filtering
+      const simplifiedSubmissions = validSubmissions.map(submission => ({
+        quizId: submission.quiz._id,
+        quizTitle: submission.quiz.title,
+        status: submission.status,
+        submitTime: submission.submitTime
+      }));
+
+      console.log('🔍 SIMPLIFIED SUBMISSIONS RESPONSE:', {
+        requestQuery: req.query,
+        simplifiedSubmissions: simplifiedSubmissions,
+        count: simplifiedSubmissions.length
+      });
+
+      res.json(simplifiedSubmissions);
+    } else {
+      // Return complete submission objects for ReviewQuizzes
+      console.log('🔍 COMPLETE SUBMISSIONS RESPONSE:', {
+        requestQuery: req.query,
+        validSubmissions: validSubmissions.length,
+        firstSubmission: validSubmissions[0] ? {
+          id: validSubmissions[0]._id,
+          quizTitle: validSubmissions[0].quiz?.title,
+          status: validSubmissions[0].status
+        } : null
+      });
+
+      res.json(validSubmissions);
+    }
+  } catch (error) {
+    console.error('Error fetching student submissions:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
@@ -964,6 +1043,8 @@ router.post('/upload/excel', auth, authorize('faculty'), upload.single('file'), 
     res.status(500).json({ message: 'Error creating quiz', error: error.message });
   }
 });
+
+
 
 // Get quiz submission
 router.get('/:id/submission', auth, async (req, res) => {

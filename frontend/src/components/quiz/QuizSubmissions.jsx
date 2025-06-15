@@ -35,6 +35,8 @@ import QuizIcon from '@mui/icons-material/Quiz';
 import api from '../../config/axios';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
+import useAcademicFilters from '../../hooks/useAcademicFilters';
+import AcademicFilter from '../common/AcademicFilter';
 
 const QuizAuthorizedStudents = () => {
   const { id } = useParams();
@@ -64,8 +66,12 @@ const QuizAuthorizedStudents = () => {
   const [error, setError] = useState('');
   const [quiz, setQuiz] = useState(null);
   const [students, setStudents] = useState([]);
-  const departments = ['CSE', 'ECE', 'EEE', 'MECH', 'CIVIL'];
-  const [filters, setFilters] = useState({
+  const {
+    filters,
+    handleFilterChange,
+    clearFilters,
+    setSpecificFilter
+  } = useAcademicFilters({
     admissionNumber: '',
     scoreRange: 'all',
     submissionStatus: 'all',
@@ -135,24 +141,7 @@ const QuizAuthorizedStudents = () => {
     }
   };
 
-  const handleFilterChange = (name, value) => {
-    setFilters(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
 
-  const resetFilters = () => {
-    setFilters({
-      admissionNumber: '',
-      scoreRange: 'all',
-      submissionStatus: 'all',
-      department: 'all',
-      year: 'all',
-      section: 'all',
-      semester: 'all'
-    });
-  };
 
   const requestSort = (key) => {
     let direction = 'asc';
@@ -384,21 +373,28 @@ const QuizAuthorizedStudents = () => {
         </Box>
 
         {/* Filters */}
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid item xs={12} sm={6} md={2}>
+        <AcademicFilter
+          filters={filters}
+          onFilterChange={handleFilterChange}
+          onClearFilters={clearFilters}
+          showFilters={['department', 'year', 'semester', 'section']}
+          title="Quiz Submission Filters"
+          showRefreshButton={true}
+          onRefresh={() => window.location.reload()}
+          customFilters={[
             <TextField
+              key="admissionNumber"
               fullWidth
               size="small"
               label="Admission Number"
-              value={filters.admissionNumber}
+              value={filters.admissionNumber || ''}
               onChange={(e) => handleFilterChange('admissionNumber', e.target.value)}
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={2}>
-            <FormControl fullWidth size="small">
+              placeholder="Search by admission number..."
+            />,
+            <FormControl key="scoreRange" fullWidth size="small">
               <InputLabel>Score Range</InputLabel>
               <Select
-                value={filters.scoreRange}
+                value={filters.scoreRange || 'all'}
                 onChange={(e) => handleFilterChange('scoreRange', e.target.value)}
                 label="Score Range"
               >
@@ -409,13 +405,11 @@ const QuizAuthorizedStudents = () => {
                 <MenuItem value="70-90">70% - 90%</MenuItem>
                 <MenuItem value="90-100">Above 90%</MenuItem>
               </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} sm={6} md={2}>
-            <FormControl fullWidth size="small">
+            </FormControl>,
+            <FormControl key="submissionStatus" fullWidth size="small">
               <InputLabel>Status</InputLabel>
               <Select
-                value={filters.submissionStatus}
+                value={filters.submissionStatus || 'all'}
                 onChange={(e) => handleFilterChange('submissionStatus', e.target.value)}
                 label="Status"
               >
@@ -425,38 +419,8 @@ const QuizAuthorizedStudents = () => {
                 <MenuItem value="evaluated">Evaluated</MenuItem>
               </Select>
             </FormControl>
-          </Grid>
-          <Grid item xs={12} sm={6} md={4}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Semester</InputLabel>
-              <Select
-                value={filters.semester}
-                onChange={(e) => handleFilterChange('semester', e.target.value)}
-                label="Semester"
-              >
-                <MenuItem value="all">All Semesters</MenuItem>
-                <MenuItem value={1}>Semester 1</MenuItem>
-                <MenuItem value={2}>Semester 2</MenuItem>
-                <MenuItem value={3}>Semester 3</MenuItem>
-                <MenuItem value={4}>Semester 4</MenuItem>
-                <MenuItem value={5}>Semester 5</MenuItem>
-                <MenuItem value={6}>Semester 6</MenuItem>
-                <MenuItem value={7}>Semester 7</MenuItem>
-                <MenuItem value={8}>Semester 8</MenuItem>
-              </Select>
-            </FormControl>
-          </Grid>
-          <Grid item xs={12} sm={6} md={2}>
-            <Button
-              fullWidth
-              variant="outlined"
-              startIcon={<FilterListIcon />}
-              onClick={resetFilters}
-            >
-              Reset Filters
-            </Button>
-          </Grid>
-        </Grid>
+          ]}
+        />
 
         {/* Results Table */}
         <TableContainer>

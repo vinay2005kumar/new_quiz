@@ -40,8 +40,7 @@ import PeopleIcon from '@mui/icons-material/People';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import api from '../../config/axios';
 
-const sections = ['A', 'B', 'C', 'D', 'E'];
-const years = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
+// Remove hardcoded arrays - these should come from academic details
 
 const AdmissionRanges = () => {
   const [ranges, setRanges] = useState([]);

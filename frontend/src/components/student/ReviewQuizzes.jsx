@@ -37,36 +37,60 @@ const ReviewQuizzes = () => {
     try {
       setLoading(true);
       setError('');
-      
-      // Fetch all quizzes first
-      const quizzesResponse = await api.get('/api/quiz');
-      const quizzes = Array.isArray(quizzesResponse) ? quizzesResponse : [];
-      
-      // Fetch submissions for each quiz
-      const submissionPromises = quizzes.map(quiz =>
-        api.get(`/api/quiz/${quiz._id}/submission`)
-          .then(res => {
-            if (!res) return null;
-            return {
-              quizId: quiz._id,
-              quiz: quiz,
-              ...res,
-              totalScore: Array.isArray(res.answers) 
-                ? res.answers.reduce((total, ans) => total + (Number(ans.marks) || 0), 0)
-                : 0
-            };
-          })
-          .catch(() => null) // Silently handle errors for quizzes without submissions
-      );
-      
-      const submissions = await Promise.all(submissionPromises);
-      // Filter only submitted and evaluated quizzes
-      const completedSubmissions = submissions.filter(
-        sub => sub && sub.status === 'evaluated'
-      );
-      
-      console.log('Completed submissions:', completedSubmissions);
-      setSubmittedQuizzes(completedSubmissions);
+
+      // Use the same approach as QuizList.jsx for consistency
+      // Fetch all submissions using the bulk endpoint
+      const submissionsResponse = await api.get('/api/quiz/my-submissions');
+      const submissions = Array.isArray(submissionsResponse.data) ? submissionsResponse.data : [];
+
+      console.log('Review Quizzes - Fetched submissions:', submissions);
+      console.log('Review Quizzes - Raw response structure:', {
+        isArray: Array.isArray(submissions),
+        length: submissions.length,
+        firstSubmission: submissions[0],
+        hasQuiz: submissions[0]?.quiz,
+        hasAnswers: submissions[0]?.answers,
+        submissionStatus: submissions[0]?.status
+      });
+
+      // Debug submissions for troubleshooting
+      console.log('Review Quizzes - Submissions received:', {
+        count: submissions.length,
+        firstSubmission: submissions[0]
+      });
+
+      // Transform submissions to match the expected format
+      const validSubmissions = submissions
+        .filter(submission => {
+          console.log('Filtering submission:', {
+            hasQuiz: !!submission.quiz,
+            status: submission.status,
+            quizTitle: submission.quiz?.title
+          });
+          return submission.quiz && submission.status === 'evaluated';
+        })
+        .map(submission => {
+          const totalScore = Array.isArray(submission.answers)
+            ? submission.answers.reduce((total, ans) => total + (Number(ans.marks) || 0), 0)
+            : 0;
+
+          console.log('Processing submission:', {
+            quizTitle: submission.quiz.title,
+            hasAnswers: !!submission.answers,
+            answersLength: submission.answers?.length,
+            totalScore
+          });
+
+          return {
+            quizId: submission.quiz._id,
+            quiz: submission.quiz,
+            ...submission,
+            totalScore
+          };
+        });
+
+      console.log('Review Quizzes - Valid submissions:', validSubmissions);
+      setSubmittedQuizzes(validSubmissions);
     } catch (error) {
       console.error('Error fetching submitted quizzes:', error);
       setError('Failed to fetch submitted quizzes. Please try again later.');
@@ -148,7 +172,7 @@ const ReviewQuizzes = () => {
             variant="contained"
             color="primary"
             startIcon={<AssessmentIcon />}
-            onClick={() => navigate(`/quizzes/${quiz._id}/review`)}
+            onClick={() => navigate(`/student/quizzes/${quiz._id}/review`)}
           >
             View Details
           </Button>

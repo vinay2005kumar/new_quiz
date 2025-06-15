@@ -38,11 +38,19 @@ import {
   Cell
 } from 'recharts';
 import api from '../../config/axios';
+import AcademicFilter from '../common/AcademicFilter';
+import useAcademicFilters from '../../hooks/useAcademicFilters';
 
 const ResultAnalysis = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [filters, setFilters] = useState({
+
+  const {
+    filters,
+    handleFilterChange,
+    clearFilters,
+    getFilterParams
+  } = useAcademicFilters({
     department: '',
     subject: '',
     year: '',
@@ -158,66 +166,30 @@ const ResultAnalysis = () => {
 
       <Grid container spacing={3}>
         <Grid item xs={12}>
-          <Paper sx={{ p: 3, mb: 3 }}>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={3}>
-                <FormControl fullWidth>
-                  <InputLabel>Department</InputLabel>
-                  <Select
-                    value={filters.department}
-                    onChange={(e) => setFilters({ ...filters, department: e.target.value })}
-                    label="Department"
-                  >
-                    <MenuItem value="">All</MenuItem>
-                    {/* Add departments dynamically */}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={3}>
-                <FormControl fullWidth>
-                  <InputLabel>Subject</InputLabel>
-                  <Select
-                    value={filters.subject}
-                    onChange={(e) => setFilters({ ...filters, subject: e.target.value })}
-                    label="Subject"
-                  >
-                    <MenuItem value="">All</MenuItem>
-                    {/* Add subjects dynamically */}
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={3}>
-                <FormControl fullWidth>
-                  <InputLabel>Year</InputLabel>
-                  <Select
-                    value={filters.year}
-                    onChange={(e) => setFilters({ ...filters, year: e.target.value })}
-                    label="Year"
-                  >
-                    <MenuItem value="">All</MenuItem>
-                    <MenuItem value="1">1st Year</MenuItem>
-                    <MenuItem value="2">2nd Year</MenuItem>
-                    <MenuItem value="3">3rd Year</MenuItem>
-                    <MenuItem value="4">4th Year</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              <Grid item xs={12} sm={3}>
-                <FormControl fullWidth>
-                  <InputLabel>Quiz Type</InputLabel>
-                  <Select
-                    value={filters.quizType}
-                    onChange={(e) => setFilters({ ...filters, quizType: e.target.value })}
-                    label="Quiz Type"
-                  >
-                    <MenuItem value="all">All</MenuItem>
-                    <MenuItem value="academic">Academic</MenuItem>
-                    <MenuItem value="event">Event</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-            </Grid>
-          </Paper>
+          <AcademicFilter
+            filters={filters}
+            onFilterChange={handleFilterChange}
+            onClearFilters={clearFilters}
+            showFilters={['department', 'year', 'subject']}
+            title="Result Analysis Filters"
+            showRefreshButton={true}
+            onRefresh={fetchResults}
+            customFilters={[
+              <FormControl key="quizType" fullWidth size="small">
+                <InputLabel>Quiz Type</InputLabel>
+                <Select
+                  value={filters.quizType || 'all'}
+                  onChange={(e) => handleFilterChange('quizType', e.target.value)}
+                  label="Quiz Type"
+                >
+                  <MenuItem value="all">All</MenuItem>
+                  <MenuItem value="academic">Academic</MenuItem>
+                  <MenuItem value="event">Event</MenuItem>
+                </Select>
+              </FormControl>
+            ]}
+            sx={{ mb: 3 }}
+          />
         </Grid>
 
         {statistics && (

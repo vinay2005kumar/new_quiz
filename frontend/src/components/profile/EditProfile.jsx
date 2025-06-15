@@ -50,8 +50,13 @@ const EditProfile = () => {
 
   const fetchDepartments = async () => {
     try {
-      const response = await api.get('/api/settings/departments');
-      setDepartments(response.data.departments);
+      // Use the same endpoint as other components (now public)
+      const response = await api.get('/api/admin/settings/departments');
+      if (response && response.departments && Array.isArray(response.departments)) {
+        setDepartments(response.departments);
+      } else {
+        setDepartments([]);
+      }
       setLoading(false);
     } catch (error) {
       console.error('Error fetching departments:', error);
