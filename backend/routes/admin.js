@@ -733,16 +733,17 @@ router.post('/accounts/bulk', isAdmin, async (req, res) => {
           createdAccounts.push(userResponse);
         } else {
           // Process student account
-          const { 
-            name, 
-            email, 
-            password, 
-            department, 
-            year, 
-            semester, 
-            section, 
+          const {
+            name,
+            email,
+            password,
+            department,
+            year,
+            semester,
+            section,
             admissionNumber,
-            isLateral 
+            isLateral,
+            EntryType // Handle Excel column name
           } = account;
 
           // Check if user already exists
@@ -752,18 +753,47 @@ router.post('/accounts/bulk', isAdmin, async (req, res) => {
             continue;
           }
 
+          // Auto-generate password if not provided
+          const finalPassword = password || `${name.toLowerCase().replace(/\s+/g, '')}123`;
+
+          // Determine if lateral entry
+          const isLateralEntry = isLateral ||
+                                (EntryType && EntryType.toLowerCase() === 'lateral') ||
+                                (admissionNumber && admissionNumber.toLowerCase().startsWith('l'));
+
           // Validate required fields
-          if (!name || !email || !password || !department || !year || !semester || !section || !admissionNumber) {
+          if (!name || !email || !department || !year || !semester || !section || !admissionNumber) {
             errors.push(`Missing required fields for student ${name || email}`);
             continue;
           }
 
+          // Validate admission number format
+          const admissionRegex = isLateralEntry ?
+            /^[lL]\d{2}[a-zA-Z]{2,3}\d{3}$/ :
+            /^[yY]\d{2}[a-zA-Z]{2,3}\d{3}$/;
+
+          if (!admissionRegex.test(admissionNumber)) {
+            errors.push(`Invalid admission number format for ${name}. ${
+              isLateralEntry ?
+              'Lateral entry format: l22cs001' :
+              'Regular entry format: y22cs001'
+            }`);
+            continue;
+          }
+
+          // Check for duplicate admission number
+          const existingAdmission = await User.findOne({ admissionNumber });
+          if (existingAdmission) {
+            errors.push(`Admission number ${admissionNumber} already exists`);
+            continue;
+          }
+
           // Store encrypted original password
-          const encryptedPassword = encrypt(password);
+          const encryptedPassword = encrypt(finalPassword);
 
           // Hash password for authentication
           const salt = await bcrypt.genSalt(10);
-          const hashedPassword = await bcrypt.hash(password, salt);
+          const hashedPassword = await bcrypt.hash(finalPassword, salt);
 
           // Create student user
           const userData = {
@@ -773,11 +803,11 @@ router.post('/accounts/bulk', isAdmin, async (req, res) => {
             originalPassword: encryptedPassword,
             role: 'student',
             department,
-            year,
-            semester,
+            year: parseInt(year),
+            semester: parseInt(semester),
             section,
             admissionNumber,
-            isLateral: isLateral || false
+            isLateral: isLateralEntry
           };
 
           // Create and save user
@@ -1475,6 +1505,127 @@ router.post('/initial-setup', async (req, res) => {
   } catch (error) {
     console.error('Error in initial setup:', error);
     res.status(500).json({ message: 'Error during initial setup', error: error.message });
+  }
+});
+
+// Bulk Academic Promotion
+router.post('/students/bulk-promotion', auth, authorize('admin'), async (req, res) => {
+  try {
+    const { studentIds, toYear, toSemester } = req.body;
+
+    console.log('🎓 BULK PROMOTION REQUEST:', {
+      studentIds: studentIds?.length,
+      toYear,
+      toSemester,
+      requestBody: req.body
+    });
+
+    // Validation
+    if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide valid student IDs for promotion'
+      });
+    }
+
+    if (!toYear || !toSemester) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide target year and semester'
+      });
+    }
+
+    // Validate year and semester ranges
+    if (toYear < 1 || toYear > 4) {
+      return res.status(400).json({
+        success: false,
+        message: 'Year must be between 1 and 4'
+      });
+    }
+
+    if (toSemester < 1 || toSemester > 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Semester must be between 1 and 8'
+      });
+    }
+
+    // Get students to be promoted
+    const studentsToPromote = await User.find({
+      _id: { $in: studentIds },
+      role: 'student'
+    });
+
+    console.log('📚 STUDENTS TO PROMOTE:', {
+      found: studentsToPromote.length,
+      requested: studentIds.length,
+      students: studentsToPromote.map(s => ({
+        name: s.name,
+        currentYear: s.year,
+        currentSemester: s.semester,
+        department: s.department
+      }))
+    });
+
+    if (studentsToPromote.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No valid students found for promotion'
+      });
+    }
+
+    // Perform bulk update
+    const updateResult = await User.updateMany(
+      {
+        _id: { $in: studentIds },
+        role: 'student'
+      },
+      {
+        $set: {
+          year: toYear,
+          semester: toSemester
+        }
+      }
+    );
+
+    console.log('✅ PROMOTION RESULT:', {
+      matchedCount: updateResult.matchedCount,
+      modifiedCount: updateResult.modifiedCount,
+      acknowledged: updateResult.acknowledged
+    });
+
+    // Log the promotion for audit purposes
+    console.log('📝 ACADEMIC PROMOTION LOG:', {
+      adminId: req.user._id,
+      adminName: req.user.name,
+      timestamp: new Date(),
+      studentsPromoted: studentsToPromote.length,
+      toYear,
+      toSemester,
+      studentDetails: studentsToPromote.map(s => ({
+        id: s._id,
+        name: s.name,
+        admissionNumber: s.admissionNumber,
+        fromYear: s.year,
+        fromSemester: s.semester,
+        department: s.department
+      }))
+    });
+
+    res.json({
+      success: true,
+      message: `Successfully promoted ${updateResult.modifiedCount} students`,
+      updatedCount: updateResult.modifiedCount,
+      totalRequested: studentIds.length
+    });
+
+  } catch (error) {
+    console.error('❌ BULK PROMOTION ERROR:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to promote students',
+      error: error.message
+    });
   }
 });
 

@@ -12,7 +12,7 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import DownloadIcon from '@mui/icons-material/Download';
 import api from '../../../config/axios';
 
-const WordQuizForm = ({ onNext, setError, basicDetails }) => {
+const WordQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate }) => {
   const [uploading, setUploading] = useState(false);
   const [file, setFile] = useState(null);
 
@@ -28,40 +28,69 @@ const WordQuizForm = ({ onNext, setError, basicDetails }) => {
   };
 
   const downloadTemplate = () => {
-    // Create a Blob with the template content
-    const templateContent = `Quiz Question Template
+    // Create RTF content that can be opened in Word
+    const rtfContent = `{\\rtf1\\ansi\\deff0 {\\fonttbl {\\f0 Times New Roman;}}
+\\f0\\fs24
+\\b Quiz Question Template\\b0\\par
+\\par
+\\b Instructions:\\b0\\par
+1. Follow this exact format for each question\\par
+2. Leave a blank line between questions\\par
+3. Mark the correct answer with an asterisk (*)\\par
+4. Include marks in parentheses after each question\\par
+\\par
+\\b Example Questions:\\b0\\par
+\\par
+\\b Q1. What is the capital of France? (1 marks)\\b0\\par
+A) Paris*\\par
+B) London\\par
+C) Berlin\\par
+D) Madrid\\par
+\\par
+\\b Q2. Which planet is known as the Red Planet? (1 marks)\\b0\\par
+A) Venus\\par
+B) Mars*\\par
+C) Jupiter\\par
+D) Saturn\\par
+\\par
+\\b Q3. What is 2 + 2? (1 marks)\\b0\\par
+A) 3\\par
+B) 4*\\par
+C) 5\\par
+D) 6\\par
+\\par
+\\i [Replace the example questions above with your own questions following the same format]\\i0\\par
+\\par
+\\b Format Rules:\\b0\\par
+- Start each question with "Q1.", "Q2.", etc.\\par
+- Include marks in parentheses: (1 marks), (2 marks), etc.\\par
+- List options as A), B), C), D)\\par
+- Mark correct answer with asterisk (*) at the end\\par
+- Leave blank lines between questions for better readability\\par
+\\par
+\\b Tips:\\b0\\par
+- Keep questions clear and concise\\par
+- Ensure all options are plausible\\par
+- Double-check the correct answers\\par
+- Save the file as .docx format before uploading\\par
+}`;
 
-Instructions:
-1. Follow this exact format for each question
-2. Leave a blank line between questions
-3. Mark the correct answer with an asterisk (*)
-
-Example:
-
-Q1. What is the capital of France? (1 mark)
-A) Paris*
-B) London
-C) Berlin
-D) Madrid
-
-Q2. Which planet is known as the Red Planet? (1 mark)
-A) Venus
-B) Mars*
-C) Jupiter
-D) Saturn
-
-[End of template]
-`;
-
-    const blob = new Blob([templateContent], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'quiz_template.txt';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
+    try {
+      const blob = new Blob([rtfContent], {
+        type: 'application/rtf'
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'quiz_template.rtf';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error creating Word template:', error);
+      setError('Failed to create Word template');
+    }
   };
 
   const handleUpload = async () => {
@@ -72,11 +101,40 @@ D) Saturn
 
     try {
       setUploading(true);
+
+      // Use the new parse endpoint
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('quizDetails', JSON.stringify(basicDetails));
 
-      const response = await api.post('/api/quiz/word', formData);
+      const response = await api.post('/api/quiz/parse/word', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      console.log('Word response from backend:', response);
+
+      // Handle the actual response structure from axios interceptor
+      let questions;
+      if (response.questions) {
+        // Direct response structure
+        questions = response.questions;
+      } else if (response.data && response.data.questions) {
+        // Standard response structure
+        questions = response.data.questions;
+      } else {
+        console.error('Questions not found in Word response:', response);
+        throw new Error('Questions not found in server response');
+      }
+
+      console.log('Parsed questions from Word:', questions);
+
+      // Store questions in parent component state for review
+      if (onQuestionsUpdate) {
+        onQuestionsUpdate(questions);
+      }
+
+      // Move to next step (review)
       onNext();
     } catch (error) {
       setError(error.response?.data?.message || 'Failed to upload Word document');
@@ -124,6 +182,50 @@ D) Saturn
         >
           Download Template
         </Button>
+
+        {/* Example Section */}
+        <Box sx={{
+          my: 2,
+          p: 2,
+          bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.800' : 'grey.100',
+          borderRadius: 1,
+          border: (theme) => `1px solid ${theme.palette.divider}`
+        }}>
+          <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>
+            📄 Word Document Format Example:
+          </Typography>
+          <Box sx={{
+            p: 2,
+            bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'white',
+            borderRadius: 1,
+            fontFamily: 'monospace',
+            fontSize: '0.875rem',
+            lineHeight: 1.6,
+            whiteSpace: 'pre-line',
+            border: '1px solid #ddd'
+          }}>
+            {`Q1. What is the capital of France? (1 marks)
+A) Paris*
+B) London
+C) Berlin
+D) Madrid
+
+Q2. Which planet is known as the Red Planet? (1 marks)
+A) Venus
+B) Mars*
+C) Jupiter
+D) Saturn
+
+Q3. What is 2 + 2? (1 marks)
+A) 3
+B) 4*
+C) 5
+D) 6`}
+          </Box>
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            💡 <strong>Tips:</strong> Use Q1., Q2., etc. for questions. Add (marks) after each question. Mark correct answers with asterisk (*). Leave blank lines between questions.
+          </Typography>
+        </Box>
 
         <input
           type="file"

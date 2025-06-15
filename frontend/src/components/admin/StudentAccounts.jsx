@@ -28,7 +28,10 @@ import {
   LinearProgress,
   Accordion,
   AccordionSummary,
-  AccordionDetails
+  AccordionDetails,
+  Checkbox,
+  FormControlLabel,
+  Snackbar
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -40,7 +43,8 @@ import {
   ExpandMore as ExpandMoreIcon,
   Download as DownloadIcon,
   CloudUpload as CloudUploadIcon,
-  Add as AddIcon
+  Add as AddIcon,
+  School as SchoolIcon
 } from '@mui/icons-material';
 import api from '../../config/axios';
 import * as XLSX from 'xlsx';
@@ -61,9 +65,24 @@ const StudentAccounts = () => {
   const [error, setError] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
   const [openUploadDialog, setOpenUploadDialog] = useState(false);
+  const [openPromotionDialog, setOpenPromotionDialog] = useState(false);
+  const [openPromotionConfirmDialog, setOpenPromotionConfirmDialog] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [visiblePasswords, setVisiblePasswords] = useState({});
   const [showAllPasswords, setShowAllPasswords] = useState(false);
+  const [selectedStudents, setSelectedStudents] = useState([]);
+  const [promotionData, setPromotionData] = useState({
+    fromYear: '',
+    fromSemester: '',
+    toYear: '',
+    toSemester: '',
+    department: ''
+  });
+  const [toast, setToast] = useState({
+    open: false,
+    message: '',
+    severity: 'success'
+  });
   const {
     filters,
     handleFilterChange,
@@ -425,6 +444,137 @@ const StudentAccounts = () => {
     setOpenDeleteDialog(true);
   };
 
+  // Toast helper functions
+  const showToast = (message, severity = 'success') => {
+    setToast({
+      open: true,
+      message,
+      severity
+    });
+  };
+
+  const handleCloseToast = (event, reason) => {
+    if (reason === 'clickaway') {
+      return;
+    }
+    setToast(prev => ({ ...prev, open: false }));
+  };
+
+  // Academic Promotion Functions
+  const handleOpenPromotionDialog = () => {
+    // Auto-fill promotion data based on current filters
+    setPromotionData({
+      fromYear: filters.year || '',
+      fromSemester: filters.semester || '',
+      toYear: '',
+      toSemester: '',
+      department: filters.department || ''
+    });
+    setSelectedStudents([]);
+    setOpenPromotionDialog(true);
+  };
+
+  const handleClosePromotionDialog = () => {
+    setOpenPromotionDialog(false);
+    setSelectedStudents([]);
+    setPromotionData({
+      fromYear: '',
+      fromSemester: '',
+      toYear: '',
+      toSemester: '',
+      department: ''
+    });
+  };
+
+  const handlePromotionDataChange = (field, value) => {
+    setPromotionData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleStudentSelection = (studentId, checked) => {
+    if (checked) {
+      setSelectedStudents(prev => [...prev, studentId]);
+    } else {
+      setSelectedStudents(prev => prev.filter(id => id !== studentId));
+    }
+  };
+
+  const handleSelectAllStudents = (checked) => {
+    if (checked) {
+      const eligibleStudents = getEligibleStudentsForPromotion();
+      setSelectedStudents(eligibleStudents.map(s => s._id));
+    } else {
+      setSelectedStudents([]);
+    }
+  };
+
+  const getEligibleStudentsForPromotion = () => {
+    return getFilteredStudents().filter(student => {
+      if (!promotionData.department || !promotionData.fromYear || !promotionData.fromSemester) {
+        return false;
+      }
+      return (
+        student.department === promotionData.department &&
+        student.year.toString() === promotionData.fromYear.toString() &&
+        student.semester.toString() === promotionData.fromSemester.toString()
+      );
+    });
+  };
+
+  const handleBulkPromotionClick = () => {
+    if (selectedStudents.length === 0) {
+      setError('Please select at least one student for promotion');
+      return;
+    }
+
+    if (!promotionData.toYear || !promotionData.toSemester) {
+      setError('Please specify target year and semester');
+      return;
+    }
+
+    // Open confirmation dialog
+    setOpenPromotionConfirmDialog(true);
+  };
+
+  const handleBulkPromotion = async () => {
+    setOpenPromotionConfirmDialog(false);
+
+    try {
+      setLoading(true);
+      const response = await api.post('/api/admin/students/bulk-promotion', {
+        studentIds: selectedStudents,
+        toYear: parseInt(promotionData.toYear),
+        toSemester: parseInt(promotionData.toSemester)
+      });
+
+      // Handle different response formats (same as other components)
+      const responseData = response.data || response || {};
+
+      console.log('📥 PROMOTION RESPONSE:', {
+        fullResponse: response,
+        responseData: responseData,
+        success: responseData.success,
+        updatedCount: responseData.updatedCount
+      });
+
+      if (responseData.success) {
+        setError('');
+        showToast(`Successfully promoted ${responseData.updatedCount} students`, 'success');
+        fetchStudents(); // Refresh the student list
+        handleClosePromotionDialog();
+      } else {
+        setError(responseData.message || 'Failed to promote students');
+      }
+    } catch (error) {
+      console.error('Bulk promotion error:', error);
+      setError(error.response?.data?.message || 'Failed to promote students');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -672,6 +822,21 @@ const StudentAccounts = () => {
               }}
             >
               Upload Excel
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<SchoolIcon />}
+              onClick={handleOpenPromotionDialog}
+              sx={{
+                color: 'primary.main',
+                borderColor: 'primary.main',
+                '&:hover': {
+                  borderColor: 'primary.dark',
+                  backgroundColor: 'primary.50'
+                }
+              }}
+            >
+              Academic Promotion
             </Button>
             <Button
               variant="contained"
@@ -968,7 +1133,13 @@ const StudentAccounts = () => {
                 Upload an Excel file containing student information. The file should follow this structure:
               </Typography>
               
-              <Box sx={{ my: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+              <Box sx={{
+                my: 2,
+                p: 2,
+                bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.800' : 'grey.100',
+                borderRadius: 1,
+                border: (theme) => `1px solid ${theme.palette.divider}`
+              }}>
                 <Typography variant="subtitle2" gutterBottom>Required Excel Columns:</Typography>
                 <Typography variant="body2" component="div">
                   <ul>
@@ -1139,6 +1310,238 @@ const StudentAccounts = () => {
         </DialogActions>
       </Dialog>
 
+      {/* Academic Promotion Dialog */}
+      <Dialog
+        open={openPromotionDialog}
+        onClose={handleClosePromotionDialog}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Academic Promotion</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+            {/* Promotion Settings */}
+            <Typography variant="h6" gutterBottom>
+              Promotion Settings
+            </Typography>
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+              <Grid item xs={12} sm={6} md={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Department</InputLabel>
+                  <Select
+                    value={promotionData.department}
+                    onChange={(e) => handlePromotionDataChange('department', e.target.value)}
+                    label="Department"
+                  >
+                    {departments.map((dept) => (
+                      <MenuItem key={dept} value={dept}>{dept}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>From Year</InputLabel>
+                  <Select
+                    value={promotionData.fromYear}
+                    onChange={(e) => handlePromotionDataChange('fromYear', e.target.value)}
+                    label="From Year"
+                  >
+                    {YEARS.map((year) => (
+                      <MenuItem key={year} value={year}>Year {year}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>From Semester</InputLabel>
+                  <Select
+                    value={promotionData.fromSemester}
+                    onChange={(e) => handlePromotionDataChange('fromSemester', e.target.value)}
+                    label="From Semester"
+                  >
+                    {SEMESTERS.map((sem) => (
+                      <MenuItem key={sem} value={sem}>Semester {sem}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            </Grid>
+
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>To Year</InputLabel>
+                  <Select
+                    value={promotionData.toYear}
+                    onChange={(e) => handlePromotionDataChange('toYear', e.target.value)}
+                    label="To Year"
+                  >
+                    {YEARS.map((year) => (
+                      <MenuItem key={year} value={year}>Year {year}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} sm={6}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>To Semester</InputLabel>
+                  <Select
+                    value={promotionData.toSemester}
+                    onChange={(e) => handlePromotionDataChange('toSemester', e.target.value)}
+                    label="To Semester"
+                  >
+                    {SEMESTERS.map((sem) => (
+                      <MenuItem key={sem} value={sem}>Semester {sem}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+            </Grid>
+
+            {/* Eligible Students */}
+            {promotionData.department && promotionData.fromYear && promotionData.fromSemester && (
+              <>
+                <Typography variant="h6" gutterBottom>
+                  Eligible Students ({getEligibleStudentsForPromotion().length} found)
+                </Typography>
+
+                {getEligibleStudentsForPromotion().length > 0 ? (
+                  <>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={selectedStudents.length === getEligibleStudentsForPromotion().length}
+                          indeterminate={selectedStudents.length > 0 && selectedStudents.length < getEligibleStudentsForPromotion().length}
+                          onChange={(e) => handleSelectAllStudents(e.target.checked)}
+                        />
+                      }
+                      label="Select All Students"
+                      sx={{ mb: 2 }}
+                    />
+
+                    <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 300 }}>
+                      <Table size="small" stickyHeader>
+                        <TableHead>
+                          <TableRow>
+                            <TableCell padding="checkbox">Select</TableCell>
+                            <TableCell>Name</TableCell>
+                            <TableCell>Admission No.</TableCell>
+                            <TableCell>Current</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {getEligibleStudentsForPromotion().map((student) => (
+                            <TableRow key={student._id}>
+                              <TableCell padding="checkbox">
+                                <Checkbox
+                                  checked={selectedStudents.includes(student._id)}
+                                  onChange={(e) => handleStudentSelection(student._id, e.target.checked)}
+                                />
+                              </TableCell>
+                              <TableCell>{student.name}</TableCell>
+                              <TableCell>{student.admissionNumber}</TableCell>
+                              <TableCell>Year {student.year} Sem {student.semester}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </>
+                ) : (
+                  <Alert severity="info">
+                    No students found matching the specified criteria.
+                  </Alert>
+                )}
+              </>
+            )}
+
+            {/* Promotion Preview */}
+            {selectedStudents.length > 0 && promotionData.toYear && promotionData.toSemester && (
+              <Box sx={{
+                mt: 3,
+                p: 2,
+                bgcolor: (theme) => theme.palette.mode === 'dark'
+                  ? 'rgba(25, 118, 210, 0.1)'
+                  : 'rgba(25, 118, 210, 0.05)',
+                borderRadius: 1,
+                border: (theme) => `1px solid ${theme.palette.primary.main}20`
+              }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Promotion Preview
+                </Typography>
+                <Typography variant="body2">
+                  <strong>{selectedStudents.length}</strong> students will be promoted from{' '}
+                  <strong>Year {promotionData.fromYear} Semester {promotionData.fromSemester}</strong> to{' '}
+                  <strong>Year {promotionData.toYear} Semester {promotionData.toSemester}</strong>
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleClosePromotionDialog}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleBulkPromotionClick}
+            variant="contained"
+            disabled={selectedStudents.length === 0 || !promotionData.toYear || !promotionData.toSemester}
+          >
+            Promote Students ({selectedStudents.length})
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Promotion Confirmation Dialog */}
+      <Dialog
+        open={openPromotionConfirmDialog}
+        onClose={() => setOpenPromotionConfirmDialog(false)}
+      >
+        <DialogTitle>Confirm Academic Promotion</DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" gutterBottom>
+            Are you sure you want to promote the following students?
+          </Typography>
+          <Box sx={{
+            mt: 2,
+            p: 2,
+            bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.800' : 'grey.50',
+            borderRadius: 1,
+            border: (theme) => `1px solid ${theme.palette.divider}`
+          }}>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              <strong>Number of students:</strong> {selectedStudents.length}
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              <strong>From:</strong> Year {promotionData.fromYear} Semester {promotionData.fromSemester}
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              <strong>To:</strong> Year {promotionData.toYear} Semester {promotionData.toSemester}
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              <strong>Department:</strong> {promotionData.department}
+            </Typography>
+          </Box>
+          <Typography variant="body2" color="warning.main" sx={{ mt: 2, fontWeight: 'bold' }}>
+            This action will update the academic year and semester for all selected students.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenPromotionConfirmDialog(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleBulkPromotion}
+            variant="contained"
+            color="primary"
+          >
+            Confirm Promotion
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Delete Confirmation Dialog */}
       <Dialog
         open={openDeleteDialog}
@@ -1188,6 +1591,22 @@ const StudentAccounts = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Success/Error Toast */}
+      <Snackbar
+        open={toast.open}
+        autoHideDuration={6000}
+        onClose={handleCloseToast}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={handleCloseToast}
+          severity={toast.severity}
+          sx={{ width: '100%' }}
+        >
+          {toast.message}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };

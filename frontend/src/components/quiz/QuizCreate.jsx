@@ -327,11 +327,26 @@ const QuizCreate = () => {
             />
           );
         case 1:
-          return <ExcelQuizForm {...commonProps} />;
+          return (
+            <ExcelQuizForm
+              {...commonProps}
+              onQuestionsUpdate={setQuestions}
+            />
+          );
         case 2:
-          return <WordQuizForm {...commonProps} />;
+          return (
+            <WordQuizForm
+              {...commonProps}
+              onQuestionsUpdate={setQuestions}
+            />
+          );
         case 3:
-          return <ImageQuizForm {...commonProps} />;
+          return (
+            <ImageQuizForm
+              {...commonProps}
+              onQuestionsUpdate={setQuestions}
+            />
+          );
         default:
           return null;
       }
@@ -397,32 +412,48 @@ const QuizCreate = () => {
       <Typography variant="h6" gutterBottom>
         Questions ({questions.length})
       </Typography>
-      
-      {questions.map((question, index) => (
-        <Card key={index} sx={{ mb: 2 }}>
-          <CardContent>
-            <Typography variant="subtitle1" gutterBottom>
-              Question {index + 1} ({question.marks} marks)
-            </Typography>
-            <Typography variant="body1" gutterBottom>
-              {question.question}
-            </Typography>
-            <Grid container spacing={2}>
-              {question.options.map((option, optIndex) => (
-                <Grid item xs={12} sm={6} key={optIndex}>
-                  <Typography
-                    variant="body2"
-                    color={optIndex === question.correctAnswer ? 'success.main' : 'text.primary'}
-                  >
-                    {String.fromCharCode(65 + optIndex)}) {option}
-                    {optIndex === question.correctAnswer && ' ✓'}
-                  </Typography>
-                </Grid>
-              ))}
-            </Grid>
-          </CardContent>
-        </Card>
-      ))}
+
+      {questions.length === 0 ? (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          No questions found. Please go back and upload your file again.
+        </Alert>
+      ) : (
+        questions.map((question, index) => (
+          <Card key={index} sx={{ mb: 2 }}>
+            <CardContent>
+              <Typography variant="subtitle1" gutterBottom>
+                Question {index + 1} ({question.marks || 1} marks)
+              </Typography>
+              <Typography variant="body1" gutterBottom sx={{ fontWeight: 'medium' }}>
+                {question.question || 'No question text found'}
+              </Typography>
+              <Grid container spacing={2}>
+                {(question.options || []).map((option, optIndex) => (
+                  <Grid item xs={12} sm={6} key={optIndex}>
+                    <Typography
+                      variant="body2"
+                      color={optIndex === question.correctAnswer ? 'success.main' : 'text.primary'}
+                      sx={{
+                        fontWeight: optIndex === question.correctAnswer ? 'bold' : 'normal',
+                        bgcolor: optIndex === question.correctAnswer ? 'success.50' : 'transparent',
+                        p: 0.5,
+                        borderRadius: 1
+                      }}
+                    >
+                      {String.fromCharCode(65 + optIndex)}) {option || 'No option text'}
+                      {optIndex === question.correctAnswer && ' ✓'}
+                    </Typography>
+                  </Grid>
+                ))}
+              </Grid>
+              {/* Debug info */}
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                Debug: Question object: {JSON.stringify(question, null, 2)}
+              </Typography>
+            </CardContent>
+          </Card>
+        ))
+      )}
     </Box>
   );
 

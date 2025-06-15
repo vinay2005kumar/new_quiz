@@ -13,7 +13,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import * as XLSX from 'xlsx';
 import api from '../../../config/axios';
 
-const ExcelQuizForm = ({ onNext, setError, basicDetails }) => {
+const ExcelQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate }) => {
   const [uploading, setUploading] = useState(false);
   const [file, setFile] = useState(null);
 
@@ -61,54 +61,55 @@ const ExcelQuizForm = ({ onNext, setError, basicDetails }) => {
 
     try {
       setUploading(true);
-      const reader = new FileReader();
-      
-      reader.onload = async (e) => {
-        try {
-          const data = new Uint8Array(e.target.result);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-          // Skip header row and validate data
-          const questions = jsonData.slice(1)
-            .filter(row => row.length >= 7 && row[0]) // Ensure row has all required fields
-            .map(row => ({
-              question: row[0],
-              options: [row[1], row[2], row[3], row[4]],
-              correctAnswer: ['A', 'B', 'C', 'D'].indexOf(row[5].toUpperCase()),
-              marks: parseInt(row[6]) || 1
-            }));
+      // Use the new parse endpoint
+      const formData = new FormData();
+      formData.append('file', file);
 
-          if (questions.length === 0) {
-            throw new Error('No valid questions found in the file');
-          }
-
-          // Validate questions
-          questions.forEach((q, index) => {
-            if (!q.question) throw new Error(`Question ${index + 1} is empty`);
-            if (q.options.some(opt => !opt)) throw new Error(`Question ${index + 1} has empty options`);
-            if (q.correctAnswer === -1) throw new Error(`Question ${index + 1} has invalid correct answer`);
-            if (isNaN(q.marks) || q.marks < 1) throw new Error(`Question ${index + 1} has invalid marks`);
-          });
-
-          // Create quiz
-          const quizData = {
-            ...basicDetails,
-            questions,
-            type: 'academic'
-          };
-
-          await api.post('/api/quiz', quizData);
-          onNext();
-        } catch (error) {
-          setError(error.message);
+      const response = await api.post('/api/quiz/parse/excel', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
         }
-      };
+      });
 
-      reader.readAsArrayBuffer(file);
+      console.log('Full response from backend:', response);
+      console.log('Response data:', response.data);
+      console.log('Response status:', response.status);
+
+      // Handle the actual response structure from axios interceptor
+      let questions;
+      if (response.questions) {
+        // Direct response structure
+        questions = response.questions;
+      } else if (response.data && response.data.questions) {
+        // Standard response structure
+        questions = response.data.questions;
+      } else {
+        console.error('Questions not found in response:', response);
+        throw new Error('Questions not found in server response');
+      }
+
+      console.log('Parsed questions from Excel:', questions);
+
+      // Validate questions
+      questions.forEach((q, index) => {
+        console.log(`Question ${index + 1}:`, q);
+        if (!q.question) throw new Error(`Question ${index + 1} is empty`);
+        if (q.options.some(opt => !opt)) throw new Error(`Question ${index + 1} has empty options`);
+        if (q.correctAnswer === -1) throw new Error(`Question ${index + 1} has invalid correct answer`);
+        if (isNaN(q.marks) || q.marks < 1) throw new Error(`Question ${index + 1} has invalid marks`);
+      });
+
+      // Store questions in parent component state for review
+      if (onQuestionsUpdate) {
+        console.log('Updating questions in parent component:', questions);
+        onQuestionsUpdate(questions);
+      }
+
+      // Move to next step (review)
+      onNext();
     } catch (error) {
-      setError(error.message);
+      setError(error.response?.data?.message || error.message);
     } finally {
       setUploading(false);
     }
@@ -138,6 +139,62 @@ const ExcelQuizForm = ({ onNext, setError, basicDetails }) => {
         >
           Download Template
         </Button>
+
+        {/* Example Section */}
+        <Box sx={{
+          my: 2,
+          p: 2,
+          bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.800' : 'grey.100',
+          borderRadius: 1,
+          border: (theme) => `1px solid ${theme.palette.divider}`
+        }}>
+          <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>
+            📋 Excel Format Example:
+          </Typography>
+          <Box sx={{ overflowX: 'auto' }}>
+            <table style={{
+              width: '100%',
+              borderCollapse: 'collapse',
+              fontSize: '0.875rem',
+              marginTop: '8px'
+            }}>
+              <thead>
+                <tr style={{ backgroundColor: 'rgba(0,0,0,0.1)' }}>
+                  <th style={{ border: '1px solid #ccc', padding: '8px', textAlign: 'left' }}>Question</th>
+                  <th style={{ border: '1px solid #ccc', padding: '8px', textAlign: 'left' }}>Option A</th>
+                  <th style={{ border: '1px solid #ccc', padding: '8px', textAlign: 'left' }}>Option B</th>
+                  <th style={{ border: '1px solid #ccc', padding: '8px', textAlign: 'left' }}>Option C</th>
+                  <th style={{ border: '1px solid #ccc', padding: '8px', textAlign: 'left' }}>Option D</th>
+                  <th style={{ border: '1px solid #ccc', padding: '8px', textAlign: 'left' }}>Correct Answer</th>
+                  <th style={{ border: '1px solid #ccc', padding: '8px', textAlign: 'left' }}>Marks</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{ border: '1px solid #ccc', padding: '8px' }}>What is the capital of France?</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px' }}>Paris</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px' }}>London</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px' }}>Berlin</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px' }}>Madrid</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px' }}>A</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px' }}>1</td>
+                </tr>
+                <tr>
+                  <td style={{ border: '1px solid #ccc', padding: '8px' }}>Which planet is known as the Red Planet?</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px' }}>Venus</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px' }}>Mars</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px' }}>Jupiter</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px' }}>Saturn</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px' }}>B</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px' }}>1</td>
+                </tr>
+              </tbody>
+            </table>
+          </Box>
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            💡 <strong>Tips:</strong> First row should contain headers. Correct Answer should be A, B, C, or D. Marks should be a number.
+          </Typography>
+        </Box>
 
         <input
           type="file"

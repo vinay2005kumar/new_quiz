@@ -25,24 +25,35 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  // Accept excel, images
+  // Accept excel, word documents, and images
   const allowedTypes = [
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // xlsx
     'application/vnd.ms-excel', // xls
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // docx
+    'application/msword', // doc
     'image/jpeg',
     'image/png',
     'image/gif'
   ];
-  
+
   if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Invalid file type. Only Excel files and images (JPEG, PNG, GIF) are allowed.'));
+    cb(new Error('Invalid file type. Only Excel files, Word documents, and images (JPEG, PNG, GIF) are allowed.'));
   }
 };
 
-const upload = multer({ 
+const upload = multer({
   storage: storage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  }
+});
+
+// Memory storage for parsing endpoints (to get buffer)
+const memoryUpload = multer({
+  storage: multer.memoryStorage(),
   fileFilter: fileFilter,
   limits: {
     fileSize: 5 * 1024 * 1024 // 5MB limit
@@ -1231,8 +1242,91 @@ const getQuizStatus = (quiz) => {
   return 'active';
 };
 
+
+// Parse Excel file and return questions (for preview)
+router.post('/parse/excel', auth, authorize('faculty', 'admin', 'event'), memoryUpload.single('file'), async (req, res) => {
+  try {
+    console.log('Excel parse request received');
+    console.log('File info:', {
+      hasFile: !!req.file,
+      filename: req.file?.originalname,
+      size: req.file?.size,
+      mimetype: req.file?.mimetype,
+      hasBuffer: !!req.file?.buffer,
+      bufferLength: req.file?.buffer?.length
+    });
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    if (!req.file.buffer) {
+      return res.status(400).json({ message: 'File buffer is empty' });
+    }
+
+    console.log('Attempting to read Excel file...');
+    let workbook;
+    try {
+      workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    } catch (xlsxError) {
+      console.error('XLSX read error:', xlsxError);
+      return res.status(400).json({ message: 'Invalid Excel file format', error: xlsxError.message });
+    }
+
+    console.log('Workbook sheets:', workbook.SheetNames);
+
+    if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+      return res.status(400).json({ message: 'No sheets found in Excel file' });
+    }
+
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+    console.log('Excel parsing - Raw data:', jsonData);
+    console.log('Excel parsing - First few rows:', jsonData.slice(0, 3));
+
+    // Skip header row and validate data
+    const questions = jsonData.slice(1)
+      .filter(row => {
+        console.log('Filtering row:', row, 'Length:', row.length, 'Has question:', !!row[0]);
+        return row.length >= 6 && row[0]; // Reduced from 7 to 6 to be more flexible
+      })
+      .map((row, index) => {
+        console.log(`Processing row ${index + 1}:`, row);
+        const question = {
+          question: String(row[0] || '').trim(),
+          options: [
+            String(row[1] || '').trim(),
+            String(row[2] || '').trim(),
+            String(row[3] || '').trim(),
+            String(row[4] || '').trim()
+          ],
+          correctAnswer: row[5] ? ['A', 'B', 'C', 'D'].indexOf(String(row[5]).toUpperCase().trim()) : 0,
+          marks: parseInt(row[6]) || 1
+        };
+        console.log(`Processed question ${index + 1}:`, question);
+        return question;
+      });
+
+    console.log('Excel parsing - Final questions:', questions);
+
+    if (questions.length === 0) {
+      return res.status(400).json({ message: 'No valid questions found in the file' });
+    }
+
+    console.log('Sending response with questions:', { questions });
+    const responseData = { questions };
+    console.log('Response data being sent:', responseData);
+
+    res.json(responseData);
+  } catch (error) {
+    console.error('Error parsing Excel quiz:', error);
+    res.status(500).json({ message: 'Failed to parse Excel file', error: error.message });
+  }
+});
+
 // Handle Excel quiz upload
-router.post('/excel', auth, authorize(['faculty', 'event']), upload.single('file'), async (req, res) => {
+router.post('/excel', auth, authorize('faculty', 'admin', 'event'), upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: 'No file uploaded' });
@@ -1273,8 +1367,102 @@ router.post('/excel', auth, authorize(['faculty', 'event']), upload.single('file
   }
 });
 
+// Parse Word file and return questions (for preview)
+router.post('/parse/word', auth, authorize('faculty', 'admin', 'event'), memoryUpload.single('file'), async (req, res) => {
+  try {
+    console.log('Word parse request received');
+    console.log('File info:', {
+      hasFile: !!req.file,
+      filename: req.file?.originalname,
+      size: req.file?.size,
+      mimetype: req.file?.mimetype
+    });
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    // Extract text from Word document
+    const result = await mammoth.extractRawText({ buffer: req.file.buffer });
+    const text = result.value;
+
+    console.log('Extracted text from Word document:');
+    console.log('='.repeat(50));
+    console.log(text);
+    console.log('='.repeat(50));
+
+    // Parse questions from text - improved logic
+    const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+    console.log('All lines:', lines);
+
+    const questions = [];
+    let currentQuestion = null;
+    let currentOptions = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      console.log(`Processing line ${i}: "${line}"`);
+
+      // Check if this is a question line (starts with Q1., Q2., etc.)
+      if (/^Q\d+\./.test(line)) {
+        // Save previous question if exists
+        if (currentQuestion) {
+          const correctAnswer = currentOptions.findIndex(opt => opt.includes('*'));
+          const cleanOptions = currentOptions.map(opt => opt.replace(/\*$/, '').trim());
+
+          questions.push({
+            question: currentQuestion.question,
+            options: cleanOptions,
+            correctAnswer: correctAnswer >= 0 ? correctAnswer : 0,
+            marks: currentQuestion.marks
+          });
+        }
+
+        // Start new question
+        const questionText = line.replace(/^Q\d+\.\s*/, '').replace(/\(\d+\s*marks?\)/, '').trim();
+        const marksMatch = line.match(/\((\d+)\s*marks?\)/);
+        const marks = marksMatch ? parseInt(marksMatch[1]) : 1;
+
+        currentQuestion = { question: questionText, marks };
+        currentOptions = [];
+        console.log('Found question:', currentQuestion);
+      }
+      // Check if this is an option line (starts with A), B), C), D))
+      else if (/^[A-D]\)/.test(line) && currentQuestion) {
+        const option = line.replace(/^[A-D]\)\s*/, '').trim();
+        currentOptions.push(option);
+        console.log('Found option:', option);
+      }
+    }
+
+    // Don't forget the last question
+    if (currentQuestion && currentOptions.length > 0) {
+      const correctAnswer = currentOptions.findIndex(opt => opt.includes('*'));
+      const cleanOptions = currentOptions.map(opt => opt.replace(/\*$/, '').trim());
+
+      questions.push({
+        question: currentQuestion.question,
+        options: cleanOptions,
+        correctAnswer: correctAnswer >= 0 ? correctAnswer : 0,
+        marks: currentQuestion.marks
+      });
+    }
+
+    console.log('Final parsed questions:', questions);
+
+    if (questions.length === 0) {
+      return res.status(400).json({ message: 'No valid questions found in the document. Please ensure your document follows the correct format.' });
+    }
+
+    res.json({ questions });
+  } catch (error) {
+    console.error('Error parsing Word quiz:', error);
+    res.status(500).json({ message: 'Failed to parse Word document', error: error.message });
+  }
+});
+
 // Handle Word quiz upload
-router.post('/word', auth, authorize(['faculty', 'event']), upload.single('file'), async (req, res) => {
+router.post('/word', auth, authorize('faculty', 'admin', 'event'), upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: 'No file uploaded' });
@@ -1324,8 +1512,81 @@ router.post('/word', auth, authorize(['faculty', 'event']), upload.single('file'
   }
 });
 
+// Parse images and return questions (for preview)
+router.post('/parse/image', auth, authorize('faculty', 'admin', 'event'), memoryUpload.array('images'), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: 'No images uploaded' });
+    }
+
+    // Process each image with OCR
+    const questions = [];
+    for (const file of req.files) {
+      try {
+        // Use Tesseract.js for OCR
+        const { data: { text } } = await Tesseract.recognize(
+          file.buffer,
+          'eng',
+          { logger: info => console.log(info) }
+        );
+
+        // Parse the extracted text to find questions and options
+        const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
+        let currentQuestion = null;
+        let options = [];
+        let correctAnswer = -1;
+
+        for (const line of lines) {
+          if (line.match(/^Q\d+/)) {
+            // If we have a previous question, save it
+            if (currentQuestion && options.length === 4) {
+              questions.push({
+                question: currentQuestion,
+                options,
+                correctAnswer: correctAnswer !== -1 ? correctAnswer : 0,
+                marks: 1
+              });
+            }
+            // Start new question
+            currentQuestion = line.replace(/^Q\d+[\.:]\s*/, '');
+            options = [];
+            correctAnswer = -1;
+          } else if (line.match(/^[A-D]\)/)) {
+            options.push(line.replace(/^[A-D]\)\s*/, '').replace(/\*$/, '').trim());
+            if (line.includes('*')) {
+              correctAnswer = options.length - 1;
+            }
+          }
+        }
+
+        // Add the last question
+        if (currentQuestion && options.length === 4) {
+          questions.push({
+            question: currentQuestion,
+            options,
+            correctAnswer: correctAnswer !== -1 ? correctAnswer : 0,
+            marks: 1
+          });
+        }
+      } catch (ocrError) {
+        console.error('OCR error for image:', ocrError);
+        // Continue with next image
+      }
+    }
+
+    if (questions.length === 0) {
+      return res.status(400).json({ message: 'No valid questions could be extracted from the images' });
+    }
+
+    res.json({ questions });
+  } catch (error) {
+    console.error('Error parsing image quiz:', error);
+    res.status(500).json({ message: 'Failed to process images', error: error.message });
+  }
+});
+
 // Handle Image quiz upload
-router.post('/image', auth, authorize(['faculty', 'event']), upload.array('images'), async (req, res) => {
+router.post('/image', auth, authorize('faculty', 'admin', 'event'), upload.array('images'), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ message: 'No images uploaded' });

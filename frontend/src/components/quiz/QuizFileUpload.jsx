@@ -40,6 +40,12 @@ const QuizFileUpload = () => {
   const isTablet = useMediaQuery(theme.breakpoints.down('md'));
 
   const [subjects, setSubjects] = useState([]);
+  const [academicData, setAcademicData] = useState({
+    departments: [],
+    years: [],
+    semesters: [],
+    sections: []
+  });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState(null);
@@ -50,25 +56,71 @@ const QuizFileUpload = () => {
     duration: 30,
     startTime: '',
     endTime: '',
+    department: '',
+    year: '',
+    semester: '',
     allowedSections: []
   });
 
   useEffect(() => {
     fetchSubjects();
+    fetchAcademicData();
   }, []);
 
-  const fetchSubjects = async () => {
+  const fetchAcademicData = async () => {
+    try {
+      // Fetch departments
+      const deptResponse = await api.get('/api/admin/settings/departments');
+      const departments = Array.isArray(deptResponse.data) ? deptResponse.data : [];
+
+      // Fetch academic details
+      const academicResponse = await api.get('/api/academic-details');
+      const academicDetails = Array.isArray(academicResponse.data) ? academicResponse.data : [];
+
+      // Extract unique years, semesters, and sections
+      const years = [...new Set(academicDetails.map(detail => detail.year))].sort();
+      const semesters = [...new Set(academicDetails.map(detail => detail.semester))].sort();
+      const sections = [...new Set(academicDetails.flatMap(detail => detail.sections))].sort();
+
+      setAcademicData({
+        departments: departments.map(dept => dept.name),
+        years,
+        semesters,
+        sections
+      });
+    } catch (error) {
+      console.error('Error fetching academic data:', error);
+    }
+  };
+
+  const fetchSubjects = async (department = '', year = '', semester = '') => {
     try {
       setLoading(true);
-      console.log('Fetching subjects...');
-      const response = await api.get('/api/subject');
-      console.log('Subjects response:', response);
-      
-      // Ensure response is an array
-      const subjectsData = Array.isArray(response) ? response : [];
-      console.log('Processed subjects data:', subjectsData);
-      
-      setSubjects(subjectsData);
+      console.log('Fetching subjects for:', { department, year, semester });
+
+      // Fetch academic details to get subjects based on filters
+      const response = await api.get('/api/academic-details');
+      const academicDetails = Array.isArray(response.data) ? response.data : [];
+
+      // Filter academic details based on selected criteria
+      let filteredDetails = academicDetails;
+
+      if (department) {
+        filteredDetails = filteredDetails.filter(detail => detail.department === department);
+      }
+      if (year) {
+        filteredDetails = filteredDetails.filter(detail => detail.year === parseInt(year));
+      }
+      if (semester) {
+        filteredDetails = filteredDetails.filter(detail => detail.semester === parseInt(semester));
+      }
+
+      // Extract unique subjects from filtered academic details
+      const allSubjects = filteredDetails.flatMap(detail => detail.subjects || []);
+      const uniqueSubjects = [...new Set(allSubjects.map(subject => subject.name))];
+
+      console.log('Filtered subjects:', uniqueSubjects);
+      setSubjects(uniqueSubjects.sort());
       setLoading(false);
     } catch (error) {
       console.error('Error fetching subjects:', error);
@@ -192,16 +244,13 @@ const QuizFileUpload = () => {
       formData.append('startTime', startTime.toISOString());
       formData.append('endTime', endTime.toISOString());
 
-      // Create allowedGroups array with selected sections only
-      const allowedGroups = [1, 2, 3, 4].flatMap(year =>
-        ['Computer Science'].flatMap(department =>
-          quizData.allowedSections.map(section => ({
-            year,
-            department,
-            section
-          }))
-        )
-      );
+      // Create allowedGroups array with selected academic criteria
+      const allowedGroups = [{
+        year: parseInt(quizData.year),
+        department: quizData.department,
+        semester: parseInt(quizData.semester),
+        sections: quizData.allowedSections
+      }];
 
       formData.append('allowedGroups', JSON.stringify(allowedGroups));
 
@@ -260,12 +309,11 @@ const QuizFileUpload = () => {
           </Typography>
         </Box>
 
-        <Paper 
-          elevation={3} 
-          sx={{ 
+        <Paper
+          elevation={3}
+          sx={{
             p: { xs: 2, sm: 3, md: 4 },
-            borderRadius: 2,
-            backgroundColor: 'white'
+            borderRadius: 2
           }}
         >
           <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
@@ -310,6 +358,73 @@ const QuizFileUpload = () => {
                 />
               </Grid>
 
+              {/* Academic Filters */}
+              <Grid item xs={12} md={4}>
+                <FormControl fullWidth required>
+                  <InputLabel>Department</InputLabel>
+                  <Select
+                    name="department"
+                    value={quizData.department}
+                    onChange={(e) => {
+                      handleInputChange(e);
+                      // Refresh subjects when department changes
+                      fetchSubjects(e.target.value, quizData.year, quizData.semester);
+                    }}
+                    label="Department"
+                  >
+                    {academicData.departments.map((dept) => (
+                      <MenuItem key={dept} value={dept}>
+                        {dept}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <FormControl fullWidth required>
+                  <InputLabel>Year</InputLabel>
+                  <Select
+                    name="year"
+                    value={quizData.year}
+                    onChange={(e) => {
+                      handleInputChange(e);
+                      // Refresh subjects when year changes
+                      fetchSubjects(quizData.department, e.target.value, quizData.semester);
+                    }}
+                    label="Year"
+                  >
+                    {academicData.years.map((year) => (
+                      <MenuItem key={year} value={year}>
+                        Year {year}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid item xs={12} md={4}>
+                <FormControl fullWidth required>
+                  <InputLabel>Semester</InputLabel>
+                  <Select
+                    name="semester"
+                    value={quizData.semester}
+                    onChange={(e) => {
+                      handleInputChange(e);
+                      // Refresh subjects when semester changes
+                      fetchSubjects(quizData.department, quizData.year, e.target.value);
+                    }}
+                    label="Semester"
+                  >
+                    {academicData.semesters.map((sem) => (
+                      <MenuItem key={sem} value={sem}>
+                        Semester {sem}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
               <Grid item xs={12}>
                 <FormControl fullWidth required>
                   <InputLabel>Subject</InputLabel>
@@ -318,24 +433,23 @@ const QuizFileUpload = () => {
                     value={quizData.subject}
                     onChange={handleInputChange}
                     label="Subject"
+                    disabled={!quizData.department || !quizData.year || !quizData.semester}
                   >
                     {subjects.length === 0 ? (
                       <MenuItem disabled value="">
-                        No subjects available. Please add subjects first.
+                        {!quizData.department || !quizData.year || !quizData.semester
+                          ? 'Please select department, year, and semester first'
+                          : 'No subjects available for selected criteria'
+                        }
                       </MenuItem>
                     ) : (
                       subjects.map((subject) => (
-                        <MenuItem key={subject._id} value={subject._id}>
-                          {subject.name} ({subject.code})
+                        <MenuItem key={subject} value={subject}>
+                          {subject}
                         </MenuItem>
                       ))
                     )}
                   </Select>
-                  {subjects.length === 0 && (
-                    <Alert severity="warning" sx={{ mt: 1 }}>
-                      No subjects are available. Please contact an administrator to add subjects.
-                    </Alert>
-                  )}
                 </FormControl>
               </Grid>
 
@@ -396,7 +510,7 @@ const QuizFileUpload = () => {
                       </Box>
                     )}
                   >
-                    {SECTIONS.map((section) => (
+                    {academicData.sections.map((section) => (
                       <MenuItem key={section} value={section}>
                         Section {section}
                       </MenuItem>
@@ -412,11 +526,11 @@ const QuizFileUpload = () => {
                     border: `2px dashed ${theme.palette.primary.main}`,
                     borderRadius: 2,
                     p: 4,
-                    backgroundColor: theme.palette.grey[50],
+                    backgroundColor: theme.palette.mode === 'dark' ? 'grey.800' : 'grey.50',
                     textAlign: 'center',
                     transition: 'all 0.3s ease',
                     '&:hover': {
-                      backgroundColor: theme.palette.grey[100],
+                      backgroundColor: theme.palette.mode === 'dark' ? 'grey.700' : 'grey.100',
                       borderColor: theme.palette.primary.dark
                     }
                   }}

@@ -1655,7 +1655,13 @@ const FacultyAccounts = () => {
                 Upload an Excel file containing faculty information. The file should follow this structure:
               </Typography>
               
-              <Box sx={{ my: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+              <Box sx={{
+                my: 2,
+                p: 2,
+                bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.800' : 'grey.100',
+                borderRadius: 1,
+                border: (theme) => `1px solid ${theme.palette.divider}`
+              }}>
                 <Typography variant="subtitle2" gutterBottom>Required Excel Columns:</Typography>
                 <Typography variant="body2" component="div">
                   <ul>

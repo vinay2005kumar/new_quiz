@@ -14,7 +14,7 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import DeleteIcon from '@mui/icons-material/Delete';
 import api from '../../../config/axios';
 
-const ImageQuizForm = ({ onNext, setError, basicDetails }) => {
+const ImageQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate }) => {
   const [uploading, setUploading] = useState(false);
   const [files, setFiles] = useState([]);
   const [previews, setPreviews] = useState([]);
@@ -60,13 +60,42 @@ const ImageQuizForm = ({ onNext, setError, basicDetails }) => {
 
     try {
       setUploading(true);
+
+      // Use the new parse endpoint
       const formData = new FormData();
       files.forEach((file, index) => {
         formData.append('images', file);
       });
-      formData.append('quizDetails', JSON.stringify(basicDetails));
 
-      const response = await api.post('/api/quiz/image', formData);
+      const response = await api.post('/api/quiz/parse/image', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      console.log('Image response from backend:', response);
+
+      // Handle the actual response structure from axios interceptor
+      let questions;
+      if (response.questions) {
+        // Direct response structure
+        questions = response.questions;
+      } else if (response.data && response.data.questions) {
+        // Standard response structure
+        questions = response.data.questions;
+      } else {
+        console.error('Questions not found in Image response:', response);
+        throw new Error('Questions not found in server response');
+      }
+
+      console.log('Parsed questions from Images:', questions);
+
+      // Store questions in parent component state for review
+      if (onQuestionsUpdate) {
+        onQuestionsUpdate(questions);
+      }
+
+      // Move to next step (review)
       onNext();
     } catch (error) {
       setError(error.response?.data?.message || 'Failed to process images');
@@ -103,6 +132,52 @@ const ImageQuizForm = ({ onNext, setError, basicDetails }) => {
               <li>Text should be clearly readable</li>
               <li>No blurry or skewed images</li>
             </ul>
+          </Typography>
+        </Box>
+
+        {/* Example Section */}
+        <Box sx={{
+          my: 2,
+          p: 2,
+          bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.800' : 'grey.100',
+          borderRadius: 1,
+          border: (theme) => `1px solid ${theme.palette.divider}`
+        }}>
+          <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>
+            📷 Image Format Example:
+          </Typography>
+          <Box sx={{
+            p: 2,
+            bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'white',
+            borderRadius: 1,
+            fontFamily: 'monospace',
+            fontSize: '0.875rem',
+            lineHeight: 1.6,
+            whiteSpace: 'pre-line',
+            border: '1px solid #ddd',
+            textAlign: 'center'
+          }}>
+            {`📄 Example Question Image Content:
+
+Q1. What is the capital of France?
+
+A) Paris
+B) London
+C) Berlin
+D) Madrid
+
+[Correct answer should be marked with * or highlighted]
+
+---
+
+Each image should contain:
+• One complete question
+• All four options (A, B, C, D)
+• Clear indication of correct answer
+• Good lighting and readable text`}
+          </Box>
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            💡 <strong>Tips:</strong> Take photos in good lighting. Ensure text is straight and clearly readable. Mark correct answers with asterisk (*) or highlighting. One question per image works best.
           </Typography>
         </Box>
 
