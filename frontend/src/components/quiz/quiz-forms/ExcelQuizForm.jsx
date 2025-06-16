@@ -34,16 +34,17 @@ const ExcelQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate }) =>
     
     // Template data with example
     const templateData = [
-      ['Question', 'Option A', 'Option B', 'Option C', 'Option D', 'Correct Answer (A/B/C/D)', 'Marks'],
-      ['What is the capital of France?', 'Paris', 'London', 'Berlin', 'Madrid', 'A', '1'],
-      ['Which planet is known as the Red Planet?', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'B', '1'],
-      ['', '', '', '', '', '', ''],
-      ['Instructions:', '', '', '', '', '', ''],
-      ['1. Do not modify the header row', '', '', '', '', '', ''],
-      ['2. Enter one question per row', '', '', '', '', '', ''],
-      ['3. Provide exactly 4 options for each question', '', '', '', '', '', ''],
-      ['4. Specify correct answer as A, B, C, or D', '', '', '', '', '', ''],
-      ['5. Marks should be a positive number', '', '', '', '', '', '']
+      ['Question', 'Option A', 'Option B', 'Option C', 'Option D', 'Correct Answer (A/B/C/D)', 'Marks', 'Negative Marks'],
+      ['What is the capital of France?', 'Paris', 'London', 'Berlin', 'Madrid', 'A', '1', '1'],
+      ['Which planet is known as the Red Planet?', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'B', '2', '0'],
+      ['', '', '', '', '', '', '', ''],
+      ['Instructions:', '', '', '', '', '', '', ''],
+      ['1. Do not modify the header row', '', '', '', '', '', '', ''],
+      ['2. Enter one question per row', '', '', '', '', '', '', ''],
+      ['3. Provide exactly 4 options for each question', '', '', '', '', '', '', ''],
+      ['4. Specify correct answer as A, B, C, or D', '', '', '', '', '', '', ''],
+      ['5. Marks should be a positive number', '', '', '', '', '', '', ''],
+      ['6. Negative Marks: 0 = no penalty, default = same as positive marks', '', '', '', '', '', '', '']
     ];
     
     const ws = XLSX.utils.aoa_to_sheet(templateData);
@@ -167,6 +168,7 @@ const ExcelQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate }) =>
                   <th style={{ border: '1px solid #ccc', padding: '8px', textAlign: 'left' }}>Option D</th>
                   <th style={{ border: '1px solid #ccc', padding: '8px', textAlign: 'left' }}>Correct Answer</th>
                   <th style={{ border: '1px solid #ccc', padding: '8px', textAlign: 'left' }}>Marks</th>
+                  <th style={{ border: '1px solid #ccc', padding: '8px', textAlign: 'left' }}>Negative Marks</th>
                 </tr>
               </thead>
               <tbody>
@@ -178,6 +180,7 @@ const ExcelQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate }) =>
                   <td style={{ border: '1px solid #ccc', padding: '8px' }}>Madrid</td>
                   <td style={{ border: '1px solid #ccc', padding: '8px' }}>A</td>
                   <td style={{ border: '1px solid #ccc', padding: '8px' }}>1</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px' }}>1</td>
                 </tr>
                 <tr>
                   <td style={{ border: '1px solid #ccc', padding: '8px' }}>Which planet is known as the Red Planet?</td>
@@ -186,13 +189,14 @@ const ExcelQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate }) =>
                   <td style={{ border: '1px solid #ccc', padding: '8px' }}>Jupiter</td>
                   <td style={{ border: '1px solid #ccc', padding: '8px' }}>Saturn</td>
                   <td style={{ border: '1px solid #ccc', padding: '8px' }}>B</td>
-                  <td style={{ border: '1px solid #ccc', padding: '8px' }}>1</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px' }}>2</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px' }}>0</td>
                 </tr>
               </tbody>
             </table>
           </Box>
           <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-            💡 <strong>Tips:</strong> First row should contain headers. Correct Answer should be A, B, C, or D. Marks should be a number.
+            💡 <strong>Tips:</strong> First row should contain headers. Correct Answer should be A, B, C, or D. Marks should be a positive number. Negative Marks: 0 = no penalty, default = same as positive marks.
           </Typography>
         </Box>
 

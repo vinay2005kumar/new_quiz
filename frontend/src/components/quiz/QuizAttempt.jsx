@@ -364,6 +364,14 @@ const QuizAttempt = () => {
                           size="small"
                           sx={{ ml: 2 }}
                         />
+                        {quiz?.negativeMarkingEnabled && quiz.questions[currentQuestion].negativeMarks > 0 && (
+                          <Chip
+                            label={`-${quiz.questions[currentQuestion].negativeMarks} for wrong`}
+                            color="warning"
+                            size="small"
+                            sx={{ ml: 1 }}
+                          />
+                        )}
                       </Typography>
 
                       <Typography variant="h6" paragraph sx={{
@@ -457,6 +465,14 @@ const QuizAttempt = () => {
                             size="small"
                             sx={{ ml: 2 }}
                           />
+                          {quiz?.negativeMarkingEnabled && question.negativeMarks > 0 && (
+                            <Chip
+                              label={`-${question.negativeMarks} for wrong`}
+                              color="warning"
+                              size="small"
+                              sx={{ ml: 1 }}
+                            />
+                          )}
                           {answers[question._id] !== null && answers[question._id] !== undefined && (
                             <Chip
                               label="✓ Answered"

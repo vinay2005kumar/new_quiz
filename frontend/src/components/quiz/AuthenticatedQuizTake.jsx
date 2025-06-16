@@ -648,6 +648,14 @@ const AuthenticatedQuizTake = () => {
                         size="small"
                         sx={{ ml: 2 }}
                       />
+                      {quiz?.negativeMarkingEnabled && questions[currentQuestion].negativeMarks > 0 && (
+                        <Chip
+                          label={`-${questions[currentQuestion].negativeMarks} for wrong`}
+                          color="warning"
+                          size="small"
+                          sx={{ ml: 1 }}
+                        />
+                      )}
                     </Typography>
 
                     <Typography variant="h6" paragraph sx={{

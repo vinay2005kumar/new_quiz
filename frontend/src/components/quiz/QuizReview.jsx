@@ -241,6 +241,11 @@ const QuizReview = () => {
               </Typography>
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Marks: {userAnswer?.marks || 0} / {question.marks || 0}
+                {quizData?.negativeMarkingEnabled && question.negativeMarks > 0 && (
+                  <span style={{ marginLeft: '8px', color: '#f57c00' }}>
+                    (Negative: -{question.negativeMarks})
+                  </span>
+                )}
               </Typography>
 
               <FormControl component="fieldset" fullWidth>

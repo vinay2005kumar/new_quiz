@@ -29,7 +29,7 @@ import {
   FormGroup,
   Radio,
   RadioGroup,
-  FormHelperText
+  FormHelperText,
 } from '@mui/material';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -73,6 +73,7 @@ const EventQuizCreate = () => {
     passingMarks: 0,
     registrationEnabled: true,
     spotRegistrationEnabled: false,
+    negativeMarkingEnabled: false,
     participationMode: 'individual', // 'individual' or 'team'
     teamSize: 2,
     questionDisplayMode: 'one-by-one', // 'one-by-one' or 'all-at-once'
@@ -290,197 +291,287 @@ const EventQuizCreate = () => {
   const renderBasicDetails = () => (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
       <Grid container spacing={3}>
+        {/* Basic Information Card */}
         <Grid item xs={12}>
-          <TextField
-            fullWidth
-            label="Quiz Title"
-            name="title"
-            value={formData.title}
-            onChange={handleInputChange}
-            required
-          />
-        </Grid>
-
-        <Grid item xs={12}>
-          <TextField
-            fullWidth
-            label="Description"
-            name="description"
-            value={formData.description}
-            onChange={handleInputChange}
-            multiline
-            rows={3}
-          />
-        </Grid>
-
-        <Grid item xs={12}>
-          <TextField
-            fullWidth
-            label="Instructions"
-            name="instructions"
-            value={formData.instructions}
-            onChange={handleInputChange}
-            multiline
-            rows={4}
-            helperText="Add any specific instructions for participants (optional)"
-          />
-        </Grid>
-
-        <Grid item xs={12}>
-          <TextField
-            fullWidth
-            label="Email Instructions"
-            name="emailInstructions"
-            value={formData.emailInstructions}
-            onChange={handleInputChange}
-            multiline
-            rows={3}
-            helperText="Special instructions to be included in the registration confirmation email"
-          />
-        </Grid>
-
-        <Grid item xs={12} sm={6}>
-          <TextField
-            fullWidth
-            label="Duration (minutes)"
-            name="duration"
-            type="number"
-            value={formData.duration}
-            onChange={handleInputChange}
-            required
-          />
-        </Grid>
-
-        <Grid item xs={12} sm={6}>
-          <TextField
-            fullWidth
-            label="Maximum Participants"
-            name="maxParticipants"
-            type="number"
-            value={formData.maxParticipants}
-            onChange={handleInputChange}
-            helperText="0 for unlimited"
-          />
-        </Grid>
-
-        <Grid item xs={12} sm={6}>
-          <DateTimePicker
-            label="Start Time"
-            value={formData.startTime}
-            onChange={(value) => handleDateChange('startTime', value)}
-            renderInput={(params) => <TextField {...params} fullWidth required />}
-          />
-        </Grid>
-
-        <Grid item xs={12} sm={6}>
-          <DateTimePicker
-            label="End Time"
-            value={formData.endTime}
-            onChange={(value) => handleDateChange('endTime', value)}
-            renderInput={(params) => <TextField {...params} fullWidth required />}
-          />
-        </Grid>
-
-        {/* Participant Type Selection */}
-        <Grid item xs={12}>
-          <Typography variant="subtitle1" gutterBottom>
-            Participant Types
-          </Typography>
-          <FormGroup row>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={formData.participantTypes.includes('college')}
-                  onChange={() => handleParticipantTypeChange('college')}
+          <Card sx={{ p: 3, mb: 2 }}>
+            <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
+              📝 Basic Information
+            </Typography>
+            <Grid container spacing={3}>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Quiz Title"
+                  name="title"
+                  value={formData.title}
+                  onChange={handleInputChange}
+                  required
                 />
-              }
-              label="College Students"
-            />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={formData.participantTypes.includes('external')}
-                  onChange={() => handleParticipantTypeChange('external')}
+              </Grid>
+
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Description"
+                  name="description"
+                  value={formData.description}
+                  onChange={handleInputChange}
+                  multiline
+                  rows={3}
                 />
-              }
-              label="External Students"
-            />
-          </FormGroup>
+              </Grid>
+
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Instructions"
+                  name="instructions"
+                  value={formData.instructions}
+                  onChange={handleInputChange}
+                  multiline
+                  rows={4}
+                  helperText="Add any specific instructions for participants (optional)"
+                />
+              </Grid>
+
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Email Instructions"
+                  name="emailInstructions"
+                  value={formData.emailInstructions}
+                  onChange={handleInputChange}
+                  multiline
+                  rows={3}
+                  helperText="Special instructions to be included in the registration confirmation email"
+                />
+              </Grid>
+            </Grid>
+          </Card>
         </Grid>
 
-        {/* Eligibility Criteria - Only shown if college students are selected */}
-        {formData.participantTypes.includes('college') && (
-          <>
-            <Grid item xs={12} sm={6}>
-              <FormControl fullWidth>
-                <InputLabel>Departments</InputLabel>
-                <Select
-                  multiple
-                  value={formData.departments}
-                  onChange={(e) => handleEligibilityChange('departments', e.target.value)}
-                  input={<OutlinedInput label="Departments" />}
-                  renderValue={(selected) => {
-                    if (selected.includes('all')) return 'All Departments';
-                    return selected.join(', ');
-                  }}
-                >
-                  {getDepartments().map((dept) => (
-                    <MenuItem key={dept} value={dept}>
-                      <Checkbox checked={formData.departments.includes(dept)} />
-                      <ListItemText primary={dept === 'all' ? 'All Departments' : dept} />
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
+        {/* Timing & Limits Card */}
+        <Grid item xs={12}>
+          <Card sx={{ p: 3, mb: 2 }}>
+            <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
+              ⏰ Timing & Limits
+            </Typography>
+            <Grid container spacing={3}>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Duration (minutes)"
+                  name="duration"
+                  type="number"
+                  value={formData.duration}
+                  onChange={handleInputChange}
+                  required
+                />
+              </Grid>
 
-            <Grid item xs={12} sm={6}>
-              <FormControl fullWidth>
-                <InputLabel>Years</InputLabel>
-                <Select
-                  multiple
-                  value={formData.years}
-                  onChange={(e) => handleEligibilityChange('years', e.target.value)}
-                  input={<OutlinedInput label="Years" />}
-                  renderValue={(selected) => {
-                    if (selected.includes('all')) return 'All Years';
-                    return selected.map(year => `Year ${year}`).join(', ');
-                  }}
-                >
-                  {getYears().map((year) => (
-                    <MenuItem key={year} value={year}>
-                      <Checkbox checked={formData.years.includes(year)} />
-                      <ListItemText primary={year === 'all' ? 'All Years' : `Year ${year}`} />
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Maximum Participants"
+                  name="maxParticipants"
+                  type="number"
+                  value={formData.maxParticipants}
+                  onChange={handleInputChange}
+                  helperText="0 for unlimited"
+                />
+              </Grid>
 
-            <Grid item xs={12} sm={6}>
-              <FormControl fullWidth>
-                <InputLabel>Semesters</InputLabel>
-                <Select
-                  multiple
-                  value={formData.semesters}
-                  onChange={(e) => handleEligibilityChange('semesters', e.target.value)}
-                  input={<OutlinedInput label="Semesters" />}
-                  renderValue={(selected) => {
-                    if (selected.includes('all')) return 'All Semesters';
-                    return selected.map(sem => `Semester ${sem}`).join(', ');
+              <Grid item xs={12} sm={6}>
+                <DateTimePicker
+                  label="Start Time"
+                  value={formData.startTime}
+                  onChange={(value) => handleDateChange('startTime', value)}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      fullWidth
+                      required
+                      sx={{
+                        '& .MuiInputBase-root': {
+                          backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'transparent'
+                        }
+                      }}
+                    />
+                  )}
+                  PopperProps={{
+                    sx: {
+                      '& .MuiPaper-root': {
+                        backgroundColor: (theme) => theme.palette.mode === 'dark' ? '#2d2d2d !important' : '#ffffff !important',
+                        color: (theme) => theme.palette.mode === 'dark' ? '#ffffff !important' : '#000000 !important',
+                        '& .MuiPickersDay-root': {
+                          color: (theme) => theme.palette.mode === 'dark' ? '#ffffff' : '#000000',
+                          '&:hover': {
+                            backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
+                          }
+                        },
+                        '& .MuiPickersCalendarHeader-root': {
+                          color: (theme) => theme.palette.mode === 'dark' ? '#ffffff' : '#000000'
+                        }
+                      }
+                    }
                   }}
-                >
-                  {getSemesters().map((sem) => (
-                    <MenuItem key={sem} value={sem}>
-                      <Checkbox checked={formData.semesters.includes(sem)} />
-                      <ListItemText primary={sem === 'all' ? 'All Semesters' : `Semester ${sem}`} />
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <DateTimePicker
+                  label="End Time"
+                  value={formData.endTime}
+                  onChange={(value) => handleDateChange('endTime', value)}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      fullWidth
+                      required
+                      sx={{
+                        '& .MuiInputBase-root': {
+                          backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.05)' : 'transparent'
+                        }
+                      }}
+                    />
+                  )}
+                  PopperProps={{
+                    sx: {
+                      '& .MuiPaper-root': {
+                        backgroundColor: (theme) => theme.palette.mode === 'dark' ? '#2d2d2d !important' : '#ffffff !important',
+                        color: (theme) => theme.palette.mode === 'dark' ? '#ffffff !important' : '#000000 !important',
+                        '& .MuiPickersDay-root': {
+                          color: (theme) => theme.palette.mode === 'dark' ? '#ffffff' : '#000000',
+                          '&:hover': {
+                            backgroundColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'
+                          }
+                        },
+                        '& .MuiPickersCalendarHeader-root': {
+                          color: (theme) => theme.palette.mode === 'dark' ? '#ffffff' : '#000000'
+                        }
+                      }
+                    }
+                  }}
+                />
+              </Grid>
             </Grid>
-          </>
-        )}
+          </Card>
+        </Grid>
+
+        {/* Participant Eligibility Card */}
+        <Grid item xs={12}>
+          <Card sx={{ p: 3, mb: 2 }}>
+            <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
+              👥 Participant Eligibility
+            </Typography>
+            <Grid container spacing={3}>
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Participant Types
+                </Typography>
+                <FormGroup row>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={formData.participantTypes.includes('college')}
+                        onChange={() => handleParticipantTypeChange('college')}
+                      />
+                    }
+                    label="College Students"
+                  />
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={formData.participantTypes.includes('external')}
+                        onChange={() => handleParticipantTypeChange('external')}
+                      />
+                    }
+                    label="External Students"
+                  />
+                </FormGroup>
+              </Grid>
+
+              {/* Eligibility Criteria - Only shown if college students are selected */}
+              {formData.participantTypes.includes('college') && (
+                <>
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle2" gutterBottom sx={{ mt: 2 }}>
+                      College Student Criteria
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <FormControl fullWidth>
+                      <InputLabel>Departments</InputLabel>
+                      <Select
+                        multiple
+                        value={formData.departments}
+                        onChange={(e) => handleEligibilityChange('departments', e.target.value)}
+                        input={<OutlinedInput label="Departments" />}
+                        renderValue={(selected) => {
+                          if (selected.includes('all')) return 'All Departments';
+                          return selected.join(', ');
+                        }}
+                      >
+                        {getDepartments().map((dept) => (
+                          <MenuItem key={dept} value={dept}>
+                            <Checkbox checked={formData.departments.includes(dept)} />
+                            <ListItemText primary={dept === 'all' ? 'All Departments' : dept} />
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+
+                  <Grid item xs={12} sm={6}>
+                    <FormControl fullWidth>
+                      <InputLabel>Years</InputLabel>
+                      <Select
+                        multiple
+                        value={formData.years}
+                        onChange={(e) => handleEligibilityChange('years', e.target.value)}
+                        input={<OutlinedInput label="Years" />}
+                        renderValue={(selected) => {
+                          if (selected.includes('all')) return 'All Years';
+                          return selected.map(year => `Year ${year}`).join(', ');
+                        }}
+                      >
+                        {getYears().map((year) => (
+                          <MenuItem key={year} value={year}>
+                            <Checkbox checked={formData.years.includes(year)} />
+                            <ListItemText primary={year === 'all' ? 'All Years' : `Year ${year}`} />
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+
+                  <Grid item xs={12} sm={6}>
+                    <FormControl fullWidth>
+                      <InputLabel>Semesters</InputLabel>
+                      <Select
+                        multiple
+                        value={formData.semesters}
+                        onChange={(e) => handleEligibilityChange('semesters', e.target.value)}
+                        input={<OutlinedInput label="Semesters" />}
+                        renderValue={(selected) => {
+                          if (selected.includes('all')) return 'All Semesters';
+                          return selected.map(sem => `Semester ${sem}`).join(', ');
+                        }}
+                      >
+                        {getSemesters().map((sem) => (
+                          <MenuItem key={sem} value={sem}>
+                            <Checkbox checked={formData.semesters.includes(sem)} />
+                            <ListItemText primary={sem === 'all' ? 'All Semesters' : `Semester ${sem}`} />
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                </>
+              )}
+            </Grid>
+          </Card>
+        </Grid>
 
         {/* Show alert if this is a follow-up quiz */}
         {sourceQuizTitle && (
@@ -556,6 +647,32 @@ const EventQuizCreate = () => {
           {isRegistrationDisabled && (
             <FormHelperText>Spot registration is disabled for this quiz as students are pre-selected</FormHelperText>
           )}
+        </Grid>
+
+        {/* Negative Marking Section */}
+        <Grid item xs={12}>
+          <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold', mt: 2 }}>
+            Negative Marking Settings
+          </Typography>
+
+          <FormGroup>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={formData.negativeMarkingEnabled || false}
+                  onChange={(e) => handleInputChange({
+                    target: { name: 'negativeMarkingEnabled', value: e.target.checked }
+                  })}
+                  name="negativeMarkingEnabled"
+                />
+              }
+              label="Enable Negative Marking"
+            />
+          </FormGroup>
+
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            💡 This setting indicates whether negative marking is allowed in this quiz. Individual negative marks will be set per question.
+          </Typography>
         </Grid>
 
         {/* Participation Mode Section */}
@@ -660,6 +777,7 @@ const EventQuizCreate = () => {
           onQuestionsUpdate={(questions) => setFormData(prev => ({ ...prev, questions }))}
           error={error}
           setError={setError}
+          negativeMarkingEnabled={formData.negativeMarkingEnabled}
         />
       )}
       {inputMethod === 1 && (

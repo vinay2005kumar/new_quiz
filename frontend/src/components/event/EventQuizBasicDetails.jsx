@@ -466,6 +466,32 @@ const EventQuizBasicDetails = ({ basicDetails, setBasicDetails, error, setError,
                       />
                     </FormGroup>
                   </Grid>
+
+                  {/* Negative Marking Section */}
+                  <Grid item xs={12}>
+                    <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold', mt: 2 }}>
+                      Negative Marking Settings
+                    </Typography>
+
+                    <FormGroup>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={basicDetails.negativeMarkingEnabled || false}
+                            onChange={(e) => handleInputChange({
+                              target: { name: 'negativeMarkingEnabled', value: e.target.checked }
+                            })}
+                            name="negativeMarkingEnabled"
+                          />
+                        }
+                        label="Enable Negative Marking"
+                      />
+                    </FormGroup>
+
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                      💡 This setting indicates whether negative marking is allowed in this quiz. Individual negative marks will be set per question.
+                    </Typography>
+                  </Grid>
                 </Grid>
               </CardContent>
             </Card>

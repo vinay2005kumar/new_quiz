@@ -760,6 +760,21 @@ const EventQuizzes = () => {
             </Typography>
           </Box>
 
+          {/* Negative Marking Indicator */}
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+            <Typography variant="body2" sx={{
+              color: quiz?.negativeMarkingEnabled ? 'warning.main' : 'success.main',
+              fontWeight: 'medium',
+              display: 'flex',
+              alignItems: 'center'
+            }}>
+              {quiz?.negativeMarkingEnabled ? '⚠️' : '✅'}
+              <Box component="span" sx={{ ml: 1 }}>
+                Negative Marking: {quiz?.negativeMarkingEnabled ? 'Enabled' : 'Disabled'}
+              </Box>
+            </Typography>
+          </Box>
+
           {/* Participant Types Display */}
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
             <GroupIcon sx={{ fontSize: 16, mr: 1, color: 'text.secondary' }} />

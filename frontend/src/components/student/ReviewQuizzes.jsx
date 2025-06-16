@@ -150,6 +150,17 @@ const ReviewQuizzes = () => {
               <AccessTimeIcon sx={{ mr: 1, fontSize: '1.2rem' }} />
               Duration: {quiz.duration} minutes
             </Typography>
+            <Typography variant="body2" sx={{
+              display: 'flex',
+              alignItems: 'center',
+              color: quiz?.negativeMarkingEnabled ? 'warning.main' : 'success.main',
+              fontWeight: 'medium'
+            }}>
+              {quiz?.negativeMarkingEnabled ? '⚠️' : '✅'}
+              <Box component="span" sx={{ ml: 1 }}>
+                Negative Marking: {quiz?.negativeMarkingEnabled ? 'Enabled' : 'Disabled'}
+              </Box>
+            </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center' }}>
               <GroupIcon sx={{ mr: 1, fontSize: '1.2rem' }} />
               {quiz.allowedGroups?.map(group => 

@@ -22,7 +22,9 @@ import {
   Radio,
   RadioGroup,
   OutlinedInput,
-  Chip
+  Chip,
+  Switch,
+  FormGroup
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
@@ -90,12 +92,14 @@ const QuizEdit = () => {
     duration: 30,
     startTime: '',
     endTime: '',
+    negativeMarkingEnabled: false,
     questions: [
       {
         question: '',
         options: ['', '', '', ''],
         correctAnswer: 0,
-        marks: 1
+        marks: 1,
+        negativeMarks: 0
       }
     ],
     allowedGroups: [],
@@ -208,7 +212,7 @@ const QuizEdit = () => {
 
   const handleBasicDetailsChange = (e) => {
     const { name, value } = e.target;
-    
+
     if (name === 'subject') {
       // Find the full subject data
       const selectedSubject = subjects.find(s => s.code === value);
@@ -221,6 +225,30 @@ const QuizEdit = () => {
           }
         }));
       }
+    } else if (name === 'negativeMarkingEnabled') {
+      // Handle negative marking toggle
+      setQuiz(prev => {
+        const updatedQuiz = {
+          ...prev,
+          [name]: value
+        };
+
+        // If disabling negative marking, set all negative marks to 0
+        if (!value) {
+          updatedQuiz.questions = prev.questions.map(q => ({
+            ...q,
+            negativeMarks: 0
+          }));
+        } else {
+          // If enabling negative marking, set default negative marks equal to positive marks
+          updatedQuiz.questions = prev.questions.map(q => ({
+            ...q,
+            negativeMarks: q.negativeMarks > 0 ? q.negativeMarks : (q.marks || 1)
+          }));
+        }
+
+        return updatedQuiz;
+      });
     } else {
       setQuiz(prev => ({
         ...prev,
@@ -244,7 +272,24 @@ const QuizEdit = () => {
       ...prev,
       questions: prev.questions.map((q, i) => {
         if (i === questionIndex) {
-          return { ...q, [field]: value };
+          const updatedQuestion = { ...q, [field]: value };
+
+          // If marks are changed and negative marking is enabled, auto-update negative marks
+          if (field === 'marks' && prev.negativeMarkingEnabled) {
+            const newMarks = Number(value);
+            const currentNegativeMarks = q.negativeMarks || 0;
+
+            // Calculate expected default based on old marks (equal to marks value)
+            const oldMarks = q.marks || 1;
+            const expectedDefault = oldMarks;
+
+            // Only auto-update if current negative marks seem to be default or 0
+            if (currentNegativeMarks === 0 || currentNegativeMarks === expectedDefault) {
+              updatedQuestion.negativeMarks = newMarks;
+            }
+          }
+
+          return updatedQuestion;
         }
         return q;
       })
@@ -266,18 +311,24 @@ const QuizEdit = () => {
   };
 
   const addQuestion = () => {
-    setQuiz(prev => ({
-      ...prev,
-      questions: [
-        ...prev.questions,
-        {
-          question: '',
-          options: ['', '', '', ''],
-          correctAnswer: 0,
-          marks: 1
-        }
-      ]
-    }));
+    setQuiz(prev => {
+      const defaultMarks = 1;
+      const defaultNegativeMarks = prev.negativeMarkingEnabled ? defaultMarks : 0;
+
+      return {
+        ...prev,
+        questions: [
+          ...prev.questions,
+          {
+            question: '',
+            options: ['', '', '', ''],
+            correctAnswer: 0,
+            marks: defaultMarks,
+            negativeMarks: defaultNegativeMarks
+          }
+        ]
+      };
+    });
   };
 
   const removeQuestion = (index) => {
@@ -591,6 +642,32 @@ const QuizEdit = () => {
               />
             </Grid>
 
+            {/* Negative Marking Section */}
+            <Grid item xs={12}>
+              <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold', mt: 2 }}>
+                Negative Marking Settings
+              </Typography>
+
+              <FormGroup>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={quiz.negativeMarkingEnabled || false}
+                      onChange={(e) => handleBasicDetailsChange({
+                        target: { name: 'negativeMarkingEnabled', value: e.target.checked }
+                      })}
+                      name="negativeMarkingEnabled"
+                    />
+                  }
+                  label="Enable Negative Marking"
+                />
+              </FormGroup>
+
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                💡 This setting indicates whether negative marking is allowed in this quiz. Individual negative marks are set per question.
+              </Typography>
+            </Grid>
+
             <Grid item xs={12} sm={6}>
               <TextField
                 required
@@ -658,7 +735,7 @@ const QuizEdit = () => {
                   <TextField
                     required
                     fullWidth
-                    label={`Question ${questionIndex + 1}`}
+                    label={`Question ${questionIndex + 1} (${question.marks || 1} marks${quiz.negativeMarkingEnabled && question.negativeMarks > 0 ? ` | -${question.negativeMarks} for wrong` : ''})`}
                     value={question.question}
                     onChange={(e) => handleQuestionChange(questionIndex, 'question', e.target.value)}
                     multiline
@@ -710,10 +787,22 @@ const QuizEdit = () => {
                     required
                     fullWidth
                     type="number"
-                    label="Marks"
+                    label="Marks (for correct answer)"
                     value={question.marks}
                     onChange={(e) => handleQuestionChange(questionIndex, 'marks', parseInt(e.target.value))}
                     inputProps={{ min: 1 }}
+                  />
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Negative Marks (for wrong answer)"
+                    value={question.negativeMarks || 0}
+                    onChange={(e) => handleQuestionChange(questionIndex, 'negativeMarks', parseFloat(e.target.value))}
+                    inputProps={{ min: 0, step: 0.25 }}
+                    helperText="Marks deducted for wrong answer (0 = no negative marking)"
                   />
                 </Grid>
               </Grid>

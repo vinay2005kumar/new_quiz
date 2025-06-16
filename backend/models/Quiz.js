@@ -31,6 +31,11 @@ const questionSchema = new mongoose.Schema({
     required: true,
     min: 1,
     default: 1
+  },
+  negativeMarks: {
+    type: Number,
+    default: 0,
+    min: 0
   }
 });
 
@@ -112,6 +117,10 @@ const quizSchema = new mongoose.Schema({
   passingMarks: {
     type: Number,
     default: 0
+  },
+  negativeMarkingEnabled: {
+    type: Boolean,
+    default: false
   },
   questions: {
     type: [questionSchema],

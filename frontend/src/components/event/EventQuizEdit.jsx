@@ -95,6 +95,7 @@ const EventQuizEdit = () => {
     passingMarks: 0,
     registrationEnabled: true,
     spotRegistrationEnabled: false,
+    negativeMarkingEnabled: false,
     participationMode: 'individual',
     teamSize: 2,
     questions: []
@@ -137,6 +138,7 @@ const EventQuizEdit = () => {
           passingMarks: quizResponse.passingMarks || 0,
           registrationEnabled: quizResponse.registrationEnabled !== undefined ? quizResponse.registrationEnabled : true,
           spotRegistrationEnabled: quizResponse.spotRegistrationEnabled !== undefined ? quizResponse.spotRegistrationEnabled : false,
+          negativeMarkingEnabled: quizResponse.negativeMarkingEnabled !== undefined ? quizResponse.negativeMarkingEnabled : false,
           participationMode: quizResponse.participationMode || 'individual',
           teamSize: quizResponse.teamSize || 2,
           questions: quizResponse.questions || []
@@ -236,10 +238,27 @@ const EventQuizEdit = () => {
   const handleQuestionChange = (index, field, value) => {
     setFormData(prev => {
       const newQuestions = [...prev.questions];
-      newQuestions[index] = {
+      const updatedQuestion = {
         ...newQuestions[index],
         [field]: value
       };
+
+      // If marks are changed and negative marking is enabled, auto-update negative marks
+      if (field === 'marks' && prev.negativeMarkingEnabled) {
+        const newMarks = Number(value);
+        const currentNegativeMarks = newQuestions[index].negativeMarks || 0;
+
+        // Calculate expected default based on old marks (equal to marks value)
+        const oldMarks = newQuestions[index].marks || 1;
+        const expectedDefault = oldMarks;
+
+        // Only auto-update if current negative marks seem to be default or 0
+        if (currentNegativeMarks === 0 || currentNegativeMarks === expectedDefault) {
+          updatedQuestion.negativeMarks = newMarks;
+        }
+      }
+
+      newQuestions[index] = updatedQuestion;
       return {
         ...prev,
         questions: newQuestions
@@ -248,18 +267,24 @@ const EventQuizEdit = () => {
   };
 
   const addQuestion = () => {
-    setFormData(prev => ({
-      ...prev,
-      questions: [
-        ...prev.questions,
-        {
-          question: '',
-          options: ['', '', '', ''],
-          correctAnswer: 0,
-          marks: 1
-        }
-      ]
-    }));
+    setFormData(prev => {
+      const defaultMarks = 1;
+      const defaultNegativeMarks = prev.negativeMarkingEnabled ? defaultMarks : 0;
+
+      return {
+        ...prev,
+        questions: [
+          ...prev.questions,
+          {
+            question: '',
+            options: ['', '', '', ''],
+            correctAnswer: 0,
+            marks: defaultMarks,
+            negativeMarks: defaultNegativeMarks
+          }
+        ]
+      };
+    });
   };
 
   const removeQuestion = (index) => {
@@ -444,6 +469,43 @@ const EventQuizEdit = () => {
               />
             </Grid>
 
+            <Grid item xs={12} sm={6}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={formData.negativeMarkingEnabled || false}
+                    onChange={(e) => {
+                      const isEnabled = e.target.checked;
+                      setFormData(prev => {
+                        const updatedFormData = {
+                          ...prev,
+                          negativeMarkingEnabled: isEnabled
+                        };
+
+                        // If disabling negative marking, set all negative marks to 0
+                        if (!isEnabled) {
+                          updatedFormData.questions = prev.questions.map(q => ({
+                            ...q,
+                            negativeMarks: 0
+                          }));
+                        } else {
+                          // If enabling negative marking, set default negative marks equal to positive marks
+                          updatedFormData.questions = prev.questions.map(q => ({
+                            ...q,
+                            negativeMarks: q.negativeMarks > 0 ? q.negativeMarks : (q.marks || 1)
+                          }));
+                        }
+
+                        return updatedFormData;
+                      });
+                    }}
+                    name="negativeMarkingEnabled"
+                  />
+                }
+                label="Enable Negative Marking"
+              />
+            </Grid>
+
             {/* Participation Mode Section */}
             <Grid item xs={12}>
               <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>
@@ -613,7 +675,14 @@ const EventQuizEdit = () => {
                 <Paper key={index} sx={{ p: 2, mb: 2 }}>
                   <Stack spacing={2}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <Typography variant="subtitle1">Question {index + 1}</Typography>
+                      <Typography variant="subtitle1">
+                        Question {index + 1} ({question.marks || 1} marks
+                        {formData.negativeMarkingEnabled && question.negativeMarks > 0 && (
+                          <span style={{ color: '#f57c00', marginLeft: '8px' }}>
+                            | -{question.negativeMarks} for wrong
+                          </span>
+                        )})
+                      </Typography>
                       <IconButton 
                         color="error" 
                         onClick={() => removeQuestion(index)}
@@ -657,15 +726,26 @@ const EventQuizEdit = () => {
                       </Box>
                     ))}
 
-                    <TextField
-                      required
-                      label="Marks"
-                      type="number"
-                      value={question.marks || 1}
-                      onChange={(e) => handleQuestionChange(index, 'marks', parseInt(e.target.value))}
-                      inputProps={{ min: 1 }}
-                      sx={{ width: 100 }}
-                    />
+                    <Box sx={{ display: 'flex', gap: 2 }}>
+                      <TextField
+                        required
+                        label="Marks (for correct)"
+                        type="number"
+                        value={question.marks || 1}
+                        onChange={(e) => handleQuestionChange(index, 'marks', parseInt(e.target.value))}
+                        inputProps={{ min: 1 }}
+                        sx={{ width: 150 }}
+                      />
+                      <TextField
+                        label="Negative Marks (for wrong)"
+                        type="number"
+                        value={question.negativeMarks || 0}
+                        onChange={(e) => handleQuestionChange(index, 'negativeMarks', parseFloat(e.target.value))}
+                        inputProps={{ min: 0, step: 0.25 }}
+                        sx={{ width: 150 }}
+                        helperText="0 = no penalty"
+                      />
+                    </Box>
                   </Stack>
                 </Paper>
               ))}

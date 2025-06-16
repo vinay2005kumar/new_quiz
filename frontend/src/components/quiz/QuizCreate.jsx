@@ -61,7 +61,8 @@ const QuizCreate = () => {
     startTime: '',
     endTime: '',
     allowedGroups: [],
-    questionDisplayMode: 'oneByOne'
+    questionDisplayMode: 'oneByOne',
+    negativeMarkingEnabled: false
   });
 
   // Questions state for manual quiz creation
@@ -70,7 +71,8 @@ const QuizCreate = () => {
       question: '',
       options: ['', '', '', ''],
       correctAnswer: 0,
-      marks: 1
+      marks: 1,
+      negativeMarks: 0
     }
   ]);
 
@@ -319,11 +321,12 @@ const QuizCreate = () => {
       switch (inputMethod) {
         case 0:
           return (
-            <ManualQuizForm 
-              {...commonProps} 
+            <ManualQuizForm
+              {...commonProps}
               questions={questions}
               onQuestionsUpdate={setQuestions}
               isReview={false}
+              negativeMarkingEnabled={basicDetails.negativeMarkingEnabled}
             />
           );
         case 1:
@@ -398,11 +401,21 @@ const QuizCreate = () => {
               />
             </ListItem>
             <ListItem>
-              <ListItemText 
-                primary="Allowed Groups" 
-                secondary={basicDetails.allowedGroups.map(group => 
+              <ListItemText
+                primary="Allowed Groups"
+                secondary={basicDetails.allowedGroups.map(group =>
                   typeof group === 'object' ? `${group.department} - ${group.section} (Semester ${group.semester})` : group
-                ).join(', ')} 
+                ).join(', ')}
+              />
+            </ListItem>
+            <ListItem>
+              <ListItemText
+                primary="Negative Marking"
+                secondary={
+                  basicDetails.negativeMarkingEnabled
+                    ? 'Enabled (individual marks set per question)'
+                    : 'Disabled'
+                }
               />
             </ListItem>
           </List>
@@ -422,7 +435,12 @@ const QuizCreate = () => {
           <Card key={index} sx={{ mb: 2 }}>
             <CardContent>
               <Typography variant="subtitle1" gutterBottom>
-                Question {index + 1} ({question.marks || 1} marks)
+                Question {index + 1} ({question.marks || 1} marks
+                {basicDetails.negativeMarkingEnabled && question.negativeMarks > 0 && (
+                  <span style={{ color: '#f57c00', marginLeft: '8px' }}>
+                    | -{question.negativeMarks} for wrong
+                  </span>
+                )})
               </Typography>
               <Typography variant="body1" gutterBottom sx={{ fontWeight: 'medium' }}>
                 {question.question || 'No question text found'}

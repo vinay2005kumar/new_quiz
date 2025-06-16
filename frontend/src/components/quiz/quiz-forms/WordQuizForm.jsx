@@ -204,26 +204,26 @@ D) 6\\par
             whiteSpace: 'pre-line',
             border: '1px solid #ddd'
           }}>
-            {`Q1. What is the capital of France? (1 marks)
+            {`Q1. What is the capital of France? (1 marks) [Negative: 1]
 A) Paris*
 B) London
 C) Berlin
 D) Madrid
 
-Q2. Which planet is known as the Red Planet? (1 marks)
+Q2. Which planet is known as the Red Planet? (2 marks) [Negative: 0]
 A) Venus
 B) Mars*
 C) Jupiter
 D) Saturn
 
-Q3. What is 2 + 2? (1 marks)
+Q3. What is 2 + 2? (3 marks) [Negative: 3]
 A) 3
 B) 4*
 C) 5
 D) 6`}
           </Box>
           <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-            💡 <strong>Tips:</strong> Use Q1., Q2., etc. for questions. Add (marks) after each question. Mark correct answers with asterisk (*). Leave blank lines between questions.
+            💡 <strong>Tips:</strong> Use Q1., Q2., etc. for questions. Add (marks) after each question. Add [Negative: X] for negative marking (optional). Mark correct answers with asterisk (*). Leave blank lines between questions.
           </Typography>
         </Box>
 

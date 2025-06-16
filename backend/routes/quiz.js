@@ -1289,10 +1289,21 @@ router.post('/parse/excel', auth, authorize('faculty', 'admin', 'event'), memory
     const questions = jsonData.slice(1)
       .filter(row => {
         console.log('Filtering row:', row, 'Length:', row.length, 'Has question:', !!row[0]);
-        return row.length >= 6 && row[0]; // Reduced from 7 to 6 to be more flexible
+        return row.length >= 6 && row[0]; // At least 6 columns required
       })
       .map((row, index) => {
         console.log(`Processing row ${index + 1}:`, row);
+        const marks = parseInt(row[6]) || 1;
+        const providedNegativeMarks = row[7] ? parseFloat(row[7]) : null;
+
+        // Use provided negative marks, or default to same as positive marks if negative marking enabled
+        let negativeMarks = 0;
+        if (providedNegativeMarks !== null) {
+          negativeMarks = providedNegativeMarks;
+        } else if (formData.negativeMarkingEnabled) {
+          negativeMarks = marks;
+        }
+
         const question = {
           question: String(row[0] || '').trim(),
           options: [
@@ -1302,7 +1313,8 @@ router.post('/parse/excel', auth, authorize('faculty', 'admin', 'event'), memory
             String(row[4] || '').trim()
           ],
           correctAnswer: row[5] ? ['A', 'B', 'C', 'D'].indexOf(String(row[5]).toUpperCase().trim()) : 0,
-          marks: parseInt(row[6]) || 1
+          marks: marks,
+          negativeMarks: negativeMarks
         };
         console.log(`Processed question ${index + 1}:`, question);
         return question;
@@ -1414,16 +1426,28 @@ router.post('/parse/word', auth, authorize('faculty', 'admin', 'event'), memoryU
             question: currentQuestion.question,
             options: cleanOptions,
             correctAnswer: correctAnswer >= 0 ? correctAnswer : 0,
-            marks: currentQuestion.marks
+            marks: currentQuestion.marks,
+            negativeMarks: currentQuestion.negativeMarks || 0
           });
         }
 
         // Start new question
-        const questionText = line.replace(/^Q\d+\.\s*/, '').replace(/\(\d+\s*marks?\)/, '').trim();
+        let questionText = line.replace(/^Q\d+\.\s*/, '').replace(/\(\d+\s*marks?\)/, '').replace(/\[Negative:\s*[\d.]+\]/, '').trim();
         const marksMatch = line.match(/\((\d+)\s*marks?\)/);
         const marks = marksMatch ? parseInt(marksMatch[1]) : 1;
 
-        currentQuestion = { question: questionText, marks };
+        // Extract negative marks from [Negative: X] format
+        const negativeMatch = line.match(/\[Negative:\s*([\d.]+)\]/);
+        let negativeMarks = 0;
+
+        if (negativeMatch) {
+          negativeMarks = parseFloat(negativeMatch[1]);
+        } else if (formData.negativeMarkingEnabled) {
+          // Use default based on marks (equal to positive marks)
+          negativeMarks = marks;
+        }
+
+        currentQuestion = { question: questionText, marks, negativeMarks };
         currentOptions = [];
         console.log('Found question:', currentQuestion);
       }
@@ -1444,7 +1468,8 @@ router.post('/parse/word', auth, authorize('faculty', 'admin', 'event'), memoryU
         question: currentQuestion.question,
         options: cleanOptions,
         correctAnswer: correctAnswer >= 0 ? correctAnswer : 0,
-        marks: currentQuestion.marks
+        marks: currentQuestion.marks,
+        negativeMarks: currentQuestion.negativeMarks || 0
       });
     }
 

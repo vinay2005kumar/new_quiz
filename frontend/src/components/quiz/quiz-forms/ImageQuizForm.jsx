@@ -159,21 +159,20 @@ const ImageQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate }) =>
           }}>
             {`📄 Example Question Image Content:
 
-Q1. What is the capital of France?
+Q1. What is the capital of France? (1 marks) [Negative: 1]
 
-A) Paris
+A) Paris*
 B) London
 C) Berlin
 D) Madrid
 
-[Correct answer should be marked with * or highlighted]
-
 ---
 
 Each image should contain:
-• One complete question
+• One complete question with marks: (X marks)
+• Optional negative marking: [Negative: X]
 • All four options (A, B, C, D)
-• Clear indication of correct answer
+• Clear indication of correct answer with *
 • Good lighting and readable text`}
           </Box>
           <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>

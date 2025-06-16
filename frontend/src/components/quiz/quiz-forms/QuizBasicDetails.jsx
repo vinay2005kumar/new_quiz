@@ -14,7 +14,9 @@ import {
   FormLabel,
   RadioGroup,
   FormControlLabel,
-  Radio
+  Radio,
+  Switch,
+  FormGroup
 } from '@mui/material';
 import { useAuth } from '../../../context/AuthContext';
 import api from '../../../config/axios';
@@ -426,6 +428,32 @@ const QuizBasicDetails = ({
           inputProps={{ min: 1 }}
           required
         />
+      </Grid>
+
+      {/* Negative Marking Section */}
+      <Grid item xs={12}>
+        <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold', mt: 2 }}>
+          Negative Marking Settings
+        </Typography>
+
+        <FormGroup>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={basicDetails.negativeMarkingEnabled || false}
+                onChange={(e) => handleBasicDetailsChange({
+                  target: { name: 'negativeMarkingEnabled', value: e.target.checked }
+                })}
+                name="negativeMarkingEnabled"
+              />
+            }
+            label="Enable Negative Marking"
+          />
+        </FormGroup>
+
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+          💡 This setting indicates whether negative marking is allowed in this quiz. Individual negative marks will be set per question.
+        </Typography>
       </Grid>
 
       <Grid item xs={12} sm={6}>

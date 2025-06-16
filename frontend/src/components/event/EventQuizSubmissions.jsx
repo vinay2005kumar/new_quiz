@@ -56,7 +56,6 @@ import useAcademicFilters from '../../hooks/useAcademicFilters';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
-import { saveAs } from 'file-saver';
 
 const EventQuizSubmissions = () => {
   const { id } = useParams();

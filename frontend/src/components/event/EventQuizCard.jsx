@@ -436,8 +436,24 @@ const EventQuizCard = ({
               <Stack direction="row" spacing={1} alignItems="center">
                 <ClassIcon fontSize="small" color="action" />
                 <Typography variant="body2">
-                  Questions: {Array.isArray(quiz?.questions) ? quiz.questions.length : 0} • 
+                  Questions: {Array.isArray(quiz?.questions) ? quiz.questions.length : 0} •
                   Total Marks: {quiz?.totalMarks || 0}
+                </Typography>
+              </Stack>
+            </Grid>
+
+            {/* Negative Marking Indicator */}
+            <Grid item xs={12}>
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Typography variant="body2" sx={{
+                  color: quiz?.negativeMarkingEnabled ? 'warning.main' : 'success.main',
+                  fontWeight: 'medium',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5
+                }}>
+                  {quiz?.negativeMarkingEnabled ? '⚠️' : '✅'}
+                  Negative Marking: {quiz?.negativeMarkingEnabled ? 'Enabled' : 'Disabled'}
                 </Typography>
               </Stack>
             </Grid>
