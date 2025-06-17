@@ -124,7 +124,7 @@ export const AuthProvider = ({ children }) => {
     console.log('Logging out user');
     localStorage.removeItem('token');
     setUser(null);
-    navigate('/login');
+    navigate('/');
   };
 
   // Provide auth state and methods to consuming components

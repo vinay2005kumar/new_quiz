@@ -86,21 +86,9 @@ const Login = () => {
             </Typography>
             {collegeAddress && (
               <Typography variant="body2" color="text.secondary" gutterBottom>
-                📍 {collegeAddress}
+                {collegeAddress}
               </Typography>
             )}
-            <Box sx={{ display: 'flex', justifyContent: 'center', gap: 3, mt: 1 }}>
-              {collegeEmail && (
-                <Typography variant="body2" color="text.secondary">
-                  📧 {collegeEmail}
-                </Typography>
-              )}
-              {collegePhone && (
-                <Typography variant="body2" color="text.secondary">
-                  📞 {collegePhone}
-                </Typography>
-              )}
-            </Box>
           </Box>
 
           <Typography component="h2" variant="h5" align="center" gutterBottom>
@@ -155,14 +143,14 @@ const Login = () => {
                 'Sign In'
               )}
             </Button>
-            <Button
+            {/* <Button
               fullWidth
               variant="text"
               onClick={() => navigate('/register')}
               disabled={isLoading}
             >
               Don't have an account? Sign Up
-            </Button>
+            </Button> */}
           </Box>
         </Paper>
       </Box>

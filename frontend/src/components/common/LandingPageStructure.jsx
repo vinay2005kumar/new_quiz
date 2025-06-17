@@ -18,7 +18,7 @@ import {
   Security as SecurityIcon
 } from '@mui/icons-material';
 
-const LandingPageStructure = ({ 
+const LandingPageStructure = ({
   collegeInfo,
   backgroundStyle,
   headerStyle,
@@ -43,7 +43,7 @@ const LandingPageStructure = ({
   } = collegeInfo;
 
   return (
-    <Box sx={{ 
+    <Box sx={{
       display: 'flex',
       flexDirection: 'column',
       minHeight: isPreview ? '400px' : '100vh',
@@ -75,13 +75,13 @@ const LandingPageStructure = ({
         }}
       >
         <Container maxWidth="lg">
-          <Box sx={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
+          <Box sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
             alignItems: 'center'
           }}>
             {/* Left - Quiz Platform Title */}
-            <Typography variant={isPreview ? "caption" : "h6"} component="div" sx={{ 
+            <Typography variant={isPreview ? "caption" : "h6"} component="div" sx={{
               fontWeight: 600,
               color: headerTextColor || 'white',
               letterSpacing: 1,
@@ -91,12 +91,12 @@ const LandingPageStructure = ({
             </Typography>
 
             {/* Center - College Name, Address, Established Year */}
-            <Box sx={{ 
+            <Box sx={{
               textAlign: 'center',
               flex: 1,
               mx: 2
             }}>
-              <Typography variant={isPreview ? "body2" : "h4"} component="div" sx={{ 
+              <Typography variant={isPreview ? "body2" : "h4"} component="div" sx={{
                 fontWeight: 700,
                 color: headerTextColor || 'white',
                 mb: isPreview ? 0.5 : 1,
@@ -104,19 +104,19 @@ const LandingPageStructure = ({
               }}>
                 {collegeName || 'R.V.R & J.C College of Engineering'}
               </Typography>
-              
+
               {/* Address and Established Year under college name */}
               <Box sx={{ display: 'flex', justifyContent: 'center', gap: isPreview ? 2 : 4, flexWrap: 'wrap' }}>
                 {collegeAddress && (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <LocationIcon sx={{ 
-                      fontSize: isPreview ? 14 : 18, 
+                    <LocationIcon sx={{
+                      fontSize: isPreview ? 14 : 18,
                       color: headerTextColor || 'white',
                       opacity: 0.8
                     }} />
-                    <Typography variant={isPreview ? "caption" : "body1"} sx={{ 
+                    <Typography variant={isPreview ? "caption" : "body1"} sx={{
                       color: headerTextColor || 'white',
-                      opacity: 0.9, 
+                      opacity: 0.9,
                       fontWeight: 500,
                       textShadow: headerTextColor === 'white' ? '1px 1px 2px rgba(0,0,0,0.5)' : 'none'
                     }}>
@@ -126,14 +126,14 @@ const LandingPageStructure = ({
                 )}
                 {establishedYear && (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <EstablishedIcon sx={{ 
-                      fontSize: isPreview ? 14 : 18, 
+                    <EstablishedIcon sx={{
+                      fontSize: isPreview ? 14 : 18,
                       color: headerTextColor || 'white',
                       opacity: 0.8
                     }} />
-                    <Typography variant={isPreview ? "caption" : "body1"} sx={{ 
+                    <Typography variant={isPreview ? "caption" : "body1"} sx={{
                       color: headerTextColor || 'white',
-                      opacity: 0.9, 
+                      opacity: 0.9,
                       fontWeight: 500,
                       textShadow: headerTextColor === 'white' ? '1px 1px 2px rgba(0,0,0,0.5)' : 'none'
                     }}>
@@ -145,7 +145,7 @@ const LandingPageStructure = ({
             </Box>
 
             {/* Right - Email and Phone */}
-            <Box sx={{ 
+            <Box sx={{
               textAlign: 'right',
               display: 'flex',
               flexDirection: 'column',
@@ -154,14 +154,14 @@ const LandingPageStructure = ({
             }}>
               {collegeEmail && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end' }}>
-                  <EmailIcon sx={{ 
-                    fontSize: isPreview ? 12 : 16, 
+                  <EmailIcon sx={{
+                    fontSize: isPreview ? 12 : 16,
                     color: headerTextColor || 'white',
                     opacity: 0.8
                   }} />
-                  <Typography variant={isPreview ? "caption" : "body2"} sx={{ 
+                  <Typography variant={isPreview ? "caption" : "body2"} sx={{
                     color: headerTextColor || 'white',
-                    opacity: 0.9, 
+                    opacity: 0.9,
                     fontWeight: 500,
                     fontSize: isPreview ? '10px' : undefined,
                     textShadow: headerTextColor === 'white' ? '1px 1px 2px rgba(0,0,0,0.5)' : 'none'
@@ -172,14 +172,14 @@ const LandingPageStructure = ({
               )}
               {collegePhone && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'flex-end' }}>
-                  <PhoneIcon sx={{ 
-                    fontSize: isPreview ? 12 : 16, 
+                  <PhoneIcon sx={{
+                    fontSize: isPreview ? 12 : 16,
                     color: headerTextColor || 'white',
                     opacity: 0.8
                   }} />
-                  <Typography variant={isPreview ? "caption" : "body2"} sx={{ 
+                  <Typography variant={isPreview ? "caption" : "body2"} sx={{
                     color: headerTextColor || 'white',
-                    opacity: 0.9, 
+                    opacity: 0.9,
                     fontWeight: 500,
                     fontSize: isPreview ? '10px' : undefined,
                     textShadow: headerTextColor === 'white' ? '1px 1px 2px rgba(0,0,0,0.5)' : 'none'
@@ -194,9 +194,9 @@ const LandingPageStructure = ({
       </Box>
 
       {/* Main Content */}
-      <Box 
-        component="main" 
-        sx={{ 
+      <Box
+        component="main"
+        sx={{
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
@@ -209,11 +209,11 @@ const LandingPageStructure = ({
       >
         <Container maxWidth="md">
           <Box sx={{ textAlign: 'center', mb: isPreview ? 2 : 4 }}>
-            <Typography 
-              variant={isPreview ? "h6" : "h3"} 
-              component="h2" 
-              gutterBottom 
-              sx={{ 
+            <Typography
+              variant={isPreview ? "h6" : "h3"}
+              component="h2"
+              gutterBottom
+              sx={{
                 fontWeight: 700,
                 color: 'white',
                 mb: isPreview ? 1 : 2,
@@ -222,10 +222,10 @@ const LandingPageStructure = ({
             >
               Welcome to Our Quiz Platform
             </Typography>
-            <Typography 
-              variant={isPreview ? "caption" : "h6"} 
-              sx={{ 
-                maxWidth: 600, 
+            <Typography
+              variant={isPreview ? "caption" : "h6"}
+              sx={{
+                maxWidth: 600,
                 mx: 'auto',
                 lineHeight: 1.6,
                 fontWeight: 400,
@@ -257,15 +257,15 @@ const LandingPageStructure = ({
               }}
             >
               <LoginIcon sx={{ fontSize: isPreview ? 24 : 40, color: 'primary.main', mb: 1 }} />
-              <Typography variant={isPreview ? "caption" : "h6"} gutterBottom sx={{ 
-                fontWeight: 600, 
+              <Typography variant={isPreview ? "caption" : "h6"} gutterBottom sx={{
+                fontWeight: 600,
                 color: 'primary.main',
                 display: 'block',
                 mb: isPreview ? 0.5 : undefined
               }}>
                 Student Login
               </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ 
+              <Typography variant="caption" color="text.secondary" sx={{
                 mb: isPreview ? 1 : 2,
                 display: 'block',
                 fontSize: isPreview ? '10px' : undefined
@@ -277,7 +277,7 @@ const LandingPageStructure = ({
                   variant="contained"
                   fullWidth
                   onClick={() => onNavigate('/login')}
-                  sx={{ 
+                  sx={{
                     py: 1.2,
                     borderRadius: 2,
                     textTransform: 'none',
@@ -305,15 +305,15 @@ const LandingPageStructure = ({
               }}
             >
               <EventIcon sx={{ fontSize: isPreview ? 24 : 40, color: 'secondary.main', mb: 1 }} />
-              <Typography variant={isPreview ? "caption" : "h6"} gutterBottom sx={{ 
-                fontWeight: 600, 
+              <Typography variant={isPreview ? "caption" : "h6"} gutterBottom sx={{
+                fontWeight: 600,
                 color: 'secondary.main',
                 display: 'block',
                 mb: isPreview ? 0.5 : undefined
               }}>
                 Quiz Events
               </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ 
+              <Typography variant="caption" color="text.secondary" sx={{
                 mb: isPreview ? 1 : 2,
                 display: 'block',
                 fontSize: isPreview ? '10px' : undefined
@@ -325,7 +325,7 @@ const LandingPageStructure = ({
                   variant="outlined"
                   fullWidth
                   onClick={() => onNavigate('/events')}
-                  sx={{ 
+                  sx={{
                     py: 1.2,
                     borderRadius: 2,
                     textTransform: 'none',
@@ -354,15 +354,15 @@ const LandingPageStructure = ({
                 }}
               >
                 <SecurityIcon sx={{ fontSize: isPreview ? 24 : 40, color: 'warning.main', mb: 1 }} />
-                <Typography variant={isPreview ? "caption" : "h6"} gutterBottom sx={{ 
-                  fontWeight: 600, 
+                <Typography variant={isPreview ? "caption" : "h6"} gutterBottom sx={{
+                  fontWeight: 600,
                   color: 'warning.main',
                   display: 'block',
                   mb: isPreview ? 0.5 : undefined
                 }}>
                   Admin Setup
                 </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ 
+                <Typography variant="caption" color="text.secondary" sx={{
                   mb: isPreview ? 1 : 2,
                   display: 'block',
                   fontSize: isPreview ? '10px' : undefined
@@ -375,7 +375,7 @@ const LandingPageStructure = ({
                     color="warning"
                     fullWidth
                     onClick={() => onNavigate('/register?role=admin')}
-                    sx={{ 
+                    sx={{
                       py: 1.2,
                       borderRadius: 2,
                       textTransform: 'none',
@@ -392,9 +392,9 @@ const LandingPageStructure = ({
       </Box>
 
       {/* Footer */}
-      <Box 
-        component="footer" 
-        sx={{ 
+      <Box
+        component="footer"
+        sx={{
           ...footerStyle,
           py: isPreview ? 1 : 2,
           position: 'relative',
@@ -402,9 +402,9 @@ const LandingPageStructure = ({
         }}
       >
         <Container maxWidth="lg">
-          <Box sx={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
+          <Box sx={{
+            display: 'flex',
+            justifyContent: 'space-between',
             alignItems: 'center',
             flexWrap: 'wrap',
             gap: 1,
@@ -413,9 +413,9 @@ const LandingPageStructure = ({
             {/* Left - Description */}
             <Box sx={{ flex: 1, minWidth: isPreview ? 100 : 200 }}>
               {collegeDescription && (
-                <Typography 
-                  variant="caption" 
-                  sx={{ 
+                <Typography
+                  variant="caption"
+                  sx={{
                     opacity: 0.9,
                     fontSize: isPreview ? '9px' : '14px',
                     fontWeight: 400,
@@ -423,40 +423,52 @@ const LandingPageStructure = ({
                     lineHeight: 1.2
                   }}
                 >
-                  {isPreview && collegeDescription.length > 40 
-                    ? `${collegeDescription.substring(0, 40)}...` 
+                  {isPreview && collegeDescription.length > 40
+                    ? `${collegeDescription.substring(0, 40)}...`
                     : collegeDescription
                   }
                 </Typography>
               )}
             </Box>
-            
+
             {/* Center - Website */}
             <Box sx={{ textAlign: 'center', minWidth: isPreview ? 60 : 150 }}>
               {collegeWebsite && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'center' }}>
-                  <WebsiteIcon sx={{ 
-                    fontSize: isPreview ? 12 : 16, 
+                  <WebsiteIcon sx={{
+                    fontSize: isPreview ? 12 : 16,
                     opacity: 0.8,
                     color: footerTextColor || 'white'
                   }} />
-                  <Typography variant="caption" sx={{ 
-                    opacity: 0.9,
-                    fontSize: isPreview ? '9px' : '14px',
-                    fontWeight: 500,
-                    color: footerTextColor || 'white'
-                  }}>
+                  <Typography
+                    variant="caption"
+                    component="a"
+                    href={collegeWebsite.startsWith('http') ? collegeWebsite : `https://${collegeWebsite}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{
+                      opacity: 0.9,
+                      fontSize: isPreview ? '9px' : '14px',
+                      fontWeight: 500,
+                      color: footerTextColor || 'white',
+                      textDecoration: 'none', // optional: removes underline
+                      '&:hover': {
+                        textDecoration: 'underline',
+                      }
+                    }}
+                  >
                     {collegeWebsite}
                   </Typography>
                 </Box>
               )}
             </Box>
-            
+
+
             {/* Right - Copyright */}
             <Box sx={{ textAlign: 'right', minWidth: isPreview ? 80 : 150 }}>
-              <Typography 
-                variant="caption" 
-                sx={{ 
+              <Typography
+                variant="caption"
+                sx={{
                   opacity: 0.8,
                   fontSize: isPreview ? '9px' : '14px',
                   fontWeight: 400,

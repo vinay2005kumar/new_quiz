@@ -236,29 +236,9 @@ const Navigation = () => {
               <Typography variant="h6" component="div" sx={{ lineHeight: 1.2 }}>
                 {collegeName}
               </Typography>
-              {collegeAddress && (
-                <Typography variant="caption" component="div" sx={{ opacity: 0.8, lineHeight: 1 }}>
-                  {collegeAddress}
-                </Typography>
-              )}
             </Box>
           </Box>
 
-          {/* College Contact Info - Desktop Only */}
-          {!isMobile && (collegeEmail || collegePhone) && (
-            <Box sx={{ mr: 2, display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-              {collegeEmail && (
-                <Typography variant="caption" sx={{ opacity: 0.9 }}>
-                  📧 {collegeEmail}
-                </Typography>
-              )}
-              {collegePhone && (
-                <Typography variant="caption" sx={{ opacity: 0.9 }}>
-                  📞 {collegePhone}
-                </Typography>
-              )}
-            </Box>
-          )}
 
           {/* Desktop Navigation */}
           {!isMobile && (
