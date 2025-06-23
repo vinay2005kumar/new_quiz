@@ -105,8 +105,9 @@ const QuizResult = () => {
         </Card>
 
         {/* Results Summary */}
+
         <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid item xs={12} sm={6} md={3}>
+          {/* <Grid item xs={12} sm={6} md={3}>
             <Card sx={{ textAlign: 'center', p: 2 }}>
               <Typography variant="h4" sx={{ color: 'primary.main', fontWeight: 'bold' }}>
                 {result.score || 0}
@@ -115,7 +116,7 @@ const QuizResult = () => {
                 Score
               </Typography>
             </Card>
-          </Grid>
+          </Grid> */}
 
           <Grid item xs={12} sm={6} md={3}>
             <Card sx={{ textAlign: 'center', p: 2 }}>
@@ -128,7 +129,7 @@ const QuizResult = () => {
             </Card>
           </Grid>
 
-          <Grid item xs={12} sm={6} md={3}>
+          {/* <Grid item xs={12} sm={6} md={3}>
             <Card sx={{ textAlign: 'center', p: 2 }}>
               <Typography variant="h4" sx={{ color: 'success.main', fontWeight: 'bold' }}>
                 {result.correctAnswers || 0}
@@ -137,7 +138,7 @@ const QuizResult = () => {
                 Correct Answers
               </Typography>
             </Card>
-          </Grid>
+          </Grid> */}
 
           <Grid item xs={12} sm={6} md={3}>
             <Card sx={{ textAlign: 'center', p: 2 }}>
@@ -152,7 +153,7 @@ const QuizResult = () => {
         </Grid>
 
         {/* Performance Summary */}
-        <Card sx={{ mb: 3, bgcolor: 'background.default' }}>
+        {/* <Card sx={{ mb: 3, bgcolor: 'background.default' }}>
           <CardContent>
             <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
               <AssessmentIcon />
@@ -184,7 +185,7 @@ const QuizResult = () => {
               />
             </Box>
           </CardContent>
-        </Card>
+        </Card> */}
 
         {/* Participant Information */}
         {participant && (
