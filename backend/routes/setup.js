@@ -35,11 +35,11 @@ router.get('/college-info', async (req, res) => {
     // If no college info exists, return default with sample data
     if (!college) {
       return res.json({
-        name: 'R.V.R & J.C College of Engineering',
-        address: 'chowdavaram',
-        email: 'rvr@gmail.com',
+        name: 'COLLEGE',
+        address: 'ADDRESS',
+        email: 'example@gmail.com',
         phone: '1234567890',
-        website: 'rvr.com',
+        website: 'www.example.com',
         establishedYear: 1985,
         description: 'A premier engineering institution committed to excellence in education and research.',
         backgroundType: 'gradient',

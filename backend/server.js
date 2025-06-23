@@ -81,6 +81,7 @@ const FALLBACK_PORTS = [5001, 5002, 5003];
 const startServer = async (port) => {
   try {
     // Direct Atlas URL connection
+    // const ATLAS_URL = 'mongodb+srv://vinaybuttala:vinay@cluster0.ljtzrex.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
     const ATLAS_URL = 'mongodb+srv://vinaybuttala:vinay123@cluster0.za6yh4j.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
     
     console.log('Attempting to connect to MongoDB Atlas...');

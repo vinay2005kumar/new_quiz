@@ -102,7 +102,7 @@ const LandingPageStructure = ({
                 mb: isPreview ? 0.5 : 1,
                 textShadow: headerTextColor === 'white' ? '2px 2px 4px rgba(0,0,0,0.7)' : 'none'
               }}>
-                {collegeName || 'R.V.R & J.C College of Engineering'}
+                {collegeName || 'COLLEGE NAME'}
               </Typography>
 
               {/* Address and Established Year under college name */}

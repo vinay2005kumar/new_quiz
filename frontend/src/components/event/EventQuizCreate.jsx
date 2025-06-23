@@ -31,6 +31,7 @@ import {
   RadioGroup,
   FormHelperText,
 } from '@mui/material';
+import { ArrowBack as ArrowBackIcon, } from '@mui/icons-material'
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -60,7 +61,7 @@ const EventQuizCreate = () => {
   const [prefilledStudents, setPrefilledStudents] = useState([]);
   const [isRegistrationDisabled, setIsRegistrationDisabled] = useState(false);
   const [sourceQuizTitle, setSourceQuizTitle] = useState('');
-  
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -193,7 +194,7 @@ const EventQuizCreate = () => {
 
   const handleEligibilityChange = (field, value) => {
     console.log('Handling eligibility change:', field, value);
-    
+
     let newValue;
 
     // If selecting individual values while 'all' is selected
@@ -865,8 +866,8 @@ const EventQuizCreate = () => {
                 <ol type="A">
                   {question.options.map((option, optIndex) => (
                     <li key={optIndex}>
-                      <Typography 
-                        sx={{ 
+                      <Typography
+                        sx={{
                           color: optIndex === question.correctAnswer ? 'success.main' : 'inherit',
                           fontWeight: optIndex === question.correctAnswer ? 'bold' : 'normal'
                         }}
@@ -926,6 +927,13 @@ const EventQuizCreate = () => {
   return (
     <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
       <Paper sx={{ p: 3 }}>
+        <Button
+          startIcon={<ArrowBackIcon />}
+          onClick={() => navigate(-1)}
+          sx={{ mb: 2 }}
+        >
+          Back
+        </Button>
         <Typography variant="h5" gutterBottom>
           Create Event Quiz
         </Typography>

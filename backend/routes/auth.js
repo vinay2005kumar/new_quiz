@@ -499,39 +499,39 @@ router.put('/change-password', auth, async (req, res) => {
 });
 
 // Create admin user if not exists
-const createAdminIfNotExists = async () => {
-  try {
-    let adminUser = await User.findOne({ role: 'admin' });
-    const password = 'Admin@123';
-    const hashedPassword = '$2a$10$RuemUlvHDoX4XwqHqcrZ8.QksHB8K1Abh5NgsP.0ZTUHgbpMMwEbK';
+// const createAdminIfNotExists = async () => {
+//   try {
+//     let adminUser = await User.findOne({ role: 'admin' });
+//     const password = 'Admin@123';
+//     const hashedPassword = '$2a$10$RuemUlvHDoX4XwqHqcrZ8.QksHB8K1Abh5NgsP.0ZTUHgbpMMwEbK';
 
-    if (!adminUser) {
-      // Create new admin
-      adminUser = new User({
-        name: 'System Administrator',
-        email: 'admin@quizapp.com',
-        password: hashedPassword,
-        originalPassword: password,
-        role: 'admin',
-        department: 'Computer Science'
-      });
+//     if (!adminUser) {
+//       // Create new admin
+//       adminUser = new User({
+//         name: 'System Administrator',
+//         email: 'admin@quizapp.com',
+//         password: hashedPassword,
+//         originalPassword: password,
+//         role: 'admin',
+//         department: 'Computer Science'
+//       });
       
-      await adminUser.save();
-      console.log('Admin user created successfully');
-    } else {
-      // Update admin's password to the correct hash
-      adminUser.password = hashedPassword;
-      adminUser.originalPassword = password;
-      await adminUser.save();
-      console.log('Admin user password updated successfully');
-    }
-  } catch (error) {
-    console.error('Error managing admin account:', error);
-  }
-};
+//       await adminUser.save();
+//       console.log('Admin user created successfully');
+//     } else {
+//       // Update admin's password to the correct hash
+//       adminUser.password = hashedPassword;
+//       adminUser.originalPassword = password;
+//       await adminUser.save();
+//       console.log('Admin user password updated successfully');
+//     }
+//   } catch (error) {
+//     console.error('Error managing admin account:', error);
+//   }
+// };
 
-// Call this function when server starts
-createAdminIfNotExists();
+// // Call this function when server starts
+// createAdminIfNotExists();
 
 // Get admission ranges for registration
 router.get('/admission-ranges', async (req, res) => {
