@@ -30,6 +30,7 @@ import {
   Group as GroupIcon
 } from '@mui/icons-material';
 import api from '../../config/axios';
+import QuizSecurity from './QuizSecurity';
 
 const AuthenticatedQuizTake = () => {
   const { quizId } = useParams();
@@ -50,6 +51,11 @@ const AuthenticatedQuizTake = () => {
   const [startTime, setStartTime] = useState(null);
   const [participant, setParticipant] = useState(null);
   const [sessionToken, setSessionToken] = useState(null);
+  const [overrideState, setOverrideState] = useState({
+    adminOverrideActive: false,
+    personalOverrideActive: false,
+    reEnableSecurity: null
+  });
 
   useEffect(() => {
     // Check if we have the required data from login
@@ -415,14 +421,22 @@ const AuthenticatedQuizTake = () => {
   }
 
   return (
-    <Box sx={{
-      height: '100vh',
-      width: '100vw',
-      overflow: 'hidden',
-      display: 'flex',
-      flexDirection: 'column',
-      bgcolor: 'background.default'
-    }}>
+    <QuizSecurity
+      securitySettings={quiz?.securitySettings || {}}
+      onSecurityViolation={(violation) => {
+        console.log('Security violation:', violation);
+        // You can add additional handling here like logging to backend
+      }}
+      quizTitle={quiz?.title}
+    >
+      <Box sx={{
+        height: '100vh',
+        width: '100vw',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        bgcolor: 'background.default'
+      }}>
       {/* Top Header Bar */}
       <Paper sx={{
         p: 2,
@@ -1046,6 +1060,7 @@ const AuthenticatedQuizTake = () => {
         </DialogActions>
       </Dialog>
     </Box>
+    </QuizSecurity>
   );
 };
 

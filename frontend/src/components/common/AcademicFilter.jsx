@@ -153,33 +153,55 @@ const AcademicFilter = ({
       let filteredSections = sections;
       let filteredSubjects = subjects;
 
-      if (user?.role === 'faculty') {
+      if (user?.role === 'faculty' && user?.assignments) {
+        console.log('🎓 Filtering for faculty user:', user);
+        console.log('🎓 Faculty assignments:', user.assignments);
+
+        // Extract unique values from faculty assignments
+        const facultyDepartments = [...new Set(user.assignments.map(a => a.department))];
+        const facultyYears = [...new Set(user.assignments.map(a => parseInt(a.year)))];
+        const facultySemesters = [...new Set(user.assignments.map(a => parseInt(a.semester)))];
+        const facultySections = [...new Set(user.assignments.flatMap(a => a.sections || []))];
+
+        // Extract faculty subjects from assignments
+        const facultySubjectNames = [...new Set(user.assignments.flatMap(a => a.subjects || []))];
+
+        console.log('🎓 Faculty departments:', facultyDepartments);
+        console.log('🎓 Faculty years:', facultyYears);
+        console.log('🎓 Faculty semesters:', facultySemesters);
+        console.log('🎓 Faculty sections:', facultySections);
+        console.log('🎓 Faculty subjects:', facultySubjectNames);
+
         // Filter departments
-        if (user?.departments) {
-          filteredDepartments = finalDepartments.filter(dept => user.departments.includes(dept));
-        }
+        filteredDepartments = finalDepartments.filter(dept => facultyDepartments.includes(dept));
 
         // Filter years
-        if (user?.years) {
-          const facultyYears = user.years.map(year => parseInt(year));
-          filteredYears = years.filter(year => facultyYears.includes(year));
-        }
+        filteredYears = years.filter(year => facultyYears.includes(year));
 
         // Filter semesters
-        if (user?.semesters) {
-          const facultySemesters = user.semesters.map(semester => parseInt(semester));
-          filteredSemesters = semesters.filter(semester => facultySemesters.includes(semester));
-        }
+        filteredSemesters = semesters.filter(semester => facultySemesters.includes(semester));
 
         // Filter sections
-        if (user?.sections) {
-          filteredSections = sections.filter(section => user.sections.includes(section));
-        }
+        filteredSections = sections.filter(section => facultySections.includes(section));
 
-        // Filter subjects based on faculty departments
-        if (user?.departments) {
-          filteredSubjects = subjects.filter(subject => user.departments.includes(subject.department));
-        }
+        // Filter subjects based on faculty assignments
+        filteredSubjects = subjects.filter(subject => {
+          // Check if this subject is assigned to the faculty
+          return facultySubjectNames.some(assignedSubject => {
+            // Match by full name (e.g., "Programming Fundamentals(CS101)")
+            if (assignedSubject === subject.fullName) {
+              return true;
+            }
+            // Also try matching by subject name or code
+            return assignedSubject.includes(subject.name) || assignedSubject.includes(subject.code);
+          });
+        });
+
+        console.log('🎓 Filtered departments:', filteredDepartments);
+        console.log('🎓 Filtered years:', filteredYears);
+        console.log('🎓 Filtered semesters:', filteredSemesters);
+        console.log('🎓 Filtered sections:', filteredSections);
+        console.log('🎓 Filtered subjects:', filteredSubjects);
       }
 
       setAcademicData({
@@ -230,6 +252,87 @@ const AcademicFilter = ({
     return filters[filterName] || '';
   };
 
+  // Get dynamically filtered options based on current selections and faculty assignments
+  const getDynamicOptions = (optionType) => {
+    if (user?.role !== 'faculty' || !user?.assignments) {
+      // For non-faculty users, return all options
+      return academicData[optionType] || [];
+    }
+
+    const currentDept = getFilterValue('department');
+    const currentYear = getFilterValue('year');
+    const currentSemester = getFilterValue('semester');
+
+    switch (optionType) {
+      case 'departments':
+        // Return all departments the faculty is assigned to
+        return academicData.departments || [];
+
+      case 'years':
+        if (!currentDept) {
+          // If no department selected, show all years faculty is assigned to
+          return academicData.years || [];
+        }
+        // Filter years based on faculty assignments for the selected department
+        const deptYears = user.assignments
+          .filter(a => a.department === currentDept)
+          .map(a => parseInt(a.year));
+        return (academicData.years || []).filter(year => deptYears.includes(year));
+
+      case 'semesters':
+        if (!currentDept || !currentYear) {
+          // If no department/year selected, show all semesters faculty is assigned to
+          return academicData.semesters || [];
+        }
+        // Filter semesters based on faculty assignments for the selected department and year
+        const deptYearSemesters = user.assignments
+          .filter(a => a.department === currentDept && parseInt(a.year) === parseInt(currentYear))
+          .map(a => parseInt(a.semester));
+        return (academicData.semesters || []).filter(semester => deptYearSemesters.includes(semester));
+
+      case 'sections':
+        if (!currentDept || !currentYear || !currentSemester) {
+          // If no department/year/semester selected, show all sections faculty is assigned to
+          return academicData.sections || [];
+        }
+        // Filter sections based on faculty assignments for the selected combination
+        const assignment = user.assignments.find(a =>
+          a.department === currentDept &&
+          parseInt(a.year) === parseInt(currentYear) &&
+          parseInt(a.semester) === parseInt(currentSemester)
+        );
+        if (assignment && assignment.sections) {
+          return (academicData.sections || []).filter(section => assignment.sections.includes(section));
+        }
+        return [];
+
+      case 'subjects':
+        if (!currentDept || !currentYear || !currentSemester) {
+          // If no department/year/semester selected, show all subjects faculty is assigned to
+          return academicData.subjects || [];
+        }
+        // Filter subjects based on faculty assignments for the selected combination
+        const subjectAssignment = user.assignments.find(a =>
+          a.department === currentDept &&
+          parseInt(a.year) === parseInt(currentYear) &&
+          parseInt(a.semester) === parseInt(currentSemester)
+        );
+        if (subjectAssignment && subjectAssignment.subjects) {
+          return (academicData.subjects || []).filter(subject => {
+            return subjectAssignment.subjects.some(assignedSubject => {
+              return assignedSubject === subject.fullName ||
+                     assignedSubject.includes(subject.name) ||
+                     assignedSubject.includes(subject.code);
+            });
+          });
+        }
+        return [];
+
+      default:
+        return academicData[optionType] || [];
+    }
+  };
+
   const renderFilterField = (filterType) => {
     const commonProps = {
       fullWidth: true,
@@ -239,17 +342,18 @@ const AcademicFilter = ({
 
     switch (filterType) {
       case 'department':
+        const departments = getDynamicOptions('departments');
         return (
           <Grid item xs={12} sm={6} md={2} key="department">
             <FormControl {...commonProps}>
-              <InputLabel>Department {academicData.departments.length > 0 ? `(${academicData.departments.length})` : ''}</InputLabel>
+              <InputLabel>Department {departments.length > 0 ? `(${departments.length})` : ''}</InputLabel>
               <Select
                 value={getFilterValue('department')}
-                label={`Department ${academicData.departments.length > 0 ? `(${academicData.departments.length})` : ''}`}
+                label={`Department ${departments.length > 0 ? `(${departments.length})` : ''}`}
                 onChange={(e) => handleFilterChange('department', e.target.value)}
               >
                 <MenuItem value="">All Departments</MenuItem>
-                {academicData.departments.map((dept) => (
+                {departments.map((dept) => (
                   <MenuItem key={dept} value={dept}>
                     {dept}
                   </MenuItem>
@@ -260,17 +364,18 @@ const AcademicFilter = ({
         );
 
       case 'year':
+        const years = getDynamicOptions('years');
         return (
           <Grid item xs={12} sm={6} md={2} key="year">
             <FormControl {...commonProps}>
-              <InputLabel>Year {academicData.years.length > 0 ? `(${academicData.years.length})` : ''}</InputLabel>
+              <InputLabel>Year {years.length > 0 ? `(${years.length})` : ''}</InputLabel>
               <Select
                 value={getFilterValue('year')}
-                label={`Year ${academicData.years.length > 0 ? `(${academicData.years.length})` : ''}`}
+                label={`Year ${years.length > 0 ? `(${years.length})` : ''}`}
                 onChange={(e) => handleFilterChange('year', e.target.value)}
               >
                 <MenuItem value="">All Years</MenuItem>
-                {academicData.years.map((year) => (
+                {years.map((year) => (
                   <MenuItem key={year} value={year}>
                     Year {year}
                   </MenuItem>
@@ -281,17 +386,18 @@ const AcademicFilter = ({
         );
 
       case 'semester':
+        const semesters = getDynamicOptions('semesters');
         return (
           <Grid item xs={12} sm={6} md={2} key="semester">
             <FormControl {...commonProps}>
-              <InputLabel>Semester {academicData.semesters.length > 0 ? `(${academicData.semesters.length})` : ''}</InputLabel>
+              <InputLabel>Semester {semesters.length > 0 ? `(${semesters.length})` : ''}</InputLabel>
               <Select
                 value={getFilterValue('semester')}
-                label={`Semester ${academicData.semesters.length > 0 ? `(${academicData.semesters.length})` : ''}`}
+                label={`Semester ${semesters.length > 0 ? `(${semesters.length})` : ''}`}
                 onChange={(e) => handleFilterChange('semester', e.target.value)}
               >
                 <MenuItem value="">All Semesters</MenuItem>
-                {academicData.semesters.map((semester) => (
+                {semesters.map((semester) => (
                   <MenuItem key={semester} value={semester}>
                     Semester {semester}
                   </MenuItem>
@@ -302,17 +408,18 @@ const AcademicFilter = ({
         );
 
       case 'section':
+        const sections = getDynamicOptions('sections');
         return (
           <Grid item xs={12} sm={6} md={2} key="section">
             <FormControl {...commonProps}>
-              <InputLabel>Section {academicData.sections.length > 0 ? `(${academicData.sections.length})` : ''}</InputLabel>
+              <InputLabel>Section {sections.length > 0 ? `(${sections.length})` : ''}</InputLabel>
               <Select
                 value={getFilterValue('section')}
-                label={`Section ${academicData.sections.length > 0 ? `(${academicData.sections.length})` : ''}`}
+                label={`Section ${sections.length > 0 ? `(${sections.length})` : ''}`}
                 onChange={(e) => handleFilterChange('section', e.target.value)}
               >
                 <MenuItem value="">All Sections</MenuItem>
-                {academicData.sections.map((section) => (
+                {sections.map((section) => (
                   <MenuItem key={section} value={section}>
                     Section {section}
                   </MenuItem>
@@ -323,17 +430,18 @@ const AcademicFilter = ({
         );
 
       case 'subject':
+        const subjects = getDynamicOptions('subjects');
         return (
           <Grid item xs={12} sm={6} md={2} key="subject">
             <FormControl {...commonProps}>
-              <InputLabel>Subject {academicData.subjects.length > 0 ? `(${academicData.subjects.length})` : ''}</InputLabel>
+              <InputLabel>Subject {subjects.length > 0 ? `(${subjects.length})` : ''}</InputLabel>
               <Select
                 value={getFilterValue('subject')}
-                label={`Subject ${academicData.subjects.length > 0 ? `(${academicData.subjects.length})` : ''}`}
+                label={`Subject ${subjects.length > 0 ? `(${subjects.length})` : ''}`}
                 onChange={(e) => handleFilterChange('subject', e.target.value)}
               >
                 <MenuItem value="">All Subjects</MenuItem>
-                {academicData.subjects.map((subject) => (
+                {subjects.map((subject) => (
                   <MenuItem key={subject.code} value={subject.fullName}>
                     {subject.name} ({subject.code})
                   </MenuItem>

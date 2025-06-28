@@ -139,6 +139,10 @@ const UserSchema = new mongoose.Schema({
           },
           message: 'Each assignment must have at least one valid section (A-Z)'
         }
+      },
+      subjects: {
+        type: [String],
+        default: []
       }
     }],
     required: function() {

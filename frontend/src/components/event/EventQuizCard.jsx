@@ -458,6 +458,71 @@ const EventQuizCard = ({
               </Stack>
             </Grid>
 
+            {/* Security Settings - Only show for faculty */}
+            {user?.role === 'faculty' && quiz?.securitySettings && (
+              <Grid item xs={12}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5, fontWeight: 'medium' }}>
+                  🔒 Security Features:
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                  {quiz.securitySettings.enableFullscreen && (
+                    <Chip
+                      label="Fullscreen"
+                      size="small"
+                      color="error"
+                      variant="outlined"
+                      icon={<span>🖥️</span>}
+                    />
+                  )}
+                  {quiz.securitySettings.disableRightClick && (
+                    <Chip
+                      label="No Right-Click"
+                      size="small"
+                      color="error"
+                      variant="outlined"
+                      icon={<span>🚫</span>}
+                    />
+                  )}
+                  {quiz.securitySettings.disableCopyPaste && (
+                    <Chip
+                      label="No Copy/Paste"
+                      size="small"
+                      color="error"
+                      variant="outlined"
+                      icon={<span>📋</span>}
+                    />
+                  )}
+                  {quiz.securitySettings.disableTabSwitch && (
+                    <Chip
+                      label="Tab Monitor"
+                      size="small"
+                      color="warning"
+                      variant="outlined"
+                      icon={<span>👁️</span>}
+                    />
+                  )}
+                  {quiz.securitySettings.enableProctoringMode && (
+                    <Chip
+                      label="Proctoring Mode"
+                      size="small"
+                      color="error"
+                      variant="filled"
+                      icon={<span>🛡️</span>}
+                    />
+                  )}
+                  {!Object.values(quiz.securitySettings || {}).some(Boolean) && (
+                    <Chip
+                      label="No Security"
+                      size="small"
+                      color="success"
+                      variant="outlined"
+                      icon={<span>🔓</span>}
+                    />
+                  )}
+                </Box>
+              </Grid>
+            )}
+
             {(quiz?.maxParticipants || 0) > 0 && (
               <Grid item xs={12}>
                 <Stack direction="row" spacing={1} alignItems="center">

@@ -189,48 +189,48 @@ const StudentAccounts = () => {
     }
   };
 
-  // Update available years when department changes
+  // Update available years when department changes (for form)
   useEffect(() => {
-    if (filters.department) {
+    if (formData.department) {
       const departmentYears = [...new Set(
         academicDetails
-          .filter(detail => detail.department === filters.department)
+          .filter(detail => detail.department === formData.department)
           .map(detail => detail.year)
       )].sort((a, b) => a - b);
-      
+
       console.log('Available years for department:', departmentYears);
       setYears(departmentYears);
     } else {
       setYears([]);
     }
-  }, [filters.department, academicDetails]);
+  }, [formData.department, academicDetails]);
 
-  // Update available semesters when year changes
+  // Update available semesters when year changes (for form)
   useEffect(() => {
-    if (filters.department && filters.year) {
+    if (formData.department && formData.year) {
       const availableSems = [...new Set(
         academicDetails
-          .filter(detail => 
-            detail.department === filters.department && 
-            detail.year === parseInt(filters.year)
+          .filter(detail =>
+            detail.department === formData.department &&
+            detail.year === parseInt(formData.year)
           )
           .map(detail => detail.semester)
       )].sort((a, b) => a - b);
-      
+
       console.log('Available semesters:', availableSems);
       setAvailableSemesters(availableSems);
     } else {
       setAvailableSemesters([]);
     }
-  }, [filters.department, filters.year, academicDetails]);
+  }, [formData.department, formData.year, academicDetails]);
 
-  // Update available sections when semester changes
+  // Update available sections when semester changes (for form)
   useEffect(() => {
-    if (filters.department && filters.year && filters.semester) {
-      const detail = academicDetails.find(d => 
-        d.department === filters.department && 
-        d.year === parseInt(filters.year) && 
-        d.semester === parseInt(filters.semester)
+    if (formData.department && formData.year && formData.semester) {
+      const detail = academicDetails.find(d =>
+        d.department === formData.department &&
+        d.year === parseInt(formData.year) &&
+        d.semester === parseInt(formData.semester)
       );
 
       const sections = detail?.sections ? detail.sections.split(',').map(s => s.trim()) : [];
@@ -239,7 +239,7 @@ const StudentAccounts = () => {
     } else {
       setAvailableSections([]);
     }
-  }, [filters.department, filters.year, filters.semester, academicDetails]);
+  }, [formData.department, formData.year, formData.semester, academicDetails]);
 
   useEffect(() => {
     fetchAcademicDetails();
@@ -363,9 +363,20 @@ const StudentAccounts = () => {
           console.log('Update response:', response);
           handleCloseDialog();
           fetchStudents();
+          setToast({
+            open: true,
+            message: 'Student account updated successfully',
+            severity: 'success'
+          });
         } catch (error) {
           console.error('Update error:', error.response || error);
-          setDialogError(error.response?.data?.message || 'Failed to update student account');
+          const errorMessage = error.response?.data?.message || 'Failed to update student account';
+          setDialogError(errorMessage);
+          setToast({
+            open: true,
+            message: errorMessage,
+            severity: 'error'
+          });
         }
       } else {
         try {
@@ -373,13 +384,20 @@ const StudentAccounts = () => {
           console.log('Create response:', response);
           handleCloseDialog();
           fetchStudents();
+          setToast({
+            open: true,
+            message: 'Student account created successfully',
+            severity: 'success'
+          });
         } catch (error) {
           console.error('Creation error:', error);
-          if (error.response?.data?.message) {
-            setDialogError(error.response.data.message);
-          } else {
-            setDialogError('Failed to create student account');
-          }
+          const errorMessage = error.response?.data?.message || 'Failed to create student account';
+          setDialogError(errorMessage);
+          setToast({
+            open: true,
+            message: errorMessage,
+            severity: 'error'
+          });
         }
       }
     } catch (error) {
@@ -585,41 +603,97 @@ const StudentAccounts = () => {
       setUploadError('');
       setUploadedFile(file);
 
-      const formData = new FormData();
-      formData.append('file', file);
+      // Read and process Excel file on frontend
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
-      // First get a preview of the data
-      setUploadStatus('validating');
-      setUploadProgress(40);
-      const previewResponse = await api.post('/api/admin/accounts/preview', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
+          setUploadProgress(40);
+          setUploadStatus('validating');
+
+          // Validate and process the data
+          const processedAccounts = [];
+          const errors = [];
+
+          jsonData.forEach((row, index) => {
+            try {
+              const account = {
+                name: row.Name || row.name,
+                email: row.Email || row.email,
+                password: row.Password || row.password || Math.random().toString(36).slice(-8),
+                department: row.Department || row.department,
+                year: row.Year || row.year,
+                semester: row.Semester || row.semester,
+                section: row.Section || row.section,
+                admissionNumber: row.AdmissionNumber || row.admissionNumber || row['Admission Number'],
+                isLateral: (row.IsLateral || row.isLateral || row['Is Lateral'] || '').toString().toLowerCase() === 'true'
+              };
+
+              // Basic validation
+              if (!account.name || !account.email || !account.department || !account.year || !account.semester || !account.section || !account.admissionNumber) {
+                errors.push(`Row ${index + 2}: Missing required fields`);
+                return;
+              }
+
+              processedAccounts.push(account);
+            } catch (error) {
+              errors.push(`Row ${index + 2}: ${error.message}`);
+            }
+          });
+
+          if (errors.length > 0) {
+            setUploadError(`Validation errors:\n${errors.join('\n')}`);
+            setUploadStatus('error');
+            return;
+          }
+
+          setUploadPreview(processedAccounts);
+          setUploadProgress(60);
+          setUploadStatus('ready');
+
+          // Proceed with upload
+          setUploadStatus('uploading');
+          setUploadProgress(80);
+
+          const response = await api.post('/api/admin/accounts/bulk', {
+            accounts: processedAccounts
+          });
+
+          setUploadProgress(100);
+          setUploadStatus('success');
+          setOpenUploadDialog(false);
+          fetchStudents();
+
+          // Show detailed success message
+          const successMessage = response.errors && response.errors.length > 0
+            ? `Uploaded ${response.created || processedAccounts.length} students. ${response.errors.length} errors occurred.`
+            : `Successfully uploaded ${response.created || processedAccounts.length} students`;
+
+          setToast({
+            open: true,
+            message: successMessage,
+            severity: response.errors && response.errors.length > 0 ? 'warning' : 'success'
+          });
+
+          // Show detailed errors if any
+          if (response.errors && response.errors.length > 0) {
+            console.error('Upload errors:', response.errors);
+            setUploadError(`Some accounts failed to create:\n${response.errors.slice(0, 5).join('\n')}${response.errors.length > 5 ? '\n...and more' : ''}`);
+          }
+
+        } catch (error) {
+          console.error('Error processing file:', error);
+          setUploadError('Failed to process Excel file. Please check the format.');
+          setUploadStatus('error');
         }
-      });
+      };
 
-      if (previewResponse.error) {
-        setUploadError(previewResponse.error);
-        setUploadStatus('error');
-        return;
-      }
+      reader.readAsArrayBuffer(file);
 
-      setUploadPreview(previewResponse.preview);
-      setUploadProgress(60);
-      setUploadStatus('ready');
-
-      // If preview looks good, proceed with upload
-      setUploadStatus('uploading');
-      setUploadProgress(80);
-      await api.post('/api/admin/accounts/bulk', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
-
-      setUploadProgress(100);
-      setUploadStatus('success');
-      setOpenUploadDialog(false);
-      fetchStudents();
     } catch (error) {
       console.error('Upload error:', error);
       setUploadError(error.response?.data?.message || 'Failed to upload students');
@@ -1012,9 +1086,16 @@ const StudentAccounts = () => {
               <InputLabel>Department</InputLabel>
               <Select
                 name="department"
-                value={formData.department}
+                value={formData.department || ''}
                 onChange={handleInputChange}
                 label="Department"
+                MenuProps={{
+                  PaperProps: {
+                    style: {
+                      maxHeight: 200,
+                    },
+                  },
+                }}
               >
                 {departments.map((dept) => (
                   <MenuItem key={dept} value={dept}>
@@ -1027,13 +1108,21 @@ const StudentAccounts = () => {
               <InputLabel>Year</InputLabel>
               <Select
                 name="year"
-                value={formData.year}
+                value={formData.year || ''}
                 onChange={handleInputChange}
                 label="Year"
+                disabled={!formData.department}
+                MenuProps={{
+                  PaperProps: {
+                    style: {
+                      maxHeight: 200,
+                    },
+                  },
+                }}
               >
                 {years.map((year) => (
                   <MenuItem key={year} value={year}>
-                    {year}
+                    Year {year}
                   </MenuItem>
                 ))}
               </Select>
@@ -1042,10 +1131,17 @@ const StudentAccounts = () => {
               <InputLabel>Semester</InputLabel>
               <Select
                 name="semester"
-                value={formData.semester}
+                value={formData.semester || ''}
                 onChange={handleInputChange}
                 label="Semester"
-                disabled={!formData.year}
+                disabled={!formData.department || !formData.year}
+                MenuProps={{
+                  PaperProps: {
+                    style: {
+                      maxHeight: 200,
+                    },
+                  },
+                }}
               >
                 {getAvailableSemesters().map((sem) => (
                   <MenuItem key={sem} value={sem}>
@@ -1058,10 +1154,17 @@ const StudentAccounts = () => {
               <InputLabel>Section</InputLabel>
               <Select
                 name="section"
-                value={formData.section}
+                value={formData.section || ''}
                 onChange={handleInputChange}
                 label="Section"
                 disabled={!formData.department || !formData.year || !formData.semester}
+                MenuProps={{
+                  PaperProps: {
+                    style: {
+                      maxHeight: 200,
+                    },
+                  },
+                }}
               >
                 {getAvailableSections().map((section) => (
                   <MenuItem key={section} value={section}>
@@ -1087,12 +1190,20 @@ const StudentAccounts = () => {
             <FormControl fullWidth margin="normal">
               <InputLabel>Entry Type</InputLabel>
               <Select
+                name="isLateral"
                 value={formData.isLateral}
-                onChange={(e) => setFormData({ ...formData, isLateral: e.target.value })}
+                onChange={handleInputChange}
                 label="Entry Type"
+                MenuProps={{
+                  PaperProps: {
+                    style: {
+                      maxHeight: 200,
+                    },
+                  },
+                }}
               >
-                <MenuItem value={false}>Regular</MenuItem>
-                <MenuItem value={true}>Lateral</MenuItem>
+                <MenuItem value={false}>Regular Entry</MenuItem>
+                <MenuItem value={true}>Lateral Entry</MenuItem>
               </Select>
             </FormControl>
           </Box>

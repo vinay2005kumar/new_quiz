@@ -27,10 +27,12 @@ import {
   Send as SendIcon,
   Person as PersonIcon,
   School as SchoolIcon,
-  Assessment as AssessmentIcon
+  Assessment as AssessmentIcon,
+  Lock as LockIcon
 } from '@mui/icons-material';
 import api from '../../config/axios';
 import { useAuth } from '../../context/AuthContext';
+import QuizSecurity from './QuizSecurity';
 
 const QuizAttempt = () => {
   const { id } = useParams();
@@ -47,6 +49,11 @@ const QuizAttempt = () => {
   const [submissionResult, setSubmissionResult] = useState(null);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [displayMode, setDisplayMode] = useState('oneByOne'); // 'oneByOne' or 'allVertical'
+  const [overrideState, setOverrideState] = useState({
+    adminOverrideActive: false,
+    personalOverrideActive: false,
+    reEnableSecurity: null
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -63,11 +70,12 @@ const QuizAttempt = () => {
         if (!isMounted) return;
         
         console.log('Quiz response:', quizResponse);
-        
+        console.log('🔒 Quiz security settings from backend:', quizResponse.securitySettings);
+
         if (!quizResponse || !quizResponse.title) {
           throw new Error('Invalid quiz data received');
         }
-        
+
         setQuiz(quizResponse);
         setDisplayMode(quizResponse.questionDisplayMode || 'oneByOne');
 
@@ -216,14 +224,23 @@ const QuizAttempt = () => {
   }
 
   return (
-    <Box sx={{
-      height: '100vh',
-      width: '100vw',
-      overflow: 'hidden',
-      display: 'flex',
-      flexDirection: 'column',
-      bgcolor: 'background.default'
-    }}>
+    <QuizSecurity
+      securitySettings={quiz?.securitySettings || {}}
+      onSecurityViolation={(violation) => {
+        console.log('Security violation:', violation);
+        // You can add additional handling here like logging to backend
+      }}
+      quizTitle={quiz?.title}
+      onOverrideStateChange={setOverrideState}
+    >
+      <Box sx={{
+        height: '100vh',
+        width: '100vw',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        bgcolor: 'background.default'
+      }}>
       {/* Top Header Bar */}
       <Paper sx={{
         p: 2,
@@ -233,9 +250,28 @@ const QuizAttempt = () => {
         zIndex: 1000
       }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h5" component="h1" sx={{ fontWeight: 'bold' }}>
-            {quiz?.title}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Typography variant="h5" component="h1" sx={{ fontWeight: 'bold' }}>
+              {quiz?.title}
+            </Typography>
+            {/* Re-enable Security Button */}
+            {(overrideState.adminOverrideActive || overrideState.personalOverrideActive) && (
+              <Button
+                variant="contained"
+                color="warning"
+                size="small"
+                onClick={overrideState.reEnableSecurity}
+                startIcon={<LockIcon />}
+                sx={{
+                  fontWeight: 'bold',
+                  animation: 'pulse 2s infinite',
+                  boxShadow: 3
+                }}
+              >
+                Re-enable Security
+              </Button>
+            )}
+          </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <Chip
               icon={<TimerIcon />}
@@ -727,6 +763,7 @@ const QuizAttempt = () => {
         </DialogActions>
       </Dialog>
     </Box>
+    </QuizSecurity>
   );
 };
 

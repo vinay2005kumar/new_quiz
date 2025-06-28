@@ -1171,20 +1171,30 @@ router.post('/:id/submit', async (req, res) => {
       return res.status(400).json({ message: 'You have already submitted this quiz' });
     }
 
-    // Calculate score
+    // Calculate score with negative marking support
     let score = 0;
     const results = answers.map((answer, index) => {
       const question = quiz.questions[index];
       const isCorrect = question && answer.selectedOption === question.correctAnswer;
+      let questionScore = 0;
+
       if (isCorrect) {
-        score += question.marks || 1;
+        questionScore = question.marks || 1;
+        score += questionScore;
+      } else if (quiz.negativeMarkingEnabled && answer.selectedOption !== -1) {
+        // Apply negative marking only if an option is selected (not skipped)
+        const negativeMarks = question.negativeMarks || 0;
+        questionScore = -negativeMarks;
+        score -= negativeMarks;
       }
+
       return {
         questionIndex: index,
         selectedOption: answer.selectedOption,
         correctAnswer: question.correctAnswer,
         isCorrect,
-        marks: isCorrect ? (question.marks || 1) : 0
+        marks: questionScore,
+        negativeMarks: question.negativeMarks || 0
       };
     });
 

@@ -31,6 +31,7 @@ import {
   Warning as WarningIcon
 } from '@mui/icons-material';
 import api from '../../config/axios';
+import QuizSecurity from './QuizSecurity';
 
 const PublicQuizTake = () => {
   const { quizId } = useParams();
@@ -192,7 +193,14 @@ const PublicQuizTake = () => {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 2, mb: 4 }}>
+    <QuizSecurity
+      securitySettings={quiz?.securitySettings || {}}
+      onSecurityViolation={(violation) => {
+        console.log('Security violation:', violation);
+      }}
+      quizTitle={quiz?.title}
+    >
+      <Container maxWidth="lg" sx={{ mt: 2, mb: 4 }}>
       {/* Quiz Header */}
       <Paper sx={{ p: 3, mb: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -362,6 +370,7 @@ const PublicQuizTake = () => {
         </DialogActions>
       </Dialog>
     </Container>
+    </QuizSecurity>
   );
 };
 

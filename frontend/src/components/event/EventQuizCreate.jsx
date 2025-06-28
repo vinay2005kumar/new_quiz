@@ -75,6 +75,13 @@ const EventQuizCreate = () => {
     registrationEnabled: true,
     spotRegistrationEnabled: false,
     negativeMarkingEnabled: false,
+    securitySettings: {
+      enableFullscreen: false,
+      disableRightClick: false,
+      disableCopyPaste: false,
+      disableTabSwitch: false,
+      enableProctoringMode: false
+    },
     participationMode: 'individual', // 'individual' or 'team'
     teamSize: 2,
     questionDisplayMode: 'one-by-one', // 'one-by-one' or 'all-at-once'
@@ -674,6 +681,133 @@ const EventQuizCreate = () => {
           <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
             💡 This setting indicates whether negative marking is allowed in this quiz. Individual negative marks will be set per question.
           </Typography>
+        </Grid>
+
+        {/* Security Settings */}
+        <Grid item xs={12}>
+          <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
+            🔒 Security Settings
+          </Typography>
+
+          <FormGroup>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={formData.securitySettings?.enableFullscreen || false}
+                  onChange={(e) => handleInputChange({
+                    target: {
+                      name: 'securitySettings',
+                      value: {
+                        ...formData.securitySettings,
+                        enableFullscreen: e.target.checked
+                      }
+                    }
+                  })}
+                  name="enableFullscreen"
+                />
+              }
+              label="Enable Fullscreen Mode"
+            />
+            <Typography variant="caption" color="text.secondary">
+              Forces quiz to open in fullscreen mode and prevents exiting
+            </Typography>
+          </FormGroup>
+
+          <FormGroup>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={formData.securitySettings?.disableRightClick || false}
+                  onChange={(e) => handleInputChange({
+                    target: {
+                      name: 'securitySettings',
+                      value: {
+                        ...formData.securitySettings,
+                        disableRightClick: e.target.checked
+                      }
+                    }
+                  })}
+                  name="disableRightClick"
+                />
+              }
+              label="Disable Right Click"
+            />
+            <Typography variant="caption" color="text.secondary">
+              Prevents right-click context menu during quiz
+            </Typography>
+          </FormGroup>
+
+          <FormGroup>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={formData.securitySettings?.disableCopyPaste || false}
+                  onChange={(e) => handleInputChange({
+                    target: {
+                      name: 'securitySettings',
+                      value: {
+                        ...formData.securitySettings,
+                        disableCopyPaste: e.target.checked
+                      }
+                    }
+                  })}
+                  name="disableCopyPaste"
+                />
+              }
+              label="Disable Copy/Paste"
+            />
+            <Typography variant="caption" color="text.secondary">
+              Prevents copying and pasting during quiz
+            </Typography>
+          </FormGroup>
+
+          <FormGroup>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={formData.securitySettings?.disableTabSwitch || false}
+                  onChange={(e) => handleInputChange({
+                    target: {
+                      name: 'securitySettings',
+                      value: {
+                        ...formData.securitySettings,
+                        disableTabSwitch: e.target.checked
+                      }
+                    }
+                  })}
+                  name="disableTabSwitch"
+                />
+              }
+              label="Disable Tab Switching"
+            />
+            <Typography variant="caption" color="text.secondary">
+              Warns when user tries to switch tabs or windows
+            </Typography>
+          </FormGroup>
+
+          <FormGroup>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={formData.securitySettings?.enableProctoringMode || false}
+                  onChange={(e) => handleInputChange({
+                    target: {
+                      name: 'securitySettings',
+                      value: {
+                        ...formData.securitySettings,
+                        enableProctoringMode: e.target.checked
+                      }
+                    }
+                  })}
+                  name="enableProctoringMode"
+                />
+              }
+              label="Enable Proctoring Mode"
+            />
+            <Typography variant="caption" color="text.secondary">
+              Enables all security features and monitors user activity
+            </Typography>
+          </FormGroup>
         </Grid>
 
         {/* Participation Mode Section */}

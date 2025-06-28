@@ -122,6 +122,28 @@ const quizSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  securitySettings: {
+    enableFullscreen: {
+      type: Boolean,
+      default: false
+    },
+    disableRightClick: {
+      type: Boolean,
+      default: false
+    },
+    disableCopyPaste: {
+      type: Boolean,
+      default: false
+    },
+    disableTabSwitch: {
+      type: Boolean,
+      default: false
+    },
+    enableProctoringMode: {
+      type: Boolean,
+      default: false
+    }
+  },
   questions: {
     type: [questionSchema],
     required: true,

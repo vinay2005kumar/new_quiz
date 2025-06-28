@@ -1009,9 +1009,75 @@ const QuizList = () => {
                     Negative Marking: {quiz?.negativeMarkingEnabled ? 'Enabled' : 'Disabled'}
                   </Box>
                 </Typography>
+
+                {/* Security Settings - Only show for faculty */}
+                {user?.role === 'faculty' && quiz?.securitySettings && (
+                  <Box sx={{ mt: 1, mb: 1 }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5, fontWeight: 'medium' }}>
+                      🔒 Security Features:
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {quiz.securitySettings.enableFullscreen && (
+                        <Chip
+                          label="Fullscreen"
+                          size="small"
+                          color="error"
+                          variant="outlined"
+                          icon={<span>🖥️</span>}
+                        />
+                      )}
+                      {quiz.securitySettings.disableRightClick && (
+                        <Chip
+                          label="No Right-Click"
+                          size="small"
+                          color="error"
+                          variant="outlined"
+                          icon={<span>🚫</span>}
+                        />
+                      )}
+                      {quiz.securitySettings.disableCopyPaste && (
+                        <Chip
+                          label="No Copy/Paste"
+                          size="small"
+                          color="error"
+                          variant="outlined"
+                          icon={<span>📋</span>}
+                        />
+                      )}
+                      {quiz.securitySettings.disableTabSwitch && (
+                        <Chip
+                          label="Tab Monitor"
+                          size="small"
+                          color="warning"
+                          variant="outlined"
+                          icon={<span>👁️</span>}
+                        />
+                      )}
+                      {quiz.securitySettings.enableProctoringMode && (
+                        <Chip
+                          label="Proctoring Mode"
+                          size="small"
+                          color="error"
+                          variant="filled"
+                          icon={<span>🛡️</span>}
+                        />
+                      )}
+                      {!Object.values(quiz.securitySettings || {}).some(Boolean) && (
+                        <Chip
+                          label="No Security"
+                          size="small"
+                          color="success"
+                          variant="outlined"
+                          icon={<span>🔓</span>}
+                        />
+                      )}
+                    </Box>
+                  </Box>
+                )}
+
                 <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center' }}>
                   <GroupIcon sx={{ mr: 1, fontSize: '1.2rem' }} />
-                  {quiz.allowedGroups?.map(group => 
+                  {quiz.allowedGroups?.map(group =>
                     `${group.department} - Year ${group.year} - Semester ${group.semester || 'N/A'} - Section ${group.section}`
                   ).join(', ')}
                 </Typography>

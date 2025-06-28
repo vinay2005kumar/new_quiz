@@ -93,6 +93,13 @@ const QuizEdit = () => {
     startTime: '',
     endTime: '',
     negativeMarkingEnabled: false,
+    securitySettings: {
+      enableFullscreen: false,
+      disableRightClick: false,
+      disableCopyPaste: false,
+      disableTabSwitch: false,
+      enableProctoringMode: false
+    },
     questions: [
       {
         question: '',
@@ -188,7 +195,14 @@ const QuizEdit = () => {
         year: firstGroup.year || '',
         semester: firstGroup.semester || '',
         sections: sections,
-        subject: response.subject?.code || response.subject || ''
+        subject: response.subject?.code || response.subject || '',
+        securitySettings: response.securitySettings || {
+          enableFullscreen: false,
+          disableRightClick: false,
+          disableCopyPaste: false,
+          disableTabSwitch: false,
+          enableProctoringMode: false
+        }
       };
       
       console.log('Formatted quiz data:', formattedQuiz);
@@ -666,6 +680,135 @@ const QuizEdit = () => {
               <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
                 💡 This setting indicates whether negative marking is allowed in this quiz. Individual negative marks are set per question.
               </Typography>
+            </Grid>
+
+            {/* Security Settings */}
+            <Grid item xs={12}>
+              <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
+                🔒 Security Settings
+              </Typography>
+
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <FormGroup>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={quiz.securitySettings?.enableFullscreen || false}
+                          onChange={(e) => setQuiz(prev => ({
+                            ...prev,
+                            securitySettings: {
+                              ...prev.securitySettings,
+                              enableFullscreen: e.target.checked
+                            }
+                          }))}
+                          name="enableFullscreen"
+                        />
+                      }
+                      label="Enable Fullscreen Mode"
+                    />
+                    <Typography variant="caption" color="text.secondary">
+                      Forces quiz to open in fullscreen mode and prevents exiting
+                    </Typography>
+                  </FormGroup>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <FormGroup>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={quiz.securitySettings?.disableRightClick || false}
+                          onChange={(e) => setQuiz(prev => ({
+                            ...prev,
+                            securitySettings: {
+                              ...prev.securitySettings,
+                              disableRightClick: e.target.checked
+                            }
+                          }))}
+                          name="disableRightClick"
+                        />
+                      }
+                      label="Disable Right Click"
+                    />
+                    <Typography variant="caption" color="text.secondary">
+                      Prevents right-click context menu during quiz
+                    </Typography>
+                  </FormGroup>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <FormGroup>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={quiz.securitySettings?.disableCopyPaste || false}
+                          onChange={(e) => setQuiz(prev => ({
+                            ...prev,
+                            securitySettings: {
+                              ...prev.securitySettings,
+                              disableCopyPaste: e.target.checked
+                            }
+                          }))}
+                          name="disableCopyPaste"
+                        />
+                      }
+                      label="Disable Copy/Paste"
+                    />
+                    <Typography variant="caption" color="text.secondary">
+                      Prevents copying and pasting during quiz
+                    </Typography>
+                  </FormGroup>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <FormGroup>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={quiz.securitySettings?.disableTabSwitch || false}
+                          onChange={(e) => setQuiz(prev => ({
+                            ...prev,
+                            securitySettings: {
+                              ...prev.securitySettings,
+                              disableTabSwitch: e.target.checked
+                            }
+                          }))}
+                          name="disableTabSwitch"
+                        />
+                      }
+                      label="Disable Tab Switching"
+                    />
+                    <Typography variant="caption" color="text.secondary">
+                      Warns when user tries to switch tabs or windows
+                    </Typography>
+                  </FormGroup>
+                </Grid>
+
+                <Grid item xs={12} sm={6}>
+                  <FormGroup>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={quiz.securitySettings?.enableProctoringMode || false}
+                          onChange={(e) => setQuiz(prev => ({
+                            ...prev,
+                            securitySettings: {
+                              ...prev.securitySettings,
+                              enableProctoringMode: e.target.checked
+                            }
+                          }))}
+                          name="enableProctoringMode"
+                        />
+                      }
+                      label="Enable Proctoring Mode"
+                    />
+                    <Typography variant="caption" color="text.secondary">
+                      Enables all security features and monitors user activity
+                    </Typography>
+                  </FormGroup>
+                </Grid>
+              </Grid>
             </Grid>
 
             <Grid item xs={12} sm={6}>

@@ -736,15 +736,26 @@ router.post('/:id/submit', auth, authorize('student'), async (req, res) => {
     const submitTime = new Date();
     const durationInMinutes = Math.ceil((submitTime - startTime) / (1000 * 60));
 
-    // Evaluate answers and calculate total marks
+    // Evaluate answers and calculate total marks with negative marking support
     const answers = req.body.answers.map(answer => {
       const question = quiz.questions.id(answer.questionId);
       const isCorrect = question.correctAnswer === answer.selectedOption;
+      let questionScore = 0;
+
+      if (isCorrect) {
+        questionScore = question.marks;
+      } else if (quiz.negativeMarkingEnabled && answer.selectedOption !== -1) {
+        // Apply negative marking only if an option is selected (not skipped)
+        const negativeMarks = question.negativeMarks || 0;
+        questionScore = -negativeMarks;
+      }
+
       return {
         questionId: answer.questionId,
         selectedOption: answer.selectedOption,
         isCorrect: isCorrect,
-        marks: isCorrect ? question.marks : 0
+        marks: questionScore,
+        negativeMarks: question.negativeMarks || 0
       };
     });
 

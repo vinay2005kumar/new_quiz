@@ -31,6 +31,11 @@ const questionSchema = new mongoose.Schema({
     required: true,
     min: 1,
     default: 1
+  },
+  negativeMarks: {
+    type: Number,
+    default: 0,
+    min: 0
   }
 });
 
@@ -132,6 +137,32 @@ const eventQuizSchema = new mongoose.Schema({
   sections: {
     type: [String],
     default: ['all']
+  },
+  negativeMarkingEnabled: {
+    type: Boolean,
+    default: false
+  },
+  securitySettings: {
+    enableFullscreen: {
+      type: Boolean,
+      default: false
+    },
+    disableRightClick: {
+      type: Boolean,
+      default: false
+    },
+    disableCopyPaste: {
+      type: Boolean,
+      default: false
+    },
+    disableTabSwitch: {
+      type: Boolean,
+      default: false
+    },
+    enableProctoringMode: {
+      type: Boolean,
+      default: false
+    }
   },
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,

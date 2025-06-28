@@ -12,6 +12,7 @@ const EventQuizAccount = require('../models/EventQuizAccount');
 const Department = require('../models/Department');
 const AcademicDetail = require('../models/AcademicDetail');
 const College = require('../models/College');
+const QuizSettings = require('../models/QuizSettings');
 const { encrypt, decrypt } = require('../utils/encryption');
 
 // Configure multer for file uploads
@@ -327,8 +328,107 @@ router.delete('/event-quiz-accounts/:id', isAdmin, async (req, res) => {
   }
 });
 
-// Bulk create event quiz accounts from Excel
-router.post('/event-quiz-accounts/bulk', isAdmin, upload.single('file'), async (req, res) => {
+// Bulk create event quiz accounts from JSON data
+router.post('/event-quiz-accounts/bulk', isAdmin, async (req, res) => {
+  try {
+    const { accounts } = req.body;
+
+    if (!Array.isArray(accounts)) {
+      return res.status(400).json({ message: 'Invalid data format. Expected an array of accounts.' });
+    }
+
+    console.log(`Processing ${accounts.length} accounts for bulk creation`);
+
+    // Validate all accounts before creating any
+    const errors = [];
+    const emailSet = new Set();
+
+    for (let i = 0; i < accounts.length; i++) {
+      const account = accounts[i];
+      const rowNum = i + 1;
+
+      // Check required fields
+      if (!account.name || !account.email || !account.eventType) {
+        errors.push(`Row ${rowNum}: Missing required fields (name, email, eventType)`);
+        continue;
+      }
+
+      // Check email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(account.email)) {
+        errors.push(`Row ${rowNum}: Invalid email format`);
+        continue;
+      }
+
+      // Check for duplicate emails in the upload
+      if (emailSet.has(account.email)) {
+        errors.push(`Row ${rowNum}: Duplicate email in upload`);
+        continue;
+      }
+      emailSet.add(account.email);
+
+      // Check if department is required and provided
+      if (account.eventType === 'department' && !account.department) {
+        errors.push(`Row ${rowNum}: Department is required for department events`);
+        continue;
+      }
+    }
+
+    // Check for existing emails in database
+    const existingEmails = await EventQuizAccount.find({
+      email: { $in: Array.from(emailSet) }
+    }).select('email');
+
+    existingEmails.forEach(existing => {
+      errors.push(`Email ${existing.email} already exists in database`);
+    });
+
+    if (errors.length > 0) {
+      return res.status(400).json({
+        message: 'Validation errors found',
+        errors
+      });
+    }
+
+    // Process accounts for creation
+    const processedAccounts = accounts.map(account => ({
+      name: account.name.trim(),
+      email: account.email.trim().toLowerCase(),
+      password: account.password || Math.random().toString(36).slice(-8), // Generate password if not provided
+      eventType: account.eventType,
+      department: account.eventType === 'department' ? account.department : undefined,
+      createdBy: req.user._id
+    }));
+
+    // Create all accounts
+    const createdAccounts = await EventQuizAccount.create(processedAccounts);
+
+    // Return success response with account details (excluding sensitive data)
+    const sanitizedAccounts = createdAccounts.map(account => ({
+      _id: account._id,
+      name: account.name,
+      email: account.email,
+      eventType: account.eventType,
+      department: account.department,
+      password: account.originalPassword ? decrypt(account.originalPassword) : 'Generated'
+    }));
+
+    res.status(201).json({
+      message: `Successfully created ${createdAccounts.length} accounts`,
+      accounts: sanitizedAccounts
+    });
+
+  } catch (error) {
+    console.error('Error in bulk account creation:', error);
+    res.status(500).json({
+      message: 'Failed to create accounts',
+      error: error.message
+    });
+  }
+});
+
+// Bulk create event quiz accounts from Excel file (legacy endpoint)
+router.post('/event-quiz-accounts/bulk-file', isAdmin, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: 'Please upload a file' });
@@ -351,9 +451,11 @@ router.post('/event-quiz-accounts/bulk', isAdmin, upload.single('file'), async (
         }
 
         const account = new EventQuizAccount({
+          name: row.name,
           department: row.department,
           email: row.email,
           password: row.password,
+          eventType: row.eventType || 'department',
           isActive: row.isActive !== false, // default to true if not specified
           createdBy: req.user._id
         });
@@ -1121,14 +1223,17 @@ router.post('/academic-details/years-semesters', isAdmin, async (req, res) => {
       });
     }
 
-    // Get all departments if not specified
+    // Get all departments from Department model instead of AcademicDetail
     let departments = [];
     if (req.body.department) {
       departments = [req.body.department];
     } else {
-      const allDepartments = await AcademicDetail.distinct('department');
-      departments = allDepartments;
+      // Get departments from Department model, not AcademicDetail
+      const allDepartments = await Department.find({}, 'name');
+      departments = allDepartments.map(dept => dept.name);
     }
+
+    console.log('Found departments for year/semester configuration:', departments);
 
     if (departments.length === 0) {
       return res.status(400).json({
@@ -1179,7 +1284,7 @@ router.post('/academic-details/years-semesters', isAdmin, async (req, res) => {
 router.delete('/academic-details/years-semesters/:department/:year', isAdmin, async (req, res) => {
   try {
     const { department, year } = req.params;
-    
+
     // Delete all academic details for the given department and year
     const result = await AcademicDetail.deleteMany({
       department,
@@ -1198,9 +1303,112 @@ router.delete('/academic-details/years-semesters/:department/:year', isAdmin, as
     });
   } catch (error) {
     console.error('Error deleting year/semester configuration:', error);
-    res.status(500).json({ 
-      message: 'Error deleting year/semester configuration', 
-      error: error.message 
+    res.status(500).json({
+      message: 'Error deleting year/semester configuration',
+      error: error.message
+    });
+  }
+});
+
+// Delete all academic details for a specific year (across all departments)
+router.delete('/academic-details/year/:year', isAdmin, async (req, res) => {
+  try {
+    const { year } = req.params;
+
+    console.log(`Deleting all academic details for year ${year}`);
+
+    // Delete all academic details for the given year across all departments
+    const result = await AcademicDetail.deleteMany({
+      year: parseInt(year)
+    });
+
+    console.log(`Deleted ${result.deletedCount} academic details for year ${year}`);
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({
+        message: 'No academic details found for the given year'
+      });
+    }
+
+    res.json({
+      message: `Year ${year} configuration deleted successfully`,
+      deletedCount: result.deletedCount
+    });
+  } catch (error) {
+    console.error('Error deleting year configuration:', error);
+    res.status(500).json({
+      message: 'Error deleting year configuration',
+      error: error.message
+    });
+  }
+});
+
+// Test endpoint to verify route is working
+router.get('/academic-details/test', isAdmin, async (req, res) => {
+  res.json({ message: 'Admin academic details routes are working!' });
+});
+
+// Delete all academic details for a specific semester in a specific year (across all departments)
+router.delete('/academic-details/year/:year/semester/:semester', isAdmin, async (req, res) => {
+  try {
+    const { year, semester } = req.params;
+
+    console.log(`🗑️ DELETE REQUEST: Deleting all academic details for year ${year}, semester ${semester}`);
+    console.log('Request params:', req.params);
+    console.log('User:', req.user?.email, 'Role:', req.user?.role);
+
+    // Validate parameters
+    if (!year || !semester) {
+      console.log('❌ Missing parameters');
+      return res.status(400).json({
+        message: 'Year and semester parameters are required'
+      });
+    }
+
+    const yearNum = parseInt(year);
+    const semesterNum = parseInt(semester);
+
+    if (isNaN(yearNum) || isNaN(semesterNum)) {
+      console.log('❌ Invalid parameters');
+      return res.status(400).json({
+        message: 'Year and semester must be valid numbers'
+      });
+    }
+
+    console.log(`🔍 Looking for academic details with year=${yearNum}, semester=${semesterNum}`);
+
+    // First, check what we're about to delete
+    const toDelete = await AcademicDetail.find({
+      year: yearNum,
+      semester: semesterNum
+    });
+
+    console.log(`📋 Found ${toDelete.length} academic details to delete:`, toDelete.map(d => `${d.department}-Y${d.year}-S${d.semester}`));
+
+    // Delete all academic details for the given year and semester across all departments
+    const result = await AcademicDetail.deleteMany({
+      year: yearNum,
+      semester: semesterNum
+    });
+
+    console.log(`✅ Deleted ${result.deletedCount} academic details for year ${year}, semester ${semester}`);
+
+    if (result.deletedCount === 0) {
+      console.log('⚠️ No academic details found to delete');
+      return res.status(404).json({
+        message: 'No academic details found for the given year and semester'
+      });
+    }
+
+    res.json({
+      message: `Semester ${semester} from Year ${year} deleted successfully`,
+      deletedCount: result.deletedCount
+    });
+  } catch (error) {
+    console.error('❌ Error deleting semester configuration:', error);
+    res.status(500).json({
+      message: 'Error deleting semester configuration',
+      error: error.message
     });
   }
 });
@@ -1628,5 +1836,245 @@ router.post('/students/bulk-promotion', auth, authorize('admin'), async (req, re
     });
   }
 });
+
+// ==================== SUBJECT MANAGEMENT ROUTES ====================
+
+// Get subjects for a specific department/year/semester from academic details
+router.get('/subjects', auth, authorize('admin'), async (req, res) => {
+  try {
+    const { department, year, semester } = req.query;
+
+    if (!department || !year || !semester) {
+      return res.status(400).json({
+        message: 'Department, year, and semester are required'
+      });
+    }
+
+    const academicDetail = await AcademicDetail.findOne({
+      department,
+      year: parseInt(year),
+      semester: parseInt(semester)
+    });
+
+    if (!academicDetail || !academicDetail.subjects) {
+      return res.json([]);
+    }
+
+    // Parse subjects from comma-separated string
+    const subjects = academicDetail.subjects
+      .split(',')
+      .map(s => s.trim())
+      .filter(s => s)
+      .map(subject => {
+        // Extract subject name and code from format: "Subject Name(CODE)"
+        const match = subject.match(/^(.+)\(([A-Z]{2}\d{3})\)$/);
+        if (match) {
+          return {
+            name: match[1].trim(),
+            code: match[2],
+            fullName: subject
+          };
+        }
+        return {
+          name: subject,
+          code: '',
+          fullName: subject
+        };
+      });
+
+    res.json(subjects);
+  } catch (error) {
+    console.error('Error fetching subjects:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Assign subjects to faculty assignment
+router.post('/faculty/:facultyId/assignments/:assignmentIndex/subjects', auth, authorize('admin'), async (req, res) => {
+  try {
+    const { facultyId, assignmentIndex } = req.params;
+    const { subjects } = req.body;
+
+    const faculty = await User.findById(facultyId);
+    if (!faculty || faculty.role !== 'faculty') {
+      return res.status(404).json({ message: 'Faculty not found' });
+    }
+
+    const index = parseInt(assignmentIndex);
+    if (!faculty.assignments[index]) {
+      return res.status(400).json({ message: 'Invalid assignment index' });
+    }
+
+    // Validate subjects format (should be array of strings)
+    if (!Array.isArray(subjects)) {
+      return res.status(400).json({ message: 'Subjects must be an array' });
+    }
+
+    // Update the assignment with subjects
+    faculty.assignments[index].subjects = subjects;
+    await faculty.save();
+
+    res.json({
+      message: 'Subjects assigned successfully',
+      faculty: faculty
+    });
+
+  } catch (error) {
+    console.error('Error assigning subjects:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// ===== QUIZ SETTINGS ROUTES =====
+
+// Get quiz settings
+router.get('/quiz-settings', isAdmin, async (req, res) => {
+  try {
+    const settings = await QuizSettings.getOrCreateDefault();
+
+    // Clean up old fields if they exist
+    let needsSave = false;
+    if (settings.emergencyOverride) {
+      settings.emergencyOverride = undefined;
+      needsSave = true;
+    }
+    if (settings.defaultSecuritySettings) {
+      settings.defaultSecuritySettings = undefined;
+      needsSave = true;
+    }
+
+    if (needsSave) {
+      await settings.save();
+    }
+
+    res.json(settings);
+  } catch (error) {
+    console.error('Error fetching quiz settings:', error);
+    res.status(500).json({ message: 'Error fetching quiz settings', error: error.message });
+  }
+});
+
+// Update quiz settings
+router.put('/quiz-settings', isAdmin, async (req, res) => {
+  try {
+    console.log('Updating quiz settings with data:', req.body);
+
+    const settings = await QuizSettings.getOrCreateDefault();
+    console.log('Current settings:', settings);
+
+    // Update settings more carefully
+    if (req.body.adminOverride) {
+      // Ensure adminOverride exists with defaults
+      if (!settings.adminOverride) {
+        settings.adminOverride = {
+          enabled: false,
+          password: 'admin123',
+          triggerButtons: { button1: 'Ctrl', button2: '6' },
+          sessionTimeout: 300
+        };
+      }
+
+      // Handle nested triggerButtons properly
+      if (req.body.adminOverride.triggerButtons) {
+        settings.adminOverride.triggerButtons = {
+          button1: req.body.adminOverride.triggerButtons.button1 || settings.adminOverride.triggerButtons?.button1 || 'Ctrl',
+          button2: req.body.adminOverride.triggerButtons.button2 || settings.adminOverride.triggerButtons?.button2 || '6'
+        };
+      }
+
+      // Update other adminOverride fields
+      if (req.body.adminOverride.hasOwnProperty('enabled')) {
+        settings.adminOverride.enabled = req.body.adminOverride.enabled;
+      }
+      if (req.body.adminOverride.hasOwnProperty('password')) {
+        settings.adminOverride.password = req.body.adminOverride.password;
+      }
+      if (req.body.adminOverride.hasOwnProperty('sessionTimeout')) {
+        settings.adminOverride.sessionTimeout = req.body.adminOverride.sessionTimeout;
+      }
+    }
+
+
+
+    if (req.body.violationSettings) {
+      settings.violationSettings = {
+        ...settings.violationSettings,
+        ...req.body.violationSettings
+      };
+    }
+
+    if (req.body.loggingSettings) {
+      settings.loggingSettings = {
+        ...settings.loggingSettings,
+        ...req.body.loggingSettings
+      };
+    }
+
+    settings.lastUpdatedBy = req.user._id;
+
+    console.log('Saving updated settings:', settings);
+    await settings.save();
+
+    res.json({
+      message: 'Quiz settings updated successfully',
+      settings
+    });
+  } catch (error) {
+    console.error('Error updating quiz settings:', error);
+    console.error('Error stack:', error.stack);
+    res.status(500).json({ message: 'Error updating quiz settings', error: error.message });
+  }
+});
+
+// Validate admin override password
+router.post('/quiz-settings/validate-admin', async (req, res) => {
+  try {
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ message: 'Password is required' });
+    }
+
+    const settings = await QuizSettings.getOrCreateDefault();
+    const isValid = settings.validateAdminPassword(password);
+
+    if (isValid) {
+      // Log the admin override usage
+      console.log(`Admin override used at ${new Date().toISOString()}`);
+
+      res.json({
+        valid: true,
+        message: 'Admin override activated',
+        sessionTimeout: settings.adminOverride.sessionTimeout
+      });
+    } else {
+      res.status(401).json({
+        valid: false,
+        message: 'Invalid admin override password'
+      });
+    }
+  } catch (error) {
+    console.error('Error validating admin override:', error);
+    res.status(500).json({ message: 'Error validating admin override', error: error.message });
+  }
+});
+
+// Get admin override settings (for frontend to know trigger buttons)
+router.get('/quiz-settings/admin-config', async (req, res) => {
+  try {
+    const settings = await QuizSettings.getOrCreateDefault();
+
+    res.json({
+      enabled: settings.adminOverride.enabled,
+      triggerButtons: settings.adminOverride.triggerButtons,
+      sessionTimeout: settings.adminOverride.sessionTimeout
+    });
+  } catch (error) {
+    console.error('Error fetching admin config:', error);
+    res.status(500).json({ message: 'Error fetching admin config', error: error.message });
+  }
+});
+
+
 
 module.exports = router;

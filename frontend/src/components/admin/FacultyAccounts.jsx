@@ -33,7 +33,8 @@ import {
   AccordionDetails,
   Tooltip,
   Divider,
-  LinearProgress
+  LinearProgress,
+  Snackbar
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -117,14 +118,340 @@ const FacultyAccounts = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [uploadedFile, setUploadedFile] = useState(null);
   const [uploadPreview, setUploadPreview] = useState([]);
+  const [toast, setToast] = useState({
+    open: false,
+    message: '',
+    severity: 'success'
+  });
+
+  const handleCloseToast = (event, reason) => {
+    if (reason === 'clickaway') {
+      return;
+    }
+    setToast({ ...toast, open: false });
+  };
   const [uploadStatus, setUploadStatus] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [academicDetails, setAcademicDetails] = useState([]);
   const [years, setYears] = useState([]);
   const [availableSemesters, setAvailableSemesters] = useState([]);
   const [availableSections, setAvailableSections] = useState([]);
+  const [availableSubjects, setAvailableSubjects] = useState({});
+  const [assignedSubjects, setAssignedSubjects] = useState({});
+  const [editingAssignment, setEditingAssignment] = useState(null);
+  const [assignmentEditDialog, setAssignmentEditDialog] = useState(false);
 
   const getKey = (dept, year, sem) => `${dept}-${year}-${sem}`;
+
+  const fetchSubjectsForSemester = async (department, year, semester) => {
+    try {
+      const response = await api.get('/api/admin/subjects', {
+        params: { department, year, semester }
+      });
+      return response || [];
+    } catch (error) {
+      console.error('Error fetching subjects:', error);
+      return [];
+    }
+  };
+
+  const handleSubjectToggle = (key, subject) => {
+    setAssignedSubjects(prev => {
+      const currentSubjects = prev[key] || [];
+      const isAssigned = currentSubjects.includes(subject);
+
+      if (isAssigned) {
+        // Remove subject
+        return {
+          ...prev,
+          [key]: currentSubjects.filter(s => s !== subject)
+        };
+      } else {
+        // Add subject
+        return {
+          ...prev,
+          [key]: [...currentSubjects, subject]
+        };
+      }
+    });
+  };
+
+  const loadSubjectsForKey = async (key) => {
+    const [department, year, semester] = key.split('-');
+    const subjects = await fetchSubjectsForSemester(department, year, semester);
+    setAvailableSubjects(prev => ({
+      ...prev,
+      [key]: subjects
+    }));
+  };
+
+  const handleRemoveAssignment = async (facultyId, assignmentIndex) => {
+    try {
+      const facultyMember = faculty.find(f => f._id === facultyId);
+      if (!facultyMember) return;
+
+      const updatedAssignments = facultyMember.assignments.filter((_, index) => index !== assignmentIndex);
+
+      // Update faculty with remaining assignments
+      const updateData = {
+        assignments: updatedAssignments,
+        // Recalculate aggregated fields
+        departments: [...new Set(updatedAssignments.map(a => a.department))],
+        years: [...new Set(updatedAssignments.map(a => a.year))],
+        semesters: [...new Set(updatedAssignments.map(a => a.semester))],
+        sections: [...new Set(updatedAssignments.flatMap(a => a.sections))]
+      };
+
+      await api.put(`/api/admin/faculty/${facultyId}`, updateData);
+      fetchFaculty(); // Refresh the list
+
+      setToast({
+        open: true,
+        message: 'Assignment removed successfully',
+        severity: 'success'
+      });
+    } catch (error) {
+      console.error('Error removing assignment:', error);
+      setToast({
+        open: true,
+        message: 'Failed to remove assignment',
+        severity: 'error'
+      });
+    }
+  };
+
+  const handleEditAssignment = (faculty, assignmentIndex) => {
+    setEditingAssignment({
+      faculty,
+      assignmentIndex,
+      assignment: faculty.assignments[assignmentIndex]
+    });
+    setAssignmentEditDialog(true);
+  };
+
+  const handleUpdateAssignment = async (updatedAssignment) => {
+    try {
+      const { faculty, assignmentIndex } = editingAssignment;
+      const updatedAssignments = [...faculty.assignments];
+      updatedAssignments[assignmentIndex] = updatedAssignment;
+
+      const updateData = {
+        assignments: updatedAssignments,
+        // Recalculate aggregated fields
+        departments: [...new Set(updatedAssignments.map(a => a.department))],
+        years: [...new Set(updatedAssignments.map(a => a.year))],
+        semesters: [...new Set(updatedAssignments.map(a => a.semester))],
+        sections: [...new Set(updatedAssignments.flatMap(a => a.sections))]
+      };
+
+      await api.put(`/api/admin/faculty/${faculty._id}`, updateData);
+      fetchFaculty(); // Refresh the list
+      setAssignmentEditDialog(false);
+      setEditingAssignment(null);
+
+      setToast({
+        open: true,
+        message: 'Assignment updated successfully',
+        severity: 'success'
+      });
+    } catch (error) {
+      console.error('Error updating assignment:', error);
+      setToast({
+        open: true,
+        message: 'Failed to update assignment',
+        severity: 'error'
+      });
+    }
+  };
+
+  const handleRemoveDepartment = async (facultyId, departmentToRemove) => {
+    try {
+      const facultyMember = faculty.find(f => f._id === facultyId);
+      if (!facultyMember) return;
+
+      // Remove all assignments for this department
+      const updatedAssignments = facultyMember.assignments.filter(
+        assignment => assignment.department !== departmentToRemove
+      );
+
+      const updateData = {
+        assignments: updatedAssignments,
+        // Recalculate aggregated fields from remaining assignments
+        departments: [...new Set(updatedAssignments.map(a => a.department))],
+        years: [...new Set(updatedAssignments.map(a => a.year))],
+        semesters: [...new Set(updatedAssignments.map(a => a.semester))],
+        sections: [...new Set(updatedAssignments.flatMap(a => a.sections))]
+      };
+
+      await api.put(`/api/admin/faculty/${facultyId}`, updateData);
+      fetchFaculty(); // Refresh the list
+
+      setToast({
+        open: true,
+        message: `Department "${departmentToRemove}" and all its assignments removed successfully`,
+        severity: 'success'
+      });
+    } catch (error) {
+      console.error('Error removing department:', error);
+      setToast({
+        open: true,
+        message: 'Failed to remove department',
+        severity: 'error'
+      });
+    }
+  };
+
+  const handleRemoveYear = async (facultyId, yearToRemove) => {
+    try {
+      const facultyMember = faculty.find(f => f._id === facultyId);
+      if (!facultyMember) return;
+
+      // Remove all assignments for this year
+      const updatedAssignments = facultyMember.assignments.filter(
+        assignment => assignment.year !== yearToRemove
+      );
+
+      const updateData = {
+        assignments: updatedAssignments,
+        // Recalculate aggregated fields from remaining assignments
+        departments: [...new Set(updatedAssignments.map(a => a.department))],
+        years: [...new Set(updatedAssignments.map(a => a.year))],
+        semesters: [...new Set(updatedAssignments.map(a => a.semester))],
+        sections: [...new Set(updatedAssignments.flatMap(a => a.sections))]
+      };
+
+      await api.put(`/api/admin/faculty/${facultyId}`, updateData);
+      fetchFaculty(); // Refresh the list
+
+      setToast({
+        open: true,
+        message: `Year ${yearToRemove} and all its assignments removed successfully`,
+        severity: 'success'
+      });
+    } catch (error) {
+      console.error('Error removing year:', error);
+      setToast({
+        open: true,
+        message: 'Failed to remove year',
+        severity: 'error'
+      });
+    }
+  };
+
+  const handleRemoveSemester = async (facultyId, semesterToRemove) => {
+    try {
+      const facultyMember = faculty.find(f => f._id === facultyId);
+      if (!facultyMember) return;
+
+      // Remove all assignments for this semester
+      const updatedAssignments = facultyMember.assignments.filter(
+        assignment => assignment.semester !== semesterToRemove
+      );
+
+      const updateData = {
+        assignments: updatedAssignments,
+        // Recalculate aggregated fields from remaining assignments
+        departments: [...new Set(updatedAssignments.map(a => a.department))],
+        years: [...new Set(updatedAssignments.map(a => a.year))],
+        semesters: [...new Set(updatedAssignments.map(a => a.semester))],
+        sections: [...new Set(updatedAssignments.flatMap(a => a.sections))]
+      };
+
+      await api.put(`/api/admin/faculty/${facultyId}`, updateData);
+      fetchFaculty(); // Refresh the list
+
+      setToast({
+        open: true,
+        message: `Semester ${semesterToRemove} and all its assignments removed successfully`,
+        severity: 'success'
+      });
+    } catch (error) {
+      console.error('Error removing semester:', error);
+      setToast({
+        open: true,
+        message: 'Failed to remove semester',
+        severity: 'error'
+      });
+    }
+  };
+
+  const handleRemoveSection = async (facultyId, sectionToRemove) => {
+    try {
+      const facultyMember = faculty.find(f => f._id === facultyId);
+      if (!facultyMember) return;
+
+      // Remove this section from all assignments and filter out assignments with no sections left
+      const updatedAssignments = facultyMember.assignments
+        .map(assignment => ({
+          ...assignment,
+          sections: assignment.sections.filter(section => section !== sectionToRemove)
+        }))
+        .filter(assignment => assignment.sections.length > 0);
+
+      const updateData = {
+        assignments: updatedAssignments,
+        // Recalculate aggregated fields from remaining assignments
+        departments: [...new Set(updatedAssignments.map(a => a.department))],
+        years: [...new Set(updatedAssignments.map(a => a.year))],
+        semesters: [...new Set(updatedAssignments.map(a => a.semester))],
+        sections: [...new Set(updatedAssignments.flatMap(a => a.sections))]
+      };
+
+      await api.put(`/api/admin/faculty/${facultyId}`, updateData);
+      fetchFaculty(); // Refresh the list
+
+      setToast({
+        open: true,
+        message: `Section ${sectionToRemove} removed from all assignments successfully`,
+        severity: 'success'
+      });
+    } catch (error) {
+      console.error('Error removing section:', error);
+      setToast({
+        open: true,
+        message: 'Failed to remove section',
+        severity: 'error'
+      });
+    }
+  };
+
+  const handleRemoveSubject = async (facultyId, assignmentIndex, subjectToRemove) => {
+    try {
+      const facultyMember = faculty.find(f => f._id === facultyId);
+      if (!facultyMember) return;
+
+      const updatedAssignments = [...facultyMember.assignments];
+      updatedAssignments[assignmentIndex] = {
+        ...updatedAssignments[assignmentIndex],
+        subjects: updatedAssignments[assignmentIndex].subjects.filter(subject => subject !== subjectToRemove)
+      };
+
+      const updateData = {
+        assignments: updatedAssignments,
+        // Recalculate aggregated fields from remaining assignments
+        departments: [...new Set(updatedAssignments.map(a => a.department))],
+        years: [...new Set(updatedAssignments.map(a => a.year))],
+        semesters: [...new Set(updatedAssignments.map(a => a.semester))],
+        sections: [...new Set(updatedAssignments.flatMap(a => a.sections))]
+      };
+
+      await api.put(`/api/admin/faculty/${facultyId}`, updateData);
+      fetchFaculty(); // Refresh the list
+
+      setToast({
+        open: true,
+        message: `Subject "${subjectToRemove}" removed successfully`,
+        severity: 'success'
+      });
+    } catch (error) {
+      console.error('Error removing subject:', error);
+      setToast({
+        open: true,
+        message: 'Failed to remove subject',
+        severity: 'error'
+      });
+    }
+  };
 
   const handleSectionInput = (dept, year, sem, value) => {
     const key = getKey(dept, year, sem);
@@ -272,14 +599,22 @@ const FacultyAccounts = () => {
         throw new Error('Invalid response format from server');
       }
 
-      // Process faculty accounts
-      const facultyAccounts = response.accounts.map(faculty => ({
-        ...faculty,
-        departments: Array.isArray(faculty.departments) ? faculty.departments : [],
-        years: Array.isArray(faculty.years) ? faculty.years : [],
-        semesters: Array.isArray(faculty.semesters) ? faculty.semesters : [],
-        sections: Array.isArray(faculty.sections) ? faculty.sections : []
-      }));
+      // Process faculty accounts and reconstruct arrays for UI compatibility
+      const facultyAccounts = response.accounts.map(faculty => {
+        // Extract arrays from assignments for UI display
+        const assignments = faculty.assignments || [];
+        const years = [...new Set(assignments.map(a => a.year))];
+        const semesters = [...new Set(assignments.map(a => a.semester))];
+        const sections = [...new Set(assignments.flatMap(a => a.sections || []))];
+
+        return {
+          ...faculty,
+          departments: Array.isArray(faculty.departments) ? faculty.departments : [faculty.department].filter(Boolean),
+          years: years.length > 0 ? years : (Array.isArray(faculty.years) ? faculty.years : []),
+          semesters: semesters.length > 0 ? semesters : (Array.isArray(faculty.semesters) ? faculty.semesters : []),
+          sections: sections.length > 0 ? sections : (Array.isArray(faculty.sections) ? faculty.sections : [])
+        };
+      });
 
       setFaculty(facultyAccounts);
       setLoading(false);
@@ -339,19 +674,62 @@ const FacultyAccounts = () => {
   const handleOpenDialog = (faculty = null) => {
     if (faculty) {
       setSelectedFaculty(faculty);
+
+      // For editing, populate the form with the faculty data
+      const assignments = faculty.assignments || [];
+
+      // Set faculty input and faculty list for editing
+      setFacultyInput(faculty.name);
+
+      // Create faculty list with the current faculty data
+      const facultyData = {
+        name: faculty.name,
+        email: faculty.email,
+        password: '' // Don't show existing password
+      };
+
       setFormData({
         name: faculty.name,
         email: faculty.email,
-        departments: faculty.departments || [],
-        years: faculty.years || [],
-        semesters: faculty.semesters || [],
-        sections: faculty.sections || [],
+        departments: faculty.departments || [faculty.department].filter(Boolean),
+        years: [],
+        semesters: [],
+        sections: [],
         password: '',
-        facultyList: faculty.facultyList || [],
-        assignments: faculty.assignments || []
+        facultyList: [facultyData],
+        assignments: assignments
+      });
+
+      // Populate assigned sections and subjects from assignments
+      const newAssignedSections = {};
+      const newAssignedSubjects = {};
+      assignments.forEach(assignment => {
+        const key = `${assignment.department}-${assignment.year}-${assignment.semester}`;
+        newAssignedSections[key] = assignment.sections || [];
+        newAssignedSubjects[key] = assignment.subjects || [];
+      });
+      setAssignedSections(newAssignedSections);
+      setAssignedSubjects(newAssignedSubjects);
+
+      // Set current selections to the first assignment if available
+      if (assignments.length > 0) {
+        const firstAssignment = assignments[0];
+        setCurrentSelections({
+          department: firstAssignment.department,
+          year: firstAssignment.year,
+          semester: firstAssignment.semester
+        });
+      }
+
+      // Load subjects for all assignments
+      assignments.forEach(assignment => {
+        const key = `${assignment.department}-${assignment.year}-${assignment.semester}`;
+        loadSubjectsForKey(key);
       });
     } else {
+      // For adding new faculty
       setSelectedFaculty(null);
+      setFacultyInput('');
       setFormData({
         name: '',
         email: '',
@@ -363,7 +741,15 @@ const FacultyAccounts = () => {
         facultyList: [],
         assignments: []
       });
+      setAssignedSections({});
+      setAssignedSubjects({});
+      setCurrentSelections({
+        department: '',
+        year: '',
+        semester: ''
+      });
     }
+    setDialogError('');
     setOpenDialog(true);
   };
 
@@ -442,91 +828,149 @@ const FacultyAccounts = () => {
         return;
       }
 
-      // Create faculty accounts
-      for (const faculty of formData.facultyList) {
-        try {
-          // Email format validation
-          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-          if (!emailRegex.test(faculty.email)) {
-            setDialogError(`Invalid email format for faculty member: ${faculty.name}`);
+      // Check if we're editing or creating
+      if (selectedFaculty) {
+        // Update existing faculty
+        const faculty = formData.facultyList[0]; // For editing, there's only one faculty member
+
+        // Email format validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(faculty.email)) {
+          setDialogError(`Invalid email format: ${faculty.email}`);
+          return;
+        }
+
+        // Get all assignments and ensure they're not empty
+        const validAssignments = Object.entries(assignedSections)
+          .filter(([_, sections]) => sections && sections.length > 0)
+          .map(([key, sections]) => {
+            const [dept, year, sem] = key.split('-');
+            return {
+              department: dept,
+              year: year,
+              semester: sem,
+              sections: sections,
+              subjects: assignedSubjects[key] || []
+            };
+          });
+
+        if (validAssignments.length === 0) {
+          setDialogError('No valid assignments found');
+          return;
+        }
+
+        // Collect all unique values
+        const uniqueDepartments = [...new Set(validAssignments.map(a => a.department))];
+        const uniqueYears = [...new Set(validAssignments.map(a => a.year))];
+        const uniqueSemesters = [...new Set(validAssignments.map(a => a.semester))];
+        const uniqueSections = [...new Set(validAssignments.reduce((acc, curr) => [...acc, ...curr.sections], []))];
+
+        // Format the data to match server expectations
+        const updateData = {
+          name: faculty.name,
+          email: faculty.email,
+          departments: uniqueDepartments,
+          years: uniqueYears,
+          semesters: uniqueSemesters,
+          sections: uniqueSections,
+          assignments: validAssignments
+        };
+
+        // Add password only if provided
+        if (faculty.password && faculty.password.trim()) {
+          updateData.password = faculty.password;
+        }
+
+        console.log('Updating faculty with data:', updateData);
+
+        // Update the faculty account
+        const response = await api.put(`/api/admin/faculty/${selectedFaculty._id}`, updateData);
+        console.log('Faculty updated successfully:', response);
+
+      } else {
+        // Create new faculty accounts
+        for (const faculty of formData.facultyList) {
+          try {
+            // Email format validation
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(faculty.email)) {
+              setDialogError(`Invalid email format for faculty member: ${faculty.name}`);
+              return;
+            }
+
+            // Check if user exists
+            const exists = await checkUserExists(faculty.email);
+            if (exists) {
+              setDialogError(`A user with email ${faculty.email} already exists`);
+              return;
+            }
+
+            // Get all assignments and ensure they're not empty
+            const validAssignments = Object.entries(assignedSections)
+              .filter(([_, sections]) => sections && sections.length > 0)
+              .map(([key, sections]) => {
+                const [dept, year, sem] = key.split('-');
+                return {
+                  department: dept,
+                  year: year,
+                  semester: sem,
+                  sections: sections,
+                  subjects: assignedSubjects[key] || []
+                };
+              });
+
+            if (validAssignments.length === 0) {
+              setDialogError('No valid assignments found');
+              return;
+            }
+
+            // Collect all unique values
+            const uniqueDepartments = [...new Set(validAssignments.map(a => a.department))];
+            const uniqueYears = [...new Set(validAssignments.map(a => a.year))];
+            const uniqueSemesters = [...new Set(validAssignments.map(a => a.semester))];
+            const uniqueSections = [...new Set(validAssignments.reduce((acc, curr) => [...acc, ...curr.sections], []))];
+
+            // Ensure we have at least one of each required field
+            if (!uniqueDepartments.length || !uniqueYears.length || !uniqueSections.length) {
+              setDialogError('Please ensure at least one department, year, and section is assigned');
+              return;
+            }
+
+            // Format the data to match server expectations
+            const dataToSend = {
+              name: faculty.name,
+              email: faculty.email,
+              password: faculty.password || `${faculty.name.toLowerCase().replace(/\s+/g, '')}123`,
+              role: 'faculty',
+              // Primary assignment data
+              department: uniqueDepartments[0],
+              year: uniqueYears[0],
+              semester: validAssignments[0].semester,
+              section: uniqueSections[0],
+              // Arrays of all assigned values (required by backend validation)
+              departments: uniqueDepartments,
+              years: uniqueYears,
+              semesters: uniqueSemesters,
+              sections: uniqueSections,
+              // Additional data
+              assignments: validAssignments,
+              isEventQuizAccount: false
+            };
+
+            console.log('Creating faculty with data:', dataToSend);
+
+            // Create the faculty account
+            const response = await api.post('/api/admin/accounts', dataToSend);
+            console.log('Faculty created successfully:', response);
+
+          } catch (error) {
+            console.error('Error creating faculty:', error);
+            if (error.response?.data?.message) {
+              setDialogError(error.response.data.message);
+            } else {
+              setDialogError(`Failed to create faculty account for ${faculty.name}: ${error.message}`);
+            }
             return;
-          }
-
-          // Check if user exists
-          const exists = await checkUserExists(faculty.email);
-          if (exists) {
-            setDialogError(`A user with email ${faculty.email} already exists`);
-            return;
-          }
-
-          // Get all assignments and ensure they're not empty
-          const validAssignments = Object.entries(assignedSections)
-            .filter(([_, sections]) => sections && sections.length > 0)
-            .map(([key, sections]) => {
-              const [dept, year, sem] = key.split('-');
-              return {
-                department: dept,
-                year: year,
-                semester: sem,
-                sections: sections
-              };
-            });
-
-          if (!validAssignments.length) {
-            setDialogError('No valid assignments found');
-            return;
-          }
-
-          // Collect all unique values
-          const uniqueDepartments = [...new Set(validAssignments.map(a => a.department))];
-          const uniqueYears = [...new Set(validAssignments.map(a => a.year))];
-          const uniqueSemesters = [...new Set(validAssignments.map(a => a.semester))];
-          const uniqueSections = [...new Set(validAssignments.reduce((acc, curr) => [...acc, ...curr.sections], []))];
-
-          // Ensure we have at least one of each required field
-          if (!uniqueDepartments.length || !uniqueYears.length || !uniqueSections.length) {
-            setDialogError('Please ensure at least one department, year, and section is assigned');
-            return;
-          }
-
-          // Format the data to match server expectations
-          const dataToSend = {
-            name: faculty.name,
-            email: faculty.email,
-            password: faculty.password || `${faculty.name.toLowerCase().replace(/\s+/g, '')}123`,
-            role: 'faculty',
-            // Primary assignment data
-            department: uniqueDepartments[0],
-            year: uniqueYears[0],
-            semester: validAssignments[0].semester,
-            section: uniqueSections[0],
-            // Arrays of all assigned values (required by backend validation)
-            departments: uniqueDepartments,
-            years: uniqueYears,
-            semesters: uniqueSemesters,
-            sections: uniqueSections,
-            // Additional data
-            assignments: validAssignments,
-            isEventQuizAccount: false
-          };
-
-          // Log the exact data being sent
-          console.log('Sending faculty data:', JSON.stringify(dataToSend, null, 2));
-
-          // Make the API call
-          const response = await api.post('/api/admin/accounts', dataToSend);
-
-          if (!response || response.error) {
-            throw new Error(response?.error || 'Failed to create faculty account');
-          }
-
-          console.log('Faculty account created successfully:', response);
-        } catch (error) {
-          console.error('Error creating faculty account:', error);
-          if (error.response?.data?.message) {
-            throw new Error(`Failed to create account for ${faculty.name}: ${error.response.data.message}`);
-          } else {
-            throw new Error(`Failed to create account for ${faculty.name}: ${error.message}`);
           }
         }
       }
@@ -557,22 +1001,136 @@ const FacultyAccounts = () => {
   };
 
   const processYearSemSec = (yearSemSec) => {
+    if (!yearSemSec || typeof yearSemSec !== 'string') {
+      throw new Error('Year_Sem_Sec must be a non-empty string');
+    }
+
+    console.log('🔍 Processing Year_Sem_Sec:', yearSemSec);
+
     const assignments = [];
-    const pairs = yearSemSec.split(';');
-    
-    pairs.forEach(pair => {
-      const [yearSem, sections] = pair.split(':');
-      const [year, semester] = yearSem.split('-');
-      const sectionList = sections.split(',').map(s => s.trim());
-      
-      assignments.push({
-        year: year.trim(),
-        semester: semester.trim(),
+    // Split by semicolon for different year-semester combinations
+    const pairs = yearSemSec.trim().split(';').filter(p => p.trim());
+
+    console.log('📋 Split pairs:', pairs);
+
+    pairs.forEach((pair, index) => {
+      console.log(`🔸 Processing pair ${index + 1}:`, pair.trim());
+
+      // Split by colon to separate year-semester from sections
+      const parts = pair.trim().split(':');
+      if (parts.length !== 2) {
+        throw new Error(`Invalid format in pair ${index + 1}: "${pair}". Expected format: "Year-Semester:Sections"`);
+      }
+
+      const [yearSem, sections] = parts;
+      console.log(`   Year-Semester part: "${yearSem.trim()}"`);
+      console.log(`   Sections part: "${sections.trim()}"`);
+
+      // Parse year-semester part
+      const yearSemParts = yearSem.trim().split('-');
+      if (yearSemParts.length !== 2) {
+        throw new Error(`Invalid year-semester format in pair ${index + 1}: "${yearSem}". Expected format: "Year-Semester"`);
+      }
+
+      const [year, semester] = yearSemParts;
+      const yearNum = parseInt(year.trim());
+      const semesterNum = parseInt(semester.trim());
+
+      // Validate year and semester
+      if (isNaN(yearNum) || yearNum < 1 || yearNum > 4) {
+        throw new Error(`Invalid year in pair ${index + 1}: "${year}". Year must be 1-4`);
+      }
+      if (isNaN(semesterNum) || semesterNum < 1 || semesterNum > 8) {
+        throw new Error(`Invalid semester in pair ${index + 1}: "${semester}". Semester must be 1-8`);
+      }
+
+      console.log(`   Parsed Year: ${yearNum}, Semester: ${semesterNum}`);
+
+      // Parse sections
+      if (!sections.trim()) {
+        throw new Error(`No sections specified in pair ${index + 1}: "${pair}"`);
+      }
+
+      const sectionList = sections.trim().split(',').map(s => s.trim().toUpperCase()).filter(s => s);
+      console.log(`   Parsed sections:`, sectionList);
+
+      if (sectionList.length === 0) {
+        throw new Error(`No valid sections found in pair ${index + 1}: "${sections}"`);
+      }
+
+      // Validate section format (should be single uppercase letters)
+      const invalidSections = sectionList.filter(s => !/^[A-Z]$/.test(s));
+      if (invalidSections.length > 0) {
+        throw new Error(`Invalid section format in pair ${index + 1}: "${invalidSections.join(', ')}". Sections must be single uppercase letters (A, B, C, etc.)`);
+      }
+
+      const assignment = {
+        year: yearNum.toString(),
+        semester: semesterNum.toString(),
         sections: sectionList
-      });
+      };
+
+      console.log(`   ✅ Created assignment:`, assignment);
+      assignments.push(assignment);
     });
-    
+
+    if (assignments.length === 0) {
+      throw new Error('No valid assignments found');
+    }
+
+    console.log('🎯 Final assignments:', assignments);
     return assignments;
+  };
+
+  const processSubjects = (subjectsString, assignments) => {
+    if (!subjectsString || typeof subjectsString !== 'string') {
+      // Return assignments with empty subjects if no subjects provided
+      return assignments.map(assignment => ({
+        ...assignment,
+        subjects: []
+      }));
+    }
+
+    console.log('🔍 Processing Subjects:', subjectsString);
+
+    // Create a map to store subjects for each year-semester combination
+    const subjectMap = new Map();
+
+    // Split by semicolon for different year-semester combinations
+    const pairs = subjectsString.trim().split(';').filter(p => p.trim());
+
+    pairs.forEach((pair, index) => {
+      console.log(`🔸 Processing subject pair ${index + 1}:`, pair.trim());
+
+      // Split by colon to separate year-semester from subjects
+      const parts = pair.trim().split(':');
+      if (parts.length !== 2) {
+        throw new Error(`Invalid subject format in pair ${index + 1}: "${pair}". Expected format: "Year-Semester:Subjects"`);
+      }
+
+      const [yearSem, subjects] = parts;
+      const key = yearSem.trim();
+
+      // Parse subjects
+      const subjectList = subjects.trim().split(',').map(s => s.trim()).filter(s => s);
+      subjectMap.set(key, subjectList);
+
+      console.log(`   ✅ Subjects for ${key}:`, subjectList);
+    });
+
+    // Add subjects to corresponding assignments
+    const assignmentsWithSubjects = assignments.map(assignment => {
+      const key = `${assignment.year}-${assignment.semester}`;
+      const subjects = subjectMap.get(key) || [];
+
+      return {
+        ...assignment,
+        subjects
+      };
+    });
+
+    console.log('🎯 Final assignments with subjects:', assignmentsWithSubjects);
+    return assignmentsWithSubjects;
   };
 
   const handleFileUpload = async (event) => {
@@ -598,19 +1156,37 @@ const FacultyAccounts = () => {
         // Validate the data structure
         const validationErrors = [];
         const processedData = jsonData.map((row, index) => {
+          console.log(`\n🔍 Processing Excel Row ${index + 2}:`, row);
+
           const errors = [];
-          if (!row.Name && !row.name) errors.push('Name is required');
-          if (!row.Email && !row.email) errors.push('Email is required');
-          if (!row.Department && !row.department) errors.push('Department is required');
-          if (!row.Year_Sem_Sec && !row.year_sem_sec) errors.push('Year_Sem_Sec is required');
+          if (!row.Name && !row.name) errors.push(`Row ${index + 2}: Name is required`);
+          if (!row.Email && !row.email) errors.push(`Row ${index + 2}: Email is required`);
+          if (!row.Department && !row.department) errors.push(`Row ${index + 2}: Department is required`);
+          if (!row.Year_Sem_Sec && !row.year_sem_sec) errors.push(`Row ${index + 2}: Year_Sem_Sec is required`);
+
+          // Add row-specific errors to the main validation errors array
+          validationErrors.push(...errors);
 
           const yearSemSec = row.Year_Sem_Sec || row.year_sem_sec;
+          const subjectsString = row.Subjects || row.subjects || '';
+          console.log(`📝 Year_Sem_Sec for row ${index + 2}:`, yearSemSec);
+          console.log(`📝 Subjects for row ${index + 2}:`, subjectsString);
+
           let assignments = [];
-          
+
           try {
-            assignments = processYearSemSec(yearSemSec);
+            if (yearSemSec) {
+              // First parse assignments without subjects
+              const baseAssignments = processYearSemSec(yearSemSec);
+              // Then add subjects to assignments
+              assignments = processSubjects(subjectsString, baseAssignments);
+              console.log(`✅ Successfully parsed assignments for row ${index + 2}:`, assignments);
+            }
           } catch (e) {
-            errors.push('Invalid Year_Sem_Sec format');
+            const error = `Row ${index + 2}: Invalid format - ${e.message}`;
+            console.error(`❌ Error parsing row ${index + 2}:`, e.message);
+            errors.push(error);
+            validationErrors.push(error);
           }
 
           // Get unique years, semesters, and sections from assignments
@@ -618,23 +1194,39 @@ const FacultyAccounts = () => {
           const semesters = [...new Set(assignments.map(a => a.semester))];
           const sections = [...new Set(assignments.flatMap(a => a.sections))];
 
-          return {
+          // Create faculty data in the exact format the backend expects
+          const facultyData = {
             name: row.Name || row.name,
             email: row.Email || row.email,
             password: row.Password || row.password || Math.random().toString(36).slice(-8),
-            departments: [row.Department || row.department],
-            years,
-            semesters,
-            sections,
-            assignments,
+            department: row.Department || row.department, // Backend expects singular 'department'
+            assignments: assignments.map(a => ({
+              department: row.Department || row.department,
+              year: a.year.toString(),
+              semester: a.semester.toString(),
+              sections: a.sections
+            })),
+            role: 'faculty', // Explicitly set role
             validationErrors: errors
           };
+
+          // Additional validation for faculty requirements
+          if (!facultyData.department) {
+            errors.push(`Row ${index + 2}: No department specified`);
+            validationErrors.push(`Row ${index + 2}: No department specified`);
+          }
+          if (facultyData.assignments.length === 0) {
+            errors.push(`Row ${index + 2}: No valid assignments found`);
+            validationErrors.push(`Row ${index + 2}: No valid assignments found`);
+          }
+
+          return facultyData;
         });
 
         setUploadProgress(50);
 
         if (validationErrors.length > 0) {
-          setUploadError(`Validation errors found:\n${validationErrors.join('\n')}`);
+          setUploadError(`Validation errors found:\n${validationErrors.slice(0, 10).join('\n')}${validationErrors.length > 10 ? '\n...and more errors' : ''}`);
           setUploadStatus('error');
           return;
         }
@@ -663,19 +1255,55 @@ const FacultyAccounts = () => {
       setUploadStatus('uploading');
       setUploadProgress(80);
 
-      // Upload the faculty accounts
-      const response = await api.post('/api/admin/accounts/bulk', { 
-        accounts: uploadPreview.map(faculty => ({
-          ...faculty,
-          role: 'faculty',
-          isEventQuizAccount: false
-        }))
+      // Upload the faculty accounts - only send fields the backend expects
+      const accountsToUpload = uploadPreview.map(faculty => ({
+        name: faculty.name,
+        email: faculty.email,
+        password: faculty.password,
+        department: faculty.department,
+        assignments: faculty.assignments,
+        role: 'faculty'
+      }));
+
+      console.log('Uploading faculty accounts:', {
+        count: accountsToUpload.length,
+        accounts: accountsToUpload
+      });
+
+      const response = await api.post('/api/admin/accounts/bulk', {
+        accounts: accountsToUpload
       });
 
       setUploadProgress(100);
       setUploadStatus('success');
       console.log('Bulk upload response:', response);
-      
+
+      // Show success message with details
+      const successMessage = response.errors && response.errors.length > 0
+        ? `Uploaded ${response.created || uploadPreview.length} faculty accounts. ${response.errors.length} errors occurred.`
+        : `Successfully uploaded ${response.created || uploadPreview.length} faculty accounts`;
+
+      setToast({
+        open: true,
+        message: successMessage,
+        severity: response.errors && response.errors.length > 0 ? 'warning' : 'success'
+      });
+
+      // Show detailed errors if any
+      if (response.errors && response.errors.length > 0) {
+        console.error('Upload errors:', response.errors);
+        const errorDetails = response.errors.slice(0, 5).join('\n');
+        setUploadError(`Some accounts failed to create:\n${errorDetails}${response.errors.length > 5 ? '\n...and more' : ''}`);
+
+        // Also show detailed errors in console for debugging
+        console.log('Detailed error breakdown:', {
+          totalAttempted: uploadPreview.length,
+          successful: response.created || 0,
+          failed: response.errors.length,
+          errors: response.errors
+        });
+      }
+
       // Close dialog and refresh faculty list after short delay
       setTimeout(() => {
         setOpenUploadDialog(false);
@@ -685,12 +1313,21 @@ const FacultyAccounts = () => {
         setUploadPreview([]);
         setUploadProgress(0);
         setUploadStatus('');
+        if (!response.errors || response.errors.length === 0) {
+          setUploadError('');
+        }
       }, 1500);
 
     } catch (error) {
       console.error('Error uploading faculty data:', error);
-      setUploadError(error.message || 'Failed to upload faculty data');
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to upload faculty data';
+      setUploadError(errorMessage);
       setUploadStatus('error');
+      setToast({
+        open: true,
+        message: errorMessage,
+        severity: 'error'
+      });
     }
   };
 
@@ -820,57 +1457,7 @@ const FacultyAccounts = () => {
     }
   };
 
-  // Add helper function to remove assignment
-  const handleRemoveAssignment = async (facultyId, type, value) => {
-    try {
-      const facultyToUpdate = faculty.find(f => f._id === facultyId);
-      if (!facultyToUpdate) return;
 
-      let updateData = { ...facultyToUpdate };
-
-      // Update the specific array based on type
-      switch (type) {
-        case 'department':
-          updateData.departments = updateData.departments.filter(d => d !== value);
-          // Remove assignments for this department
-          updateData.assignments = (updateData.assignments || []).filter(a => a.department !== value);
-          break;
-        case 'year':
-          updateData.years = updateData.years.filter(y => y !== value);
-          // Remove assignments for this year
-          updateData.assignments = (updateData.assignments || []).filter(a => a.year !== value);
-          break;
-        case 'semester':
-          updateData.semesters = updateData.semesters.filter(s => s !== value);
-          // Remove assignments for this semester
-          updateData.assignments = (updateData.assignments || []).filter(a => a.semester !== value);
-          break;
-        case 'section':
-          updateData.sections = updateData.sections.filter(s => s !== value);
-          // Remove this section from assignments
-          updateData.assignments = (updateData.assignments || []).map(a => ({
-            ...a,
-            sections: a.sections.filter(s => s !== value)
-          })).filter(a => a.sections.length > 0);
-          break;
-        default:
-          return;
-      }
-
-      // Make API call to update faculty
-      await api.put(`/api/admin/faculty/${facultyId}`, updateData);
-
-      // Update local state
-      setFaculty(prevFaculty => 
-        prevFaculty.map(f => 
-          f._id === facultyId ? { ...f, ...updateData } : f
-        )
-      );
-    } catch (error) {
-      console.error('Error removing faculty assignment:', error);
-      setError('Failed to remove faculty assignment');
-    }
-  };
 
   // Helper function to handle section input
   const handleAddSection = () => {
@@ -1141,10 +1728,8 @@ const FacultyAccounts = () => {
                     <TableCell><strong>Name</strong></TableCell>
                     <TableCell><strong>Email</strong></TableCell>
                     <TableCell><strong>Password</strong></TableCell>
-                    <TableCell><strong>Departments</strong></TableCell>
-                    <TableCell><strong>Years</strong></TableCell>
-                    <TableCell><strong>Semesters</strong></TableCell>
-                    <TableCell><strong>Sections</strong></TableCell>
+                    <TableCell><strong>Department</strong></TableCell>
+                    <TableCell><strong>Assignments</strong></TableCell>
                     <TableCell><strong>Actions</strong></TableCell>
                   </TableRow>
                 </TableHead>
@@ -1176,143 +1761,204 @@ const FacultyAccounts = () => {
                         </Box>
                       </TableCell>
 
-                      {/* Departments Cell */}
+                      {/* Department Cell */}
                       <TableCell>
                         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
-                          {member.departments.map((dept) => (
-                            <Chip
-                              key={dept}
-                              label={dept}
-                              size="small"
-                              onDelete={() => handleRemoveAssignment(member._id, 'department', dept)}
-                            />
-                          ))}
-                          <FormControl size="small" sx={{ minWidth: 120, ml: 1 }}>
-                            <Select
-                              value=""
-                              displayEmpty
-                              size="small"
-                              onChange={(e) => handleAddAssignment(member._id, 'department', e.target.value)}
-                              sx={{ height: '32px' }}
-                            >
-                              <MenuItem value="" disabled>
-                                <AddIcon fontSize="small" /> Add
-                              </MenuItem>
-                              {departments
-                                .filter(dept => !member.departments.includes(dept.name))
-                                .map((dept) => (
-                                  <MenuItem key={dept._id} value={dept.name}>
-                                    {dept.name}
-                                  </MenuItem>
-                                ))
-                              }
-                            </Select>
-                          </FormControl>
+                          {member.departments && member.departments.length > 0 ? (
+                            member.departments.map((dept) => (
+                              <Box key={dept} sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                                <Chip
+                                  label={dept}
+                                  size="small"
+                                  color="primary"
+                                  variant="outlined"
+                                />
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleRemoveDepartment(member._id, dept)}
+                                  sx={{
+                                    p: 0.25,
+                                    ml: 0.25,
+                                    '&:hover': {
+                                      backgroundColor: 'error.light',
+                                      color: 'error.contrastText'
+                                    }
+                                  }}
+                                  title={`Remove ${dept} department and all its assignments`}
+                                >
+                                  <DeleteIcon fontSize="small" />
+                                </IconButton>
+                              </Box>
+                            ))
+                          ) : (
+                            <Typography variant="body2" color="textSecondary">
+                              No department assigned
+                            </Typography>
+                          )}
                         </Box>
                       </TableCell>
 
-                      {/* Years Cell */}
+                      {/* Assignments Cell */}
                       <TableCell>
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
-                          {member.years.map((year) => (
-                            <Chip
-                              key={year}
-                              label={`Year ${year}`}
-                              size="small"
-                              onDelete={() => handleRemoveAssignment(member._id, 'year', year)}
-                            />
-                          ))}
-                          <FormControl size="small" sx={{ minWidth: 100, ml: 1 }}>
-                            <Select
-                              value=""
-                              displayEmpty
-                              size="small"
-                              onChange={(e) => handleAddAssignment(member._id, 'year', e.target.value)}
-                              sx={{ height: '32px' }}
-                            >
-                              <MenuItem value="" disabled>
-                                <AddIcon fontSize="small" /> Add
-                              </MenuItem>
-                              {years
-                                .filter(year => !member.years.includes(year))
-                                .map((year) => (
-                                  <MenuItem key={year} value={year}>
-                                    Year {year}
-                                  </MenuItem>
-                                ))
-                              }
-                            </Select>
-                          </FormControl>
-                        </Box>
-                      </TableCell>
+                        <Box sx={{ maxWidth: 400 }}>
+                          {member.assignments && member.assignments.length > 0 ? (
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                              {member.assignments.map((assignment, index) => (
+                                <Card key={index} variant="outlined" sx={{ p: 1, bgcolor: 'background.paper', position: 'relative' }}>
+                                  {/* Assignment Actions */}
+                                  <Box sx={{ position: 'absolute', top: 4, right: 4, display: 'flex', gap: 0.5 }}>
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleEditAssignment(member, index)}
+                                      sx={{ p: 0.25 }}
+                                    >
+                                      <EditIcon fontSize="small" />
+                                    </IconButton>
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => handleRemoveAssignment(member._id, index)}
+                                      sx={{ p: 0.25 }}
+                                      color="error"
+                                    >
+                                      <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                  </Box>
 
-                      {/* Semesters Cell */}
-                      <TableCell>
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
-                          {member.semesters.map((semester) => (
-                            <Chip
-                              key={semester}
-                              label={`Sem ${semester}`}
-                              size="small"
-                              onDelete={() => handleRemoveAssignment(member._id, 'semester', semester)}
-                            />
-                          ))}
-                          <FormControl size="small" sx={{ minWidth: 100, ml: 1 }}>
-                            <Select
-                              value=""
-                              displayEmpty
-                              size="small"
-                              onChange={(e) => handleAddAssignment(member._id, 'semester', e.target.value)}
-                              sx={{ height: '32px' }}
-                            >
-                              <MenuItem value="" disabled>
-                                <AddIcon fontSize="small" /> Add
-                              </MenuItem>
-                              {SEMESTERS
-                                .filter(sem => !member.semesters.includes(sem))
-                                .map((semester) => (
-                                  <MenuItem key={semester} value={semester}>
-                                    Sem {semester}
-                                  </MenuItem>
-                                ))
-                              }
-                            </Select>
-                          </FormControl>
-                        </Box>
-                      </TableCell>
+                                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center', pr: 6 }}>
+                                    {/* Year Chip with Delete */}
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                                      <Chip
+                                        label={`Y${assignment.year}`}
+                                        size="small"
+                                        color="primary"
+                                        variant="filled"
+                                      />
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => handleRemoveYear(member._id, assignment.year)}
+                                        sx={{
+                                          p: 0.125,
+                                          '&:hover': {
+                                            backgroundColor: 'error.light',
+                                            color: 'error.contrastText'
+                                          }
+                                        }}
+                                        title={`Remove Year ${assignment.year} and all its assignments`}
+                                      >
+                                        <DeleteIcon fontSize="small" />
+                                      </IconButton>
+                                    </Box>
 
-                      {/* Sections Cell */}
-                      <TableCell>
-                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
-                          {member.sections.map((section) => (
-                            <Chip
-                              key={section}
-                              label={`Sec ${section}`}
-                              size="small"
-                              onDelete={() => handleRemoveAssignment(member._id, 'section', section)}
-                            />
-                          ))}
-                          <FormControl size="small" sx={{ minWidth: 100, ml: 1 }}>
-                            <Select
-                              value=""
-                              displayEmpty
-                              size="small"
-                              onChange={(e) => handleAddAssignment(member._id, 'section', e.target.value)}
-                              sx={{ height: '32px' }}
-                            >
-                              <MenuItem value="" disabled>
-                                <AddIcon fontSize="small" /> Add
-                              </MenuItem>
-                              {SECTIONS
-                                .filter(sec => !member.sections.includes(sec))
-                                .map((section) => (
-                                  <MenuItem key={section} value={section}>
-                                    Sec {section}
-                                  </MenuItem>
-                                ))
-                              }
-                            </Select>
-                          </FormControl>
+                                    {/* Semester Chip with Delete */}
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                                      <Chip
+                                        label={`S${assignment.semester}`}
+                                        size="small"
+                                        color="secondary"
+                                        variant="filled"
+                                      />
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => handleRemoveSemester(member._id, assignment.semester)}
+                                        sx={{
+                                          p: 0.125,
+                                          '&:hover': {
+                                            backgroundColor: 'error.light',
+                                            color: 'error.contrastText'
+                                          }
+                                        }}
+                                        title={`Remove Semester ${assignment.semester} and all its assignments`}
+                                      >
+                                        <DeleteIcon fontSize="small" />
+                                      </IconButton>
+                                    </Box>
+
+                                    {/* Sections with Delete */}
+                                    <Box sx={{ display: 'flex', gap: 0.25 }}>
+                                      {assignment.sections && assignment.sections.map((section) => (
+                                        <Box key={section} sx={{ display: 'flex', alignItems: 'center', gap: 0.125 }}>
+                                          <Chip
+                                            label={section}
+                                            size="small"
+                                            color="default"
+                                            variant="outlined"
+                                          />
+                                          <IconButton
+                                            size="small"
+                                            onClick={() => handleRemoveSection(member._id, section)}
+                                            sx={{
+                                              p: 0.125,
+                                              '&:hover': {
+                                                backgroundColor: 'error.light',
+                                                color: 'error.contrastText'
+                                              }
+                                            }}
+                                            title={`Remove Section ${section} from all assignments`}
+                                          >
+                                            <DeleteIcon fontSize="small" />
+                                          </IconButton>
+                                        </Box>
+                                      ))}
+                                    </Box>
+                                  </Box>
+                                  {assignment.subjects && assignment.subjects.length > 0 && (
+                                    <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                      <Typography variant="caption" color="textSecondary" sx={{ width: '100%', mb: 0.5 }}>
+                                        Subjects:
+                                      </Typography>
+                                      {assignment.subjects.map((subject, idx) => {
+                                        const isLong = subject.length > 25;
+                                        const displayText = isLong ? `${subject.substring(0, 25)}...` : subject;
+
+                                        const subjectElement = (
+                                          <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                                            <Chip
+                                              label={displayText}
+                                              size="small"
+                                              color="success"
+                                              variant="outlined"
+                                              sx={{
+                                                fontSize: '0.65rem',
+                                                height: '18px',
+                                                '& .MuiChip-label': {
+                                                  px: 0.75,
+                                                  py: 0
+                                                }
+                                              }}
+                                            />
+                                            <IconButton
+                                              size="small"
+                                              onClick={() => handleRemoveSubject(member._id, index, subject)}
+                                              sx={{
+                                                p: 0.125,
+                                                '&:hover': {
+                                                  backgroundColor: 'error.light',
+                                                  color: 'error.contrastText'
+                                                }
+                                              }}
+                                              title={`Remove subject: ${subject}`}
+                                            >
+                                              <DeleteIcon fontSize="small" />
+                                            </IconButton>
+                                          </Box>
+                                        );
+
+                                        return isLong ? (
+                                          <Tooltip key={idx} title={subject} arrow placement="top">
+                                            {subjectElement}
+                                          </Tooltip>
+                                        ) : subjectElement;
+                                      })}
+                                    </Box>
+                                  )}
+                                </Card>
+                              ))}
+                            </Box>
+                          ) : (
+                            <Typography variant="body2" color="textSecondary">
+                              No assignments
+                            </Typography>
+                          )}
                         </Box>
                       </TableCell>
 
@@ -1400,12 +2046,13 @@ const FacultyAccounts = () => {
                 <Typography variant="subtitle2" gutterBottom>Faculty Details:</Typography>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                   {formData.facultyList.map((faculty, index) => (
-                    <Box key={index} sx={{ 
-                      border: '1px solid #ddd', 
-                      borderRadius: 1, 
-                      p: 1, 
-                      bgcolor: '#f5f5f5', 
-                      width: '100%' 
+                    <Box key={index} sx={{
+                      border: '1px solid #ddd',
+                      borderRadius: 1,
+                      p: 2,
+                      bgcolor: 'background.paper',
+                      boxShadow: 1,
+                      width: '100%'
                     }}>
                       <Grid container spacing={2}>
                         <Grid item xs={12} md={4}>
@@ -1563,11 +2210,16 @@ const FacultyAccounts = () => {
                             const newSections = currentSections.includes(section)
                               ? currentSections.filter(s => s !== section)
                               : [...currentSections, section];
-                            
+
                             setAssignedSections(prev => ({
                               ...prev,
                               [key]: newSections
                             }));
+
+                            // Load subjects for this semester when sections are assigned
+                            if (newSections.length > 0 && !availableSubjects[key]) {
+                              loadSubjectsForKey(key);
+                            }
                           }}
                         >
                           Section {section}
@@ -1578,9 +2230,68 @@ const FacultyAccounts = () => {
                 </Paper>
               )}
 
+              {/* Subject Selection - Only show if sections are assigned for current semester */}
+              {selectedSemester && assignedSections[getKey(selectedDepartment, selectedYear, selectedSemester)]?.length > 0 && (
+                <Paper sx={{ p: 2, mb: 2 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Select Subjects for {selectedDepartment} - Year {selectedYear} - Semester {selectedSemester}
+                  </Typography>
+                  {availableSubjects[getKey(selectedDepartment, selectedYear, selectedSemester)]?.length > 0 ? (
+                    <Grid container spacing={1}>
+                      {availableSubjects[getKey(selectedDepartment, selectedYear, selectedSemester)].map((subject, index) => (
+                        <Grid item xs={12} sm={6} md={4} key={index}>
+                          <Button
+                            fullWidth
+                            size="small"
+                            variant={
+                              assignedSubjects[getKey(selectedDepartment, selectedYear, selectedSemester)]?.includes(subject.fullName)
+                                ? "contained"
+                                : "outlined"
+                            }
+                            onClick={() => handleSubjectToggle(getKey(selectedDepartment, selectedYear, selectedSemester), subject.fullName)}
+                            sx={{
+                              textAlign: 'left',
+                              justifyContent: 'flex-start',
+                              textTransform: 'none',
+                              fontSize: '0.75rem',
+                              py: 0.5
+                            }}
+                          >
+                            {subject.name}
+                            {subject.code && (
+                              <Typography variant="caption" sx={{ ml: 1, opacity: 0.7 }}>
+                                ({subject.code})
+                              </Typography>
+                            )}
+                          </Button>
+                        </Grid>
+                      ))}
+                    </Grid>
+                  ) : (
+                    <Box sx={{ textAlign: 'center', py: 2 }}>
+                      <Typography variant="body2" color="textSecondary">
+                        {availableSubjects[getKey(selectedDepartment, selectedYear, selectedSemester)] === undefined
+                          ? 'Loading subjects...'
+                          : 'No subjects found for this semester'
+                        }
+                      </Typography>
+                      {availableSubjects[getKey(selectedDepartment, selectedYear, selectedSemester)] === undefined && (
+                        <Button
+                          size="small"
+                          onClick={() => loadSubjectsForKey(getKey(selectedDepartment, selectedYear, selectedSemester))}
+                          sx={{ mt: 1 }}
+                        >
+                          Load Subjects
+                        </Button>
+                      )}
+                    </Box>
+                  )}
+                </Paper>
+              )}
+
               {/* Show final submit section if any sections are added */}
               {Object.values(assignedSections).some(sections => sections.length > 0) && (
-                <Paper sx={{ p: 2, mb: 2, bgcolor: '#e3f2fd' }}>
+                <Paper sx={{ p: 2, mb: 2 }}>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Typography variant="subtitle1">
                       Review and Submit Assignments
@@ -1591,7 +2302,7 @@ const FacultyAccounts = () => {
                       onClick={handleSubmit}
                       disabled={!formData.facultyList.length}
                     >
-                      Submit All Assignments
+                      {selectedFaculty ? 'Update Faculty' : 'Create Faculty'}
                     </Button>
                   </Box>
                   
@@ -1601,10 +2312,18 @@ const FacultyAccounts = () => {
                     {Object.entries(assignedSections).map(([key, sections]) => {
                       if (sections.length === 0) return null;
                       const [dept, year, sem] = key.split('-');
+                      const subjects = assignedSubjects[key] || [];
                       return (
-                        <Typography key={key} variant="body2" color="textSecondary">
-                          • {dept} - Year {year} - Semester {sem}: {sections.join(', ')}
-                        </Typography>
+                        <Box key={key} sx={{ mb: 1 }}>
+                          <Typography variant="body2" color="textSecondary">
+                            • {dept} - Year {year} - Semester {sem}: {sections.join(', ')}
+                          </Typography>
+                          {subjects.length > 0 && (
+                            <Typography variant="caption" color="textSecondary" sx={{ ml: 2, display: 'block' }}>
+                              Subjects: {subjects.length} assigned
+                            </Typography>
+                          )}
+                        </Box>
                       );
                     })}
                   </Box>
@@ -1670,19 +2389,30 @@ const FacultyAccounts = () => {
                     <li><strong>Password</strong>: Initial password (optional)</li>
                     <li><strong>Department</strong>: Department name</li>
                     <li><strong>Year_Sem_Sec</strong>: Semester-specific section assignments in format:
-                      <pre style={{ 
-                        backgroundColor: '#f5f5f5', 
-                        padding: '8px', 
+                      <pre style={{
+                        backgroundColor: '#f5f5f5',
+                        padding: '8px',
                         borderRadius: '4px',
                         marginTop: '8px'
                       }}>
                         Year-Semester:Sections
                       </pre>
-                      Example: "1-1:A,B;1-2:B,C" means:
+                      Example: "2-1:A,B;2-2:B,C" means:
                       <ul>
-                        <li>Year 1, Semester 1: Sections A and B</li>
-                        <li>Year 1, Semester 2: Sections B and C</li>
+                        <li>Year 2, Semester 1: Sections A and B</li>
+                        <li>Year 2, Semester 2: Sections B and C</li>
                       </ul>
+                    </li>
+                    <li><strong>Subjects</strong>: Subject assignments for each semester in format:
+                      <pre style={{
+                        backgroundColor: '#f5f5f5',
+                        padding: '8px',
+                        borderRadius: '4px',
+                        marginTop: '8px'
+                      }}>
+                        Year-Semester:Subject1,Subject2;Year-Semester:Subject3
+                      </pre>
+                      Example: "2-1:Programming Fundamentals(CS101),Data Structures(CS201);2-2:Database Systems(CS301)"
                     </li>
                   </ul>
                 </Typography>
@@ -1699,6 +2429,7 @@ const FacultyAccounts = () => {
                         <TableCell>Email</TableCell>
                         <TableCell>Department</TableCell>
                         <TableCell>Year_Sem_Sec</TableCell>
+                        <TableCell>Subjects</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -1706,13 +2437,22 @@ const FacultyAccounts = () => {
                         <TableCell>John Doe</TableCell>
                         <TableCell>john.doe@example.com</TableCell>
                         <TableCell>Computer Science</TableCell>
-                        <TableCell>1-1:A,B;1-2:B,C</TableCell>
+                        <TableCell>2-1:A,B;2-2:B,C</TableCell>
+                        <TableCell>2-1:Programming Fundamentals(CS101),Data Structures(CS201);2-2:Database Systems(CS301)</TableCell>
                       </TableRow>
                       <TableRow>
                         <TableCell>Jane Smith</TableCell>
                         <TableCell>jane.smith@example.com</TableCell>
                         <TableCell>Electronics</TableCell>
-                        <TableCell>2-1:B,C;2-2:A,B</TableCell>
+                        <TableCell>1-1:A;1-2:A;2-1:A</TableCell>
+                        <TableCell>1-1:Circuit Analysis(EE101);1-2:Digital Electronics(EE102);2-1:Microprocessors(EE201)</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Bob Wilson</TableCell>
+                        <TableCell>bob.wilson@example.com</TableCell>
+                        <TableCell>Mechanical</TableCell>
+                        <TableCell>3-1:B,C;3-2:A,B,C</TableCell>
+                        <TableCell>3-1:Thermodynamics(ME301),Fluid Mechanics(ME302);3-2:Heat Transfer(ME401)</TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>
@@ -1742,9 +2482,10 @@ const FacultyAccounts = () => {
                   onClick={() => {
                     // Create a sample Excel file
                     const ws = XLSX.utils.aoa_to_sheet([
-                      ['Name', 'Email', 'Password', 'Department', 'Year_Sem_Sec'],
-                      ['John Doe', 'john.doe@example.com', 'password123', 'Computer Science', '1-1:A,B;1-2:B,C'],
-                      ['Jane Smith', 'jane.smith@example.com', 'password456', 'Electronics', '2-1:B,C;2-2:A,B']
+                      ['Name', 'Email', 'Password', 'Department', 'Year_Sem_Sec', 'Subjects'],
+                      ['John Doe', 'john.doe@example.com', 'password123', 'Computer Science', '2-1:A,B;2-2:B,C', '2-1:Programming Fundamentals(CS101),Data Structures(CS201);2-2:Database Systems(CS301)'],
+                      ['Jane Smith', 'jane.smith@example.com', 'password456', 'Electronics', '1-1:A;1-2:A;2-1:A', '1-1:Circuit Analysis(EE101);1-2:Digital Electronics(EE102);2-1:Microprocessors(EE201)'],
+                      ['Bob Wilson', 'bob.wilson@example.com', 'password789', 'Mechanical', '3-1:B,C;3-2:A,B,C', '3-1:Thermodynamics(ME301),Fluid Mechanics(ME302);3-2:Heat Transfer(ME401)']
                     ]);
                     const wb = XLSX.utils.book_new();
                     XLSX.utils.book_append_sheet(wb, ws, 'Template');
@@ -1825,21 +2566,45 @@ const FacultyAccounts = () => {
                     <TableRow>
                       <TableCell>Name</TableCell>
                       <TableCell>Email</TableCell>
-                      <TableCell>Departments</TableCell>
-                      <TableCell>Years</TableCell>
-                      <TableCell>Sections</TableCell>
+                      <TableCell>Department</TableCell>
+                      <TableCell>Assignments</TableCell>
+                      <TableCell>Subjects</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {uploadPreview.map((faculty, index) => (
-                      <TableRow key={index}>
-                        <TableCell>{faculty.name}</TableCell>
-                        <TableCell>{faculty.email}</TableCell>
-                        <TableCell>{faculty.departments.join(', ')}</TableCell>
-                        <TableCell>{faculty.years.join(', ')}</TableCell>
-                        <TableCell>{faculty.sections.join(', ')}</TableCell>
-                      </TableRow>
-                    ))}
+                    {uploadPreview.map((faculty, index) => {
+                      // Extract data from assignments for display
+                      const totalSubjects = faculty.assignments?.reduce((total, assignment) =>
+                        total + (assignment.subjects?.length || 0), 0) || 0;
+
+                      return (
+                        <TableRow key={index}>
+                          <TableCell>{faculty.name}</TableCell>
+                          <TableCell>{faculty.email}</TableCell>
+                          <TableCell>{faculty.department}</TableCell>
+                          <TableCell>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                              {faculty.assignments?.map((assignment, idx) => (
+                                <Box key={idx} sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                                  <Chip label={`Y${assignment.year}S${assignment.semester}`} size="small" color="primary" />
+                                  <Typography variant="caption">
+                                    {assignment.sections?.join(', ')}
+                                  </Typography>
+                                </Box>
+                              ))}
+                            </Box>
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={`${totalSubjects} subjects`}
+                              size="small"
+                              color={totalSubjects > 0 ? "success" : "default"}
+                              variant="outlined"
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </TableContainer>
@@ -1916,8 +2681,253 @@ const FacultyAccounts = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Assignment Edit Dialog */}
+      <AssignmentEditDialog
+        open={assignmentEditDialog}
+        onClose={() => {
+          setAssignmentEditDialog(false);
+          setEditingAssignment(null);
+        }}
+        editingAssignment={editingAssignment}
+        onUpdate={handleUpdateAssignment}
+        departments={departments}
+        academicDetails={academicDetails}
+      />
+
+      {/* Toast Notification */}
+      <Snackbar
+        open={toast.open}
+        autoHideDuration={6000}
+        onClose={handleCloseToast}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          onClose={handleCloseToast}
+          severity={toast.severity}
+          sx={{ width: '100%' }}
+        >
+          {toast.message}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };
 
-export default FacultyAccounts; 
+// Assignment Edit Dialog Component
+const AssignmentEditDialog = ({ open, onClose, editingAssignment, onUpdate, departments, academicDetails }) => {
+  const [assignment, setAssignment] = useState({
+    department: '',
+    year: '',
+    semester: '',
+    sections: [],
+    subjects: []
+  });
+  const [availableSubjects, setAvailableSubjects] = useState([]);
+
+  useEffect(() => {
+    if (editingAssignment?.assignment) {
+      setAssignment(editingAssignment.assignment);
+      // Load subjects for this assignment
+      loadSubjectsForAssignment(editingAssignment.assignment);
+    }
+  }, [editingAssignment]);
+
+  const loadSubjectsForAssignment = async (assignment) => {
+    try {
+      const response = await api.get('/api/admin/subjects', {
+        params: {
+          department: assignment.department,
+          year: assignment.year,
+          semester: assignment.semester
+        }
+      });
+      setAvailableSubjects(response || []);
+    } catch (error) {
+      console.error('Error loading subjects:', error);
+      setAvailableSubjects([]);
+    }
+  };
+
+  const handleChange = (field, value) => {
+    setAssignment(prev => ({
+      ...prev,
+      [field]: value
+    }));
+
+    // Reload subjects if department/year/semester changes
+    if (['department', 'year', 'semester'].includes(field)) {
+      const newAssignment = { ...assignment, [field]: value };
+      if (newAssignment.department && newAssignment.year && newAssignment.semester) {
+        loadSubjectsForAssignment(newAssignment);
+      }
+    }
+  };
+
+  const handleSubjectToggle = (subject) => {
+    const subjectName = subject.fullName || `${subject.name}(${subject.code})`;
+    setAssignment(prev => ({
+      ...prev,
+      subjects: prev.subjects.includes(subjectName)
+        ? prev.subjects.filter(s => s !== subjectName)
+        : [...prev.subjects, subjectName]
+    }));
+  };
+
+  const getAvailableYears = () => {
+    if (!assignment.department) return [];
+    const deptDetails = academicDetails.filter(detail => detail.department === assignment.department);
+    return [...new Set(deptDetails.map(detail => detail.year))].sort((a, b) => a - b);
+  };
+
+  const getAvailableSemesters = () => {
+    if (!assignment.department || !assignment.year) return [];
+    const deptDetails = academicDetails.filter(detail =>
+      detail.department === assignment.department && detail.year === parseInt(assignment.year)
+    );
+    return [...new Set(deptDetails.map(detail => detail.semester))].sort((a, b) => a - b);
+  };
+
+  const getAvailableSections = () => {
+    if (!assignment.department || !assignment.year || !assignment.semester) return [];
+    const detail = academicDetails.find(detail =>
+      detail.department === assignment.department &&
+      detail.year === parseInt(assignment.year) &&
+      detail.semester === parseInt(assignment.semester)
+    );
+    return detail?.sections ? detail.sections.split(',').map(s => s.trim()) : [];
+  };
+
+  const handleSave = () => {
+    onUpdate(assignment);
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle>Edit Assignment</DialogTitle>
+      <DialogContent>
+        <Grid container spacing={2} sx={{ mt: 1 }}>
+          <Grid item xs={12} sm={6}>
+            <FormControl fullWidth>
+              <InputLabel>Department</InputLabel>
+              <Select
+                value={assignment.department}
+                onChange={(e) => handleChange('department', e.target.value)}
+              >
+                {departments.map(dept => (
+                  <MenuItem key={dept._id} value={dept.name}>
+                    {dept.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+
+          <Grid item xs={12} sm={6}>
+            <FormControl fullWidth>
+              <InputLabel>Year</InputLabel>
+              <Select
+                value={assignment.year}
+                onChange={(e) => handleChange('year', e.target.value)}
+                disabled={!assignment.department}
+              >
+                {getAvailableYears().map(year => (
+                  <MenuItem key={year} value={year.toString()}>
+                    Year {year}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+
+          <Grid item xs={12} sm={6}>
+            <FormControl fullWidth>
+              <InputLabel>Semester</InputLabel>
+              <Select
+                value={assignment.semester}
+                onChange={(e) => handleChange('semester', e.target.value)}
+                disabled={!assignment.year}
+              >
+                {getAvailableSemesters().map(semester => (
+                  <MenuItem key={semester} value={semester.toString()}>
+                    Semester {semester}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+
+          <Grid item xs={12} sm={6}>
+            <FormControl fullWidth>
+              <InputLabel>Sections</InputLabel>
+              <Select
+                multiple
+                value={assignment.sections}
+                onChange={(e) => handleChange('sections', e.target.value)}
+                disabled={!assignment.semester}
+                renderValue={(selected) => (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {selected.map((value) => (
+                      <Chip key={value} label={value} size="small" />
+                    ))}
+                  </Box>
+                )}
+              >
+                {getAvailableSections().map(section => (
+                  <MenuItem key={section} value={section}>
+                    Section {section}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+
+          <Grid item xs={12}>
+            <Typography variant="subtitle2" gutterBottom>
+              Subjects
+            </Typography>
+            {availableSubjects.length > 0 ? (
+              <Grid container spacing={1}>
+                {availableSubjects.map((subject, index) => (
+                  <Grid item xs={12} sm={6} md={4} key={index}>
+                    <Button
+                      fullWidth
+                      size="small"
+                      variant={assignment.subjects.includes(subject.fullName || `${subject.name}(${subject.code})`) ? "contained" : "outlined"}
+                      onClick={() => handleSubjectToggle(subject)}
+                      sx={{
+                        textAlign: 'left',
+                        justifyContent: 'flex-start',
+                        textTransform: 'none',
+                        fontSize: '0.75rem'
+                      }}
+                    >
+                      {subject.name}
+                      {subject.code && (
+                        <Typography variant="caption" sx={{ ml: 1, opacity: 0.7 }}>
+                          ({subject.code})
+                        </Typography>
+                      )}
+                    </Button>
+                  </Grid>
+                ))}
+              </Grid>
+            ) : (
+              <Typography variant="body2" color="textSecondary">
+                No subjects available for this semester
+              </Typography>
+            )}
+          </Grid>
+        </Grid>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={handleSave} variant="contained">
+          Save Changes
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+export default FacultyAccounts;

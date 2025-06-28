@@ -113,13 +113,19 @@ const QuizBasicDetails = ({
 
   // Auto-select department for faculty
   useEffect(() => {
+    console.log('🔍 Auto-select department effect');
+    console.log('User:', user);
+    console.log('User assignments:', user?.assignments);
+    console.log('Academic structure:', academicStructure);
+
     if (
-      academicStructure && 
-      user?.assignments?.length === 1 && 
+      academicStructure &&
+      user?.assignments?.length === 1 &&
       !filters.department
     ) {
       const assignment = user.assignments[0];
       const dept = assignment.department;
+      console.log('Auto-selecting department:', dept);
       if (academicStructure[dept]?.hasAccess) {
         setFilters(prev => ({
           ...prev,
@@ -171,7 +177,7 @@ const QuizBasicDetails = ({
     }
   }, [filters.department, filters.year, filters.semester, setBasicDetails, setFilters, academicStructure]);
 
-  // Update subjects from academic structure
+  // Update subjects from academic structure with faculty filtering
   useEffect(() => {
     if (!filters.department || !filters.year || !filters.semester || !academicStructure) {
       setSubjects([]);
@@ -181,7 +187,45 @@ const QuizBasicDetails = ({
     try {
       const semesterData = academicStructure[filters.department]?.years[filters.year]?.semesters[filters.semester];
       if (semesterData?.subjects && Array.isArray(semesterData.subjects)) {
-        setSubjects(semesterData.subjects);
+        let availableSubjects = semesterData.subjects;
+
+        // For faculty users, filter subjects based on their assignments
+        if (user?.role === 'faculty' && user?.assignments) {
+          console.log('🔍 Filtering subjects for faculty');
+          console.log('Current filters:', filters);
+
+          // Find the faculty assignment that matches current selection
+          const matchingAssignment = user.assignments.find(assignment => {
+            const deptMatch = assignment.department === filters.department;
+            const yearMatch = assignment.year === filters.year || assignment.year === String(filters.year);
+            const semesterMatch = assignment.semester === filters.semester || assignment.semester === String(filters.semester);
+            console.log(`Assignment check: dept=${deptMatch}, year=${yearMatch}, semester=${semesterMatch}`, assignment);
+            return deptMatch && yearMatch && semesterMatch;
+          });
+
+          console.log('Matching assignment for subjects:', matchingAssignment);
+
+          if (matchingAssignment && matchingAssignment.subjects && matchingAssignment.subjects.length > 0) {
+            // Filter subjects to only show those assigned to this faculty
+            availableSubjects = semesterData.subjects.filter(subject => {
+              // Check if the subject is in the faculty's assigned subjects
+              // Match by full name (e.g., "Programming Fundamentals(CS101)")
+              return matchingAssignment.subjects.some(assignedSubject => {
+                // Try exact match first
+                if (assignedSubject === `${subject.name}(${subject.code})`) {
+                  return true;
+                }
+                // Also try matching just the subject name or code
+                return assignedSubject.includes(subject.name) || assignedSubject.includes(subject.code);
+              });
+            });
+          } else {
+            // If no subjects assigned to faculty for this semester, show empty list
+            availableSubjects = [];
+          }
+        }
+
+        setSubjects(availableSubjects);
       } else {
         setSubjects([]);
       }
@@ -189,7 +233,7 @@ const QuizBasicDetails = ({
       console.error('Error getting subjects:', error);
       setSubjects([]);
     }
-  }, [filters.department, filters.year, filters.semester, academicStructure]);
+  }, [filters.department, filters.year, filters.semester, academicStructure, user?.assignments]);
 
   const getAvailableYears = () => {
     if (!academicStructure || !filters.department) return [];
@@ -198,10 +242,25 @@ const QuizBasicDetails = ({
 
     let availableYears = Object.keys(deptData.years).map(Number).sort((a, b) => a - b);
 
-    // For faculty users, filter years based on their permissions
-    if (user?.role === 'faculty' && user?.years) {
-      const facultyYears = user.years.map(year => parseInt(year));
+    // For faculty users, filter years based on their assignments
+    if (user?.role === 'faculty' && user?.assignments) {
+      console.log('🔍 Filtering years for faculty');
+      console.log('Department:', filters.department);
+      console.log('User assignments:', user.assignments);
+
+      const facultyYears = user.assignments
+        .filter(assignment => {
+          const match = assignment.department === filters.department;
+          console.log(`Assignment dept match: ${match}`, assignment);
+          return match;
+        })
+        .map(assignment => parseInt(assignment.year));
+
+      console.log('Faculty years:', facultyYears);
+      console.log('Available years before filter:', availableYears);
+
       availableYears = availableYears.filter(year => facultyYears.includes(year));
+      console.log('Available years after filter:', availableYears);
     }
 
     return availableYears;
@@ -214,10 +273,26 @@ const QuizBasicDetails = ({
 
     let availableSemesters = Object.keys(yearData.semesters).map(Number).sort((a, b) => a - b);
 
-    // For faculty users, filter semesters based on their permissions
-    if (user?.role === 'faculty' && user?.semesters) {
-      const facultySemesters = user.semesters.map(semester => parseInt(semester));
+    // For faculty users, filter semesters based on their assignments
+    if (user?.role === 'faculty' && user?.assignments) {
+      console.log('🔍 Filtering semesters for faculty');
+      console.log('Current filters:', filters);
+      console.log('User assignments:', user.assignments);
+
+      const facultySemesters = user.assignments
+        .filter(assignment => {
+          const deptMatch = assignment.department === filters.department;
+          const yearMatch = assignment.year === filters.year || assignment.year === String(filters.year);
+          console.log(`Assignment check: dept=${deptMatch}, year=${yearMatch}`, assignment);
+          return deptMatch && yearMatch;
+        })
+        .map(assignment => parseInt(assignment.semester));
+
+      console.log('Faculty semesters:', facultySemesters);
+      console.log('Available semesters before filter:', availableSemesters);
+
       availableSemesters = availableSemesters.filter(semester => facultySemesters.includes(semester));
+      console.log('Available semesters after filter:', availableSemesters);
     }
 
     return availableSemesters;
@@ -228,9 +303,32 @@ const QuizBasicDetails = ({
     const semesterData = academicStructure[filters.department]?.years[filters.year]?.semesters[filters.semester];
     let availableSections = semesterData?.sections || [];
 
-    // For faculty users, filter sections based on their permissions
-    if (user?.role === 'faculty' && user?.sections) {
-      availableSections = availableSections.filter(section => user.sections.includes(section));
+    // For faculty users, filter sections based on their assignments
+    if (user?.role === 'faculty' && user?.assignments) {
+      console.log('🔍 Filtering sections for faculty');
+      console.log('Current filters:', filters);
+
+      // Find the faculty assignment that matches current selection
+      const matchingAssignment = user.assignments.find(assignment => {
+        const deptMatch = assignment.department === filters.department;
+        const yearMatch = assignment.year === filters.year || assignment.year === String(filters.year);
+        const semesterMatch = assignment.semester === filters.semester || assignment.semester === String(filters.semester);
+        console.log(`Assignment check: dept=${deptMatch}, year=${yearMatch}, semester=${semesterMatch}`, assignment);
+        return deptMatch && yearMatch && semesterMatch;
+      });
+
+      console.log('Matching assignment:', matchingAssignment);
+
+      if (matchingAssignment && matchingAssignment.sections) {
+        availableSections = availableSections.filter(section =>
+          matchingAssignment.sections.includes(section)
+        );
+        console.log('Filtered sections:', availableSections);
+      } else {
+        // If no assignment found for this combination, show no sections
+        availableSections = [];
+        console.log('No matching assignment found, showing no sections');
+      }
     }
 
     return availableSections;
@@ -320,9 +418,9 @@ const QuizBasicDetails = ({
           >
             {academicStructure && Object.keys(academicStructure)
               .filter(dept => {
-                // For faculty users, only show departments they have access to
+                // For faculty users, only show departments they have assignments in
                 if (user?.role === 'faculty') {
-                  return user?.departments?.includes(dept);
+                  return user?.assignments?.some(assignment => assignment.department === dept);
                 }
                 // For admin users, show all departments
                 return true;
@@ -408,13 +506,28 @@ const QuizBasicDetails = ({
             onChange={handleBasicDetailsChange}
             disabled={!filters.semester || loading}
           >
-            {subjects.map(subject => (
-              <MenuItem key={subject._id || subject.code} value={subject.code}>
-                {subject.name} ({subject.code})
+            {subjects.length > 0 ? (
+              subjects.map(subject => (
+                <MenuItem key={subject._id || subject.code} value={subject.code}>
+                  {subject.name} ({subject.code})
+                </MenuItem>
+              ))
+            ) : (
+              <MenuItem disabled value="">
+                {user?.role === 'faculty'
+                  ? 'No subjects assigned to you for this semester'
+                  : 'No subjects available for this semester'
+                }
               </MenuItem>
-            ))}
+            )}
           </Select>
         </FormControl>
+        {user?.role === 'faculty' && subjects.length === 0 && filters.semester && (
+          <Alert severity="info" sx={{ mt: 1 }}>
+            You don't have any subjects assigned for {filters.department} - Year {filters.year} - Semester {filters.semester}.
+            Please contact the administrator to assign subjects to your account.
+          </Alert>
+        )}
       </Grid>
 
       <Grid item xs={12} sm={6}>
@@ -454,6 +567,133 @@ const QuizBasicDetails = ({
         <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
           💡 This setting indicates whether negative marking is allowed in this quiz. Individual negative marks will be set per question.
         </Typography>
+      </Grid>
+
+      {/* Security Settings */}
+      <Grid item xs={12}>
+        <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
+          🔒 Security Settings
+        </Typography>
+
+        <FormGroup>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={basicDetails.securitySettings?.enableFullscreen || false}
+                onChange={(e) => handleBasicDetailsChange({
+                  target: {
+                    name: 'securitySettings',
+                    value: {
+                      ...basicDetails.securitySettings,
+                      enableFullscreen: e.target.checked
+                    }
+                  }
+                })}
+                name="enableFullscreen"
+              />
+            }
+            label="Enable Fullscreen Mode"
+          />
+          <Typography variant="caption" color="text.secondary">
+            Forces quiz to open in fullscreen mode and prevents exiting
+          </Typography>
+        </FormGroup>
+
+        <FormGroup>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={basicDetails.securitySettings?.disableRightClick || false}
+                onChange={(e) => handleBasicDetailsChange({
+                  target: {
+                    name: 'securitySettings',
+                    value: {
+                      ...basicDetails.securitySettings,
+                      disableRightClick: e.target.checked
+                    }
+                  }
+                })}
+                name="disableRightClick"
+              />
+            }
+            label="Disable Right Click"
+          />
+          <Typography variant="caption" color="text.secondary">
+            Prevents right-click context menu during quiz
+          </Typography>
+        </FormGroup>
+
+        <FormGroup>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={basicDetails.securitySettings?.disableCopyPaste || false}
+                onChange={(e) => handleBasicDetailsChange({
+                  target: {
+                    name: 'securitySettings',
+                    value: {
+                      ...basicDetails.securitySettings,
+                      disableCopyPaste: e.target.checked
+                    }
+                  }
+                })}
+                name="disableCopyPaste"
+              />
+            }
+            label="Disable Copy/Paste"
+          />
+          <Typography variant="caption" color="text.secondary">
+            Prevents copying and pasting during quiz
+          </Typography>
+        </FormGroup>
+
+        <FormGroup>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={basicDetails.securitySettings?.disableTabSwitch || false}
+                onChange={(e) => handleBasicDetailsChange({
+                  target: {
+                    name: 'securitySettings',
+                    value: {
+                      ...basicDetails.securitySettings,
+                      disableTabSwitch: e.target.checked
+                    }
+                  }
+                })}
+                name="disableTabSwitch"
+              />
+            }
+            label="Disable Tab Switching"
+          />
+          <Typography variant="caption" color="text.secondary">
+            Warns when user tries to switch tabs or windows
+          </Typography>
+        </FormGroup>
+
+        <FormGroup>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={basicDetails.securitySettings?.enableProctoringMode || false}
+                onChange={(e) => handleBasicDetailsChange({
+                  target: {
+                    name: 'securitySettings',
+                    value: {
+                      ...basicDetails.securitySettings,
+                      enableProctoringMode: e.target.checked
+                    }
+                  }
+                })}
+                name="enableProctoringMode"
+              />
+            }
+            label="Enable Proctoring Mode"
+          />
+          <Typography variant="caption" color="text.secondary">
+            Enables all security features and monitors user activity
+          </Typography>
+        </FormGroup>
       </Grid>
 
       <Grid item xs={12} sm={6}>

@@ -28,15 +28,8 @@ const eventQuizAccountSchema = new mongoose.Schema({
     type: String,
     required: function() {
       return this.eventType === 'department';
-    },
-    enum: [
-      'Computer Science and Engineering',
-      'Electronics and Communication Engineering',
-      'Electrical and Electronics Engineering',
-      'Mechanical Engineering',
-      'Civil Engineering',
-      'Information Technology'
-    ]
+    }
+    // Removed enum to allow dynamic departments from academic details
   },
   originalPassword: {
     type: String,

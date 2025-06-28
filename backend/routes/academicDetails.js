@@ -213,6 +213,27 @@ router.get('/event-structure', async (req, res) => {
   }
 });
 
+// Get available semesters for a year-department combination
+router.get('/semesters/:departmentId/:year', async (req, res) => {
+  try {
+    const { departmentId, year } = req.params;
+    
+    // Find all academic details for this department and year
+    const academicDetails = await AcademicDetail.find({
+      department: departmentId,
+      year: parseInt(year)
+    });
+    
+    // Extract unique semesters
+    const semesters = [...new Set(academicDetails.map(detail => detail.semester))].sort();
+    
+    res.json({ semesters });
+  } catch (error) {
+    console.error('Error fetching semesters:', error);
+    res.status(500).json({ message: 'Failed to fetch semesters' });
+  }
+});
+
 // Protected routes - Require authentication and admin role
 
 // Create or update academic details
@@ -226,14 +247,6 @@ router.post('/', auth, authorize('admin'), async (req, res) => {
     if (!department || !year || !semester || !sections) {
       return res.status(400).json({
         message: 'Department, year, semester, and sections are required'
-      });
-    }
-
-    // Validate year-semester relationship
-    const isValidCombination = await validateYearSemester(year, semester, department);
-    if (!isValidCombination) {
-      return res.status(400).json({
-        message: 'Invalid year-semester combination. This combination is not configured in academic details.'
       });
     }
 
@@ -277,14 +290,6 @@ router.post('/', auth, authorize('admin'), async (req, res) => {
 router.put('/:id', auth, authorize('admin'), async (req, res) => {
   try {
     const { department, year, semester, sections, subjects, credits } = req.body;
-
-    // Validate year-semester relationship
-    const isValidCombination = await validateYearSemester(year, semester, department);
-    if (!isValidCombination) {
-      return res.status(400).json({
-        message: 'Invalid year-semester combination. This combination is not configured in academic details.'
-      });
-    }
 
     // Validate sections format if provided
     if (sections) {
@@ -336,12 +341,6 @@ router.post('/upload', auth, authorize('admin'), upload.single('file'), async (r
       try {
         const year = parseInt(row.Year);
         const semester = parseInt(row.Semester);
-
-        // Validate year-semester relationship
-        const isValidCombination = await validateYearSemester(year, semester, row.Department);
-        if (!isValidCombination) {
-          throw new Error(`Invalid year-semester combination for ${row.Department} Year ${year} Semester ${semester}`);
-        }
 
         // Create or update academic detail
         const academicDetail = await AcademicDetail.findOneAndUpdate(

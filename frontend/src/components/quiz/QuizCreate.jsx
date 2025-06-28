@@ -62,7 +62,14 @@ const QuizCreate = () => {
     endTime: '',
     allowedGroups: [],
     questionDisplayMode: 'oneByOne',
-    negativeMarkingEnabled: false
+    negativeMarkingEnabled: false,
+    securitySettings: {
+      enableFullscreen: false,
+      disableRightClick: false,
+      disableCopyPaste: false,
+      disableTabSwitch: false,
+      enableProctoringMode: false
+    }
   });
 
   // Questions state for manual quiz creation
@@ -184,11 +191,20 @@ const QuizCreate = () => {
           question: q.question.trim(),
           options: q.options.map(opt => opt.trim()),
           correctAnswer: parseInt(q.correctAnswer),
-          marks: parseInt(q.marks)
+          marks: parseInt(q.marks),
+          negativeMarks: basicDetails.negativeMarkingEnabled ? (parseInt(q.negativeMarks) || 0) : 0
         })),
         totalMarks,
         type: 'academic',
-        questionDisplayMode: basicDetails.questionDisplayMode || 'oneByOne'
+        questionDisplayMode: basicDetails.questionDisplayMode || 'oneByOne',
+        negativeMarkingEnabled: basicDetails.negativeMarkingEnabled || false,
+        securitySettings: basicDetails.securitySettings || {
+          enableFullscreen: false,
+          disableRightClick: false,
+          disableCopyPaste: false,
+          disableTabSwitch: false,
+          enableProctoringMode: false
+        }
       };
   
       // Check network connectivity

@@ -33,7 +33,14 @@ import {
   Select,
   Stack,
   Tooltip,
-  Grid as MuiGrid
+  Grid as MuiGrid,
+  Switch,
+  FormControlLabel,
+  FormGroup,
+  Divider,
+  Card,
+  CardContent,
+  CardHeader
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -89,6 +96,7 @@ const CollegeSettings = () => {
   
   // New state for dialogs
   const [errorDialog, setErrorDialog] = useState({ open: false, message: '' });
+  const [successDialog, setSuccessDialog] = useState({ open: false, message: '' });
   const [confirmDialog, setConfirmDialog] = useState({ open: false, message: '', onConfirm: null });
 
   const [academicDetails, setAcademicDetails] = useState([]);
@@ -97,6 +105,7 @@ const CollegeSettings = () => {
   const [uploadDeptSuccess, setUploadDeptSuccess] = useState('');
   
   const [openYearSemDialog, setOpenYearSemDialog] = useState(false);
+  const [editingYearSem, setEditingYearSem] = useState(false);
   const [yearSemFormData, setYearSemFormData] = useState({
     year: 1,
     semesters: [1, 2]
@@ -105,13 +114,42 @@ const CollegeSettings = () => {
   const [openUploadDialog, setOpenUploadDialog] = useState(false);
   const [tabValue, setTabValue] = useState(0);
 
+  const [availableSemesters, setAvailableSemesters] = useState([]);
+
+  // Quiz Settings state
+  const [quizSettings, setQuizSettings] = useState({
+    adminOverride: {
+      enabled: false,
+      password: 'admin123',
+      triggerButtons: {
+        button1: 'Ctrl',
+        button2: '6'
+      },
+      sessionTimeout: 300
+    },
+
+    violationSettings: {
+      maxViolations: 5,
+      autoTerminate: true,
+      warningThreshold: 3
+    },
+    loggingSettings: {
+      logViolations: true,
+      logAdminOverrides: true,
+      retentionDays: 30
+    }
+  });
+  const [openQuizSettingsDialog, setOpenQuizSettingsDialog] = useState(false);
+
   useEffect(() => {
     fetchAcademicDetails();
     fetchDepartments();
+    fetchQuizSettings();
   }, []);
 
   const fetchAcademicDetails = async () => {
     try {
+      console.log('=== FETCHING ACADEMIC DETAILS ===');
       const response = await api.get('/api/academic-details');
       console.log('Raw academic details API response:', response);
       console.log('Response type:', typeof response);
@@ -119,6 +157,7 @@ const CollegeSettings = () => {
       // The data is directly in the response object
       let academicData = Array.isArray(response) ? response : [];
       console.log('Processed academic details:', academicData);
+      console.log('Number of academic details:', academicData.length);
 
       // Set the academic details state
       setAcademicDetails(academicData);
@@ -253,55 +292,101 @@ const CollegeSettings = () => {
   const handleSectionSubmit = async (e) => {
     e.preventDefault();
     try {
-      // Validate required fields
-      if (!sectionFormData.department || !sectionFormData.year || !sectionFormData.semester) {
-        showError('Please fill in all required fields');
+      console.log('=== SECTION SUBMIT START ===');
+      console.log('Form data:', sectionFormData);
+      console.log('Section input:', sectionInput);
+      console.log('Available semesters:', availableSemesters);
+
+      // Enhanced validation with detailed error messages
+      if (!sectionFormData.department) {
+        console.log('Validation failed: missing department');
+        showError('Please select a department');
         return;
       }
 
-      // Find existing academic detail
-      const existingDetail = academicDetails.find(detail => 
-        detail.department === sectionFormData.department &&
-        detail.year === Number(sectionFormData.year) &&
-        detail.semester === Number(sectionFormData.semester)
-      );
-
-      const payload = {
-        department: sectionFormData.department,
-        year: Number(sectionFormData.year),
-        semester: Number(sectionFormData.semester),
-        sections: sectionFormData.names.join(','),
-        subjects: existingDetail?.subjects || '',
-        credits: existingDetail?.credits || 3
-      };
-
-      let response;
-      if (existingDetail) {
-        // Update existing academic detail
-        response = await api.put(`/api/academic-details/${existingDetail._id}`, payload);
-        console.log('Section update response:', response);
-      } else {
-        // Create new academic detail
-        response = await api.post('/api/academic-details', payload);
-        console.log('Section creation response:', response);
+      if (!sectionFormData.year) {
+        console.log('Validation failed: missing year');
+        showError('Please select a year');
+        return;
       }
 
-      // Refresh the data
+      if (!sectionFormData.semester) {
+        console.log('Validation failed: missing semester');
+        showError('Please select a semester');
+        return;
+      }
+
+      if (sectionFormData.names.length === 0) {
+        console.log('Validation failed: no sections provided');
+        showError('Please add at least one section');
+        return;
+      }
+
+      // Validate section format
+      const invalidSections = sectionFormData.names.filter(section => !/^[A-Z]$/.test(section));
+      if (invalidSections.length > 0) {
+        console.log('Validation failed: invalid section format:', invalidSections);
+        showError(`Invalid section format: ${invalidSections.join(', ')}. Sections must be single uppercase letters (A, B, C, etc.)`);
+        return;
+      }
+
+      const academicDetailData = {
+        department: sectionFormData.department,
+        year: sectionFormData.year,
+        semester: sectionFormData.semester,
+        sections: sectionFormData.names.join(','),
+        subjects: '',
+        credits: 3
+      };
+
+      console.log('Submitting academic detail:', academicDetailData);
+
+      let response;
+      if (selectedSection) {
+        // Update existing academic detail
+        console.log('Updating existing academic detail with ID:', selectedSection._id);
+        response = await api.put(`/api/academic-details/${selectedSection._id}`, academicDetailData);
+        console.log('Academic detail updated successfully:', response);
+      } else {
+        // Create new academic detail
+        console.log('Creating new academic detail');
+        response = await api.post('/api/academic-details', academicDetailData);
+        console.log('Academic detail created successfully:', response);
+      }
+
+      // Refresh data
       await fetchAcademicDetails();
-      
-      // Close dialog and reset form
-      setOpenSectionDialog(false);
+      // Reset form
       setSectionFormData({
         names: [],
         department: '',
         year: 1,
         semester: 1
       });
+      setSectionInput('');
       setSelectedSection(null);
-      
+      setOpenSectionDialog(false);
+
+      console.log('=== SECTION SUBMIT COMPLETE ===');
     } catch (error) {
-      console.error('Error saving sections:', error);
-      showError(error.response?.data?.message || 'Error saving sections');
+      console.error('=== SECTION SUBMIT ERROR ===');
+      console.error('Full error object:', error);
+      console.error('Error response:', error.response);
+      console.error('Error response data:', error.response?.data);
+      console.error('Error message:', error.message);
+
+      let errorMessage = 'Failed to save academic details';
+
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      console.error('Showing error to user:', errorMessage);
+      showError(errorMessage);
     }
   };
 
@@ -312,13 +397,19 @@ const CollegeSettings = () => {
         return;
       }
 
+      // Use sectionFormData for department, year, semester since that's where the main form data is stored
+      if (!sectionFormData.department || !sectionFormData.year || !sectionFormData.semester) {
+        showError('Please select a valid department, year, and semester first');
+        return;
+      }
+
       const newSubject = `${subjectFormData.name.trim()}(${subjectFormData.code.trim()})`;
-      
-      // Find existing academic detail
-      const existingDetail = academicDetails.find(detail => 
-        detail.department === subjectFormData.department &&
-        detail.year === Number(subjectFormData.year) &&
-        detail.semester === Number(subjectFormData.semester)
+
+      // Find existing academic detail using sectionFormData
+      const existingDetail = academicDetails.find(detail =>
+        detail.department === sectionFormData.department &&
+        detail.year === Number(sectionFormData.year) &&
+        detail.semester === Number(sectionFormData.semester)
       );
 
       if (!existingDetail) {
@@ -368,13 +459,13 @@ const CollegeSettings = () => {
 
       if (response) {
         await fetchAcademicDetails();
-        setOpenSubjectDialog(false);
+        // Reset only the subject name and code, keep department/year/semester for next subject
         setSubjectFormData({
           name: '',
           code: '',
-          department: '',
-          year: '',
-          semester: '',
+          department: sectionFormData.department,
+          year: sectionFormData.year,
+          semester: sectionFormData.semester,
           credits: '',
           description: ''
         });
@@ -549,22 +640,63 @@ const CollegeSettings = () => {
     setErrorDialog({ open: true, message });
   };
 
+  // Function to show success dialog
+  const showSuccess = (message) => {
+    setSuccessDialog({ open: true, message });
+  };
+
   // Function to show confirmation dialog
   const showConfirmation = (message, onConfirm) => {
     setConfirmDialog({ open: true, message, onConfirm });
   };
 
+  // Function to get available semesters for a department and year
   const getAvailableSemesters = (department, year) => {
     if (!department || !year) return [];
-    
-    // Get all semesters configured for this department and year
-    const semesters = academicDetails
-      .filter(detail => detail.department === department && detail.year === Number(year))
-      .map(detail => detail.semester)
-      .sort((a, b) => a - b);
-    
-    return semesters;
+
+    // Get semesters from the year/semester configuration (first table)
+    // This gets all semesters configured for the specified year across all departments
+    const yearConfigs = academicDetails.reduce((acc, detail) => {
+      if (!detail) return acc;
+      const detailYear = detail.year;
+      if (!acc[detailYear]) {
+        acc[detailYear] = new Set();
+      }
+      acc[detailYear].add(detail.semester);
+      return acc;
+    }, {});
+
+    // Get semesters for the selected year
+    const availableSemesters = yearConfigs[Number(year)] ?
+      Array.from(yearConfigs[Number(year)]).sort((a, b) => a - b) : [];
+
+    return availableSemesters;
   };
+
+  // Update semester options when year or department changes
+  useEffect(() => {
+    if (sectionFormData.department && sectionFormData.year) {
+      const semesters = getAvailableSemesters(sectionFormData.department, sectionFormData.year);
+      setAvailableSemesters(semesters);
+
+      // If current semester is not in available semesters, reset it
+      if (sectionFormData.semester && !semesters.includes(sectionFormData.semester)) {
+        setSectionFormData({
+          ...sectionFormData,
+          semester: ''
+        });
+        setSubjectFormData({
+          ...subjectFormData,
+          semester: ''
+        });
+      }
+    } else {
+      setAvailableSemesters([]);
+    }
+  }, [sectionFormData.department, sectionFormData.year, academicDetails]);
+
+  // Note: Removed automatic synchronization useEffect to prevent circular updates
+  // sectionInput and sectionFormData.names are now managed independently
 
   // Function to download department template
   const downloadDeptTemplate = () => {
@@ -634,6 +766,7 @@ const CollegeSettings = () => {
       if (response) {
         await fetchAcademicDetails();
         setOpenYearSemDialog(false);
+        setEditingYearSem(false);
         setYearSemFormData({
           year: 1,
           semesters: [1, 2]
@@ -650,19 +783,76 @@ const CollegeSettings = () => {
       `Are you sure you want to delete all Year ${year} configurations? This will remove Year ${year} from all departments and cannot be undone.`,
       async () => {
         try {
-          // Delete all academic details for the given year across all departments
-          const detailsToDelete = academicDetails.filter(detail => detail.year === year);
+          console.log(`Deleting year ${year} configuration`);
 
-          await Promise.all(
-            detailsToDelete.map(detail =>
-              api.delete(`/api/academic-details/${detail._id}`)
-            )
-          );
+          // Use the admin endpoint to delete all academic details for the given year
+          const response = await api.delete(`/api/admin/academic-details/year/${year}`);
+
+          console.log('Delete response:', response);
 
           await fetchAcademicDetails();
+          showSuccess(`Year ${year} configuration deleted successfully`);
         } catch (error) {
           console.error('Error deleting year/semester configuration:', error);
-          showError('Error deleting year/semester configuration');
+          showError(error.response?.data?.message || 'Error deleting year/semester configuration');
+        }
+      }
+    );
+  };
+
+
+
+  const handleDeleteSemester = async (year, semester) => {
+    showConfirmation(
+      `Are you sure you want to delete Semester ${semester} from Year ${year}? This will remove this semester from all departments and cannot be undone.`,
+      async () => {
+        try {
+          console.log(`🗑️ Deleting semester ${semester} from year ${year}`);
+
+          // Get all academic details for this year and semester
+          const detailsToDelete = academicDetails.filter(detail =>
+            detail.year === year && detail.semester === semester
+          );
+
+          console.log(`📋 Found ${detailsToDelete.length} academic details to delete`);
+
+          if (detailsToDelete.length === 0) {
+            showError('No academic details found for this semester');
+            return;
+          }
+
+          // Delete each academic detail individually
+          let successCount = 0;
+          let errorCount = 0;
+
+          for (const detail of detailsToDelete) {
+            try {
+              console.log(`🗑️ Deleting academic detail: ${detail.department} Y${detail.year} S${detail.semester}`);
+              await api.delete(`/api/academic-details/${detail._id}`);
+              successCount++;
+              console.log(`✅ Successfully deleted: ${detail.department} Y${detail.year} S${detail.semester}`);
+            } catch (deleteError) {
+              console.error(`❌ Failed to delete: ${detail.department} Y${detail.year} S${detail.semester}`, deleteError);
+              errorCount++;
+            }
+          }
+
+          console.log(`📊 Deletion summary: ${successCount} successful, ${errorCount} failed`);
+
+          // Refresh the data
+          await fetchAcademicDetails();
+
+          if (errorCount === 0) {
+            showSuccess(`Semester ${semester} removed from Year ${year} successfully`);
+          } else if (successCount > 0) {
+            showSuccess(`Partially successful: ${successCount} deleted, ${errorCount} failed`);
+          } else {
+            showError('Failed to delete semester configuration');
+          }
+
+        } catch (error) {
+          console.error('❌ Error in handleDeleteSemester:', error);
+          showError('Error deleting semester configuration');
         }
       }
     );
@@ -705,6 +895,112 @@ const CollegeSettings = () => {
     }
   };
 
+  // Quiz Settings Functions
+  const fetchQuizSettings = async () => {
+    try {
+      console.log('=== FETCHING QUIZ SETTINGS ===');
+      const response = await api.get('/api/admin/quiz-settings');
+      console.log('Quiz settings response:', response);
+
+      if (response) {
+        // Clean up any legacy defaultSecuritySettings that might still exist in database
+        const cleanedSettings = { ...response };
+        delete cleanedSettings.defaultSecuritySettings;
+
+        // Ensure only allowed settings remain
+        const allowedSettings = {
+          adminOverride: cleanedSettings.adminOverride || {
+            enabled: false,
+            password: 'admin123',
+            triggerButtons: { button1: 'Ctrl', button2: '6' },
+            sessionTimeout: 300
+          },
+          violationSettings: cleanedSettings.violationSettings || {
+            maxViolations: 5,
+            autoTerminate: true,
+            warningThreshold: 3
+          },
+          loggingSettings: cleanedSettings.loggingSettings || {
+            logViolations: true,
+            logAdminOverrides: true,
+            retentionDays: 30
+          }
+        };
+
+        console.log('Cleaned quiz settings (removed defaultSecuritySettings):', allowedSettings);
+        setQuizSettings(allowedSettings);
+      }
+    } catch (error) {
+      console.error('Error fetching quiz settings:', error);
+      showError('Error fetching quiz settings: ' + (error.response?.data?.message || error.message));
+    }
+  };
+
+  const handleQuizSettingsSubmit = async () => {
+    try {
+      console.log('=== UPDATING QUIZ SETTINGS ===');
+      console.log('Quiz settings data:', quizSettings);
+
+      // Ensure trigger buttons are properly set
+      const settingsToSend = {
+        ...quizSettings,
+        adminOverride: {
+          ...quizSettings.adminOverride,
+          triggerButtons: {
+            button1: quizSettings.adminOverride?.triggerButtons?.button1 || 'Ctrl',
+            button2: quizSettings.adminOverride?.triggerButtons?.button2 || '6'
+          }
+        }
+      };
+
+      console.log('Settings to send:', settingsToSend);
+
+      const response = await api.put('/api/admin/quiz-settings', settingsToSend);
+      console.log('Update response:', response);
+
+      showSuccess('Quiz settings updated successfully');
+      setOpenQuizSettingsDialog(false);
+      await fetchQuizSettings(); // Refresh data
+    } catch (error) {
+      console.error('Error updating quiz settings:', error);
+      showError('Error updating quiz settings: ' + (error.response?.data?.message || error.message));
+    }
+  };
+
+  const handleQuizSettingsChange = (section, field, value) => {
+    setQuizSettings(prev => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        [field]: value
+      }
+    }));
+  };
+
+  const handleNestedQuizSettingsChange = (section, subsection, field, value) => {
+    setQuizSettings(prev => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        [subsection]: {
+          ...prev[section][subsection],
+          [field]: value
+        }
+      }
+    }));
+  };
+
+  // Simpler handler for direct field updates
+  const handleDirectQuizSettingsChange = (section, field, value) => {
+    setQuizSettings(prev => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        [field]: value
+      }
+    }));
+  };
+
   return (
     <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
       <Typography variant="h4" gutterBottom>
@@ -719,6 +1015,7 @@ const CollegeSettings = () => {
         >
           <Tab label="Academic Configuration" />
           <Tab label="College Information" />
+          <Tab label="Quiz Settings" />
         </Tabs>
       </Paper>
 
@@ -737,6 +1034,7 @@ const CollegeSettings = () => {
                     year: 1,
                     semesters: [1, 2]
                   });
+                  setEditingYearSem(false);
                   setOpenYearSemDialog(true);
                 }}
               >
@@ -773,14 +1071,32 @@ const CollegeSettings = () => {
                         <TableRow key={year}>
                           <TableCell>Year {year}</TableCell>
                           <TableCell>
-                            {Array.from(semesters).sort((a, b) => a - b).map((sem) => (
-                              <Chip
-                                key={sem}
-                                label={`Semester ${sem}`}
-                                size="small"
-                                sx={{ mr: 1 }}
-                              />
-                            ))}
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                              {Array.from(semesters).sort((a, b) => a - b).map((sem) => (
+                                <Box key={sem} sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+                                  <Chip
+                                    label={`Semester ${sem}`}
+                                    size="small"
+                                    color="secondary"
+                                    variant="outlined"
+                                  />
+                                  <IconButton
+                                    size="small"
+                                    onClick={() => handleDeleteSemester(Number(year), sem)}
+                                    sx={{
+                                      p: 0.25,
+                                      '&:hover': {
+                                        backgroundColor: 'error.light',
+                                        color: 'error.contrastText'
+                                      }
+                                    }}
+                                    title={`Remove Semester ${sem} from Year ${year}`}
+                                  >
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
+                              ))}
+                            </Box>
                           </TableCell>
                           <TableCell>
                             <Box sx={{ display: 'flex', gap: 1 }}>
@@ -791,8 +1107,10 @@ const CollegeSettings = () => {
                                     year: Number(year),
                                     semesters: Array.from(semesters)
                                   });
+                                  setEditingYearSem(true);
                                   setOpenYearSemDialog(true);
                                 }}
+                                title="Edit year configuration"
                               >
                                 <EditIcon />
                               </IconButton>
@@ -1003,9 +1321,9 @@ const CollegeSettings = () => {
                   label="Filter by Semester"
                 >
                   <MenuItem value="">All Semesters</MenuItem>
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
-                    <MenuItem key={sem} value={sem}>
-                      Semester {sem}
+                  {Array.from(new Set(academicDetails.map(detail => detail.semester))).sort((a, b) => a - b).map((semester) => (
+                    <MenuItem key={semester} value={semester}>
+                      Semester {semester}
                     </MenuItem>
                   ))}
                 </Select>
@@ -1090,13 +1408,15 @@ const CollegeSettings = () => {
                                   color="primary"
                                   variant="outlined"
                                   onClick={() => {
+                                    const sectionNames = detail.sections ? detail.sections.split(',').map(s => s.trim()) : [];
                                     setSelectedSection(detail);
                                     setSectionFormData({
-                                      names: detail.sections ? detail.sections.split(',').map(s => s.trim()) : [],
+                                      names: sectionNames,
                                       department: detail.department,
                                       year: detail.year,
                                       semester: detail.semester
                                     });
+                                    setSectionInput(sectionNames.join(', '));
                                     setSubjectFormData({
                                       name: '',
                                       code: '',
@@ -1135,13 +1455,15 @@ const CollegeSettings = () => {
                                   color="primary"
                                   variant="outlined"
                                   onClick={() => {
+                                    const sectionNames = detail.sections ? detail.sections.split(',').map(s => s.trim()) : [];
                                     setSelectedSection(detail);
                                     setSectionFormData({
-                                      names: detail.sections ? detail.sections.split(',').map(s => s.trim()) : [],
+                                      names: sectionNames,
                                       department: detail.department,
                                       year: detail.year,
                                       semester: detail.semester
                                     });
+                                    setSectionInput(sectionNames.join(', '));
                                     setUploadMode(false);
                                     setOpenSectionDialog(true);
                                   }}
@@ -1154,13 +1476,15 @@ const CollegeSettings = () => {
                               <IconButton
                                 size="small"
                                 onClick={() => {
+                                  const sectionNames = detail.sections ? detail.sections.split(',').map(s => s.trim()) : [];
                                   setSelectedSection(detail);
                                   setSectionFormData({
-                                    names: detail.sections ? detail.sections.split(',').map(s => s.trim()) : [],
+                                    names: sectionNames,
                                     department: detail.department,
                                     year: detail.year,
                                     semester: detail.semester
                                   });
+                                  setSectionInput(sectionNames.join(', '));
                                   setUploadMode(false);
                                   setOpenSectionDialog(true);
                                 }}
@@ -1194,12 +1518,15 @@ const CollegeSettings = () => {
         {/* Year/Semester Configuration Dialog */}
         <Dialog
           open={openYearSemDialog}
-          onClose={() => setOpenYearSemDialog(false)}
+          onClose={() => {
+            setOpenYearSemDialog(false);
+            setEditingYearSem(false);
+          }}
           maxWidth="sm"
           fullWidth
         >
           <DialogTitle>
-            Add Year Configuration
+            {editingYearSem ? 'Edit Year Configuration' : 'Add Year Configuration'}
           </DialogTitle>
           <DialogContent>
             <Box sx={{ mt: 2 }}>
@@ -1236,13 +1563,33 @@ const CollegeSettings = () => {
                         semesters: newSemesters
                       });
                     }}
+                    onDelete={yearSemFormData.semesters.includes(sem) ? () => {
+                      const newSemesters = yearSemFormData.semesters.filter(s => s !== sem);
+                      setYearSemFormData({
+                        ...yearSemFormData,
+                        semesters: newSemesters
+                      });
+                    } : undefined}
+                    sx={{ cursor: 'pointer' }}
                   />
                 ))}
               </Box>
+
+              {/* Show selected semesters summary */}
+              {yearSemFormData.semesters.length > 0 && (
+                <Box sx={{ mt: 2, p: 1, bgcolor: 'primary.light', borderRadius: 1 }}>
+                  <Typography variant="body2" color="primary.contrastText">
+                    Selected: {yearSemFormData.semesters.sort((a, b) => a - b).map(s => `Semester ${s}`).join(', ')}
+                  </Typography>
+                </Box>
+              )}
             </Box>
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setOpenYearSemDialog(false)}>
+            <Button onClick={() => {
+              setOpenYearSemDialog(false);
+              setEditingYearSem(false);
+            }}>
               Cancel
             </Button>
             <Button
@@ -1250,7 +1597,7 @@ const CollegeSettings = () => {
               onClick={handleYearSemSubmit}
               disabled={!yearSemFormData.year || yearSemFormData.semesters.length === 0}
             >
-              Add Configuration
+              {editingYearSem ? 'Update Configuration' : 'Add Configuration'}
             </Button>
           </DialogActions>
         </Dialog>
@@ -1507,6 +1854,8 @@ const CollegeSettings = () => {
                   <Select
                     value={sectionFormData.department}
                     onChange={(e) => {
+                      console.log('Department changed to:', e.target.value);
+                      console.log('Available departments:', departments);
                       setSectionFormData({
                         ...sectionFormData,
                         department: e.target.value,
@@ -1537,6 +1886,8 @@ const CollegeSettings = () => {
                   <Select
                     value={sectionFormData.year}
                     onChange={(e) => {
+                      console.log('Year changed to:', e.target.value);
+                      console.log('Current department:', sectionFormData.department);
                       setSectionFormData({
                         ...sectionFormData,
                         year: Number(e.target.value),
@@ -1564,12 +1915,11 @@ const CollegeSettings = () => {
                 <FormControl fullWidth margin="normal">
                   <InputLabel>Semester</InputLabel>
                   <Select
-                    value={sectionFormData.semester}
+                    value={sectionFormData.semester || ''}
                     onChange={(e) => {
-                      setSectionFormData({
-                        ...sectionFormData,
-                        semester: Number(e.target.value),
-                        names: []
+                      setSectionFormData({ 
+                        ...sectionFormData, 
+                        semester: Number(e.target.value) 
                       });
                       setSubjectFormData({
                         ...subjectFormData,
@@ -1577,14 +1927,13 @@ const CollegeSettings = () => {
                       });
                     }}
                     label="Semester"
-                    disabled={!sectionFormData.year}
+                    disabled={!sectionFormData.department || !sectionFormData.year}
                   >
-                    {getAvailableSemesters(sectionFormData.department, sectionFormData.year)
-                      .map((sem) => (
-                        <MenuItem key={sem} value={sem}>
-                          Semester {sem}
-                        </MenuItem>
-                      ))}
+                    {availableSemesters.map((semester) => (
+                      <MenuItem key={semester} value={semester}>
+                        Semester {semester}
+                      </MenuItem>
+                    ))}
                   </Select>
                 </FormControl>
 
@@ -1598,21 +1947,40 @@ const CollegeSettings = () => {
                     label="Enter Sections (comma-separated)"
                     value={sectionInput}
                     onChange={(e) => {
-                      const input = e.target.value.toUpperCase();
+                      const input = e.target.value;
                       setSectionInput(input);
-                      
+
                       // Convert input to array of sections
-                      const sections = input
-                        .split(/[,\s]+/) // Split by comma or whitespace
-                        .map(s => s.trim())
-                        .filter(s => s && /^[A-Z]$/.test(s)); // Only keep valid sections
-                      
+                      let sections = [];
+
+                      if (input.trim()) {
+                        // Split by comma, semicolon, or space and process each part
+                        const rawSections = input
+                          .split(/[,;\s]+/)
+                          .map(s => s.trim().toUpperCase())
+                          .filter(s => s.length > 0);
+
+                        // Filter to keep only valid single letter sections
+                        sections = rawSections
+                          .filter(s => s.length === 1 && /^[A-Z]$/.test(s))
+                          .filter((section, index, arr) => arr.indexOf(section) === index); // Remove duplicates
+                      }
+
+                      console.log('🔍 Section input processing:', {
+                        originalInput: input,
+                        trimmedInput: input.trim(),
+                        rawSplit: input.split(/[,;\s]+/),
+                        afterTrimAndUpper: input.split(/[,;\s]+/).map(s => s.trim().toUpperCase()),
+                        validSections: sections,
+                        sectionCount: sections.length
+                      });
+
                       setSectionFormData({
                         ...sectionFormData,
                         names: sections
                       });
                     }}
-                    helperText="Enter sections as single uppercase letters separated by commas (e.g., A, B, C)"
+                    helperText="Enter sections as single letters separated by commas, spaces, or semicolons (e.g., A,B,C or A B C or A; B; C)"
                     disabled={!sectionFormData.department || !sectionFormData.year || !sectionFormData.semester}
                   />
                   {sectionFormData.names.length > 0 && (
@@ -1633,6 +2001,47 @@ const CollegeSettings = () => {
                       ))}
                     </Box>
                   )}
+
+                  {/* Display Already Added Sections for Current Department/Year/Semester */}
+                  {(() => {
+                    const currentDetail = academicDetails.find(detail =>
+                      detail.department === sectionFormData.department &&
+                      detail.year === sectionFormData.year &&
+                      detail.semester === sectionFormData.semester
+                    );
+
+                    const existingSections = currentDetail?.sections ?
+                      currentDetail.sections.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+                    return existingSections.length > 0 && (
+                      <Box sx={{ mt: 2 }}>
+                        <Typography variant="subtitle2" gutterBottom color="text.secondary">
+                          Already Added Sections for {sectionFormData.department} - Year {sectionFormData.year} - Semester {sectionFormData.semester}:
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                          {existingSections.map((section, index) => (
+                            <Chip
+                              key={index}
+                              label={section}
+                              size="small"
+                              sx={{
+                                backgroundColor: '#1976d2',
+                                color: '#ffffff',
+                                fontWeight: 'bold',
+                                border: '1px solid #1976d2',
+                                '&:hover': {
+                                  backgroundColor: '#1565c0'
+                                },
+                                '& .MuiChip-label': {
+                                  color: '#ffffff'
+                                }
+                              }}
+                            />
+                          ))}
+                        </Box>
+                      </Box>
+                    );
+                  })()}
                 </Box>
 
                 {/* Subject Input */}
@@ -1723,6 +2132,62 @@ const CollegeSettings = () => {
                         </Button>
                       </MuiGrid>
                     </MuiGrid>
+
+                    {/* Display Already Added Subjects */}
+                    {(() => {
+                      const currentDetail = academicDetails.find(detail =>
+                        detail.department === sectionFormData.department &&
+                        detail.year === sectionFormData.year &&
+                        detail.semester === sectionFormData.semester
+                      );
+
+                      const currentSubjects = currentDetail?.subjects ?
+                        currentDetail.subjects.split(',').filter(s => s.trim()) : [];
+
+                      return currentSubjects.length > 0 && (
+                        <Box sx={{ mt: 3 }}>
+                          <Typography variant="subtitle1" gutterBottom>
+                            Already Added Subjects
+                          </Typography>
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                            {currentSubjects.map((subject, index) => {
+                              const match = subject.trim().match(/^(.+)\(([A-Z]{2}\d{3})\)$/);
+                              const subjectName = match ? match[1] : subject.trim();
+                              const subjectCode = match ? match[2] : '';
+
+                              return (
+                                <Chip
+                                  key={index}
+                                  label={`${subjectName} (${subjectCode})`}
+                                  variant="outlined"
+                                  color="primary"
+                                  onDelete={() => {
+                                    showConfirmation(
+                                      `Are you sure you want to delete subject "${subjectName}"?`,
+                                      () => handleDeleteSubject(currentDetail, index)
+                                    );
+                                  }}
+                                  onClick={() => {
+                                    if (match) {
+                                      setSubjectFormData({
+                                        name: match[1].trim(),
+                                        code: match[2],
+                                        department: sectionFormData.department,
+                                        year: sectionFormData.year,
+                                        semester: sectionFormData.semester,
+                                        credits: currentDetail.credits || 3
+                                      });
+                                      setSelectedSubject(subject.trim());
+                                    }
+                                  }}
+                                  sx={{ cursor: 'pointer' }}
+                                />
+                              );
+                            })}
+                          </Box>
+                        </Box>
+                      );
+                    })()}
                   </Box>
                 )}
               </Box>
@@ -1851,7 +2316,7 @@ const CollegeSettings = () => {
                   } else {
                     await api.post('/api/subject', subjectFormData);
                   }
-                  fetchSubjects();
+                  await fetchAcademicDetails();
                   setOpenSubjectDialog(false);
                   setSubjectFormData({
                     code: '',
@@ -1893,6 +2358,22 @@ const CollegeSettings = () => {
           </DialogActions>
         </Dialog>
 
+        {/* Success Dialog */}
+        <Dialog
+          open={successDialog.open}
+          onClose={() => setSuccessDialog({ ...successDialog, open: false })}
+        >
+          <DialogTitle sx={{ color: 'success.main' }}>Success</DialogTitle>
+          <DialogContent>
+            <Typography>{successDialog.message}</Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setSuccessDialog({ ...successDialog, open: false })} color="primary">
+              OK
+            </Button>
+          </DialogActions>
+        </Dialog>
+
         {/* Confirmation Dialog */}
         <Dialog
           open={confirmDialog.open}
@@ -1924,6 +2405,234 @@ const CollegeSettings = () => {
       {tabValue === 1 && (
         <CollegeInformation />
       )}
+
+      {tabValue === 2 && (
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <Paper sx={{ p: 3 }}>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+                <Typography variant="h6">Quiz Security Settings</Typography>
+                <Button
+                  variant="contained"
+                  startIcon={<EditIcon />}
+                  onClick={() => setOpenQuizSettingsDialog(true)}
+                >
+                  Edit Settings
+                </Button>
+              </Box>
+
+              <Grid container spacing={3}>
+                {/* Admin Override Settings */}
+                <Grid item xs={12} md={6}>
+                  <Card>
+                    <CardHeader
+                      title="🔧 Admin Override"
+                      subheader="Administrative emergency access system"
+                    />
+                    <CardContent>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Status: {quizSettings.adminOverride?.enabled ?
+                          <Chip label="Enabled" color="warning" size="small" /> :
+                          <Chip label="Disabled" color="default" size="small" />
+                        }
+                      </Typography>
+                      {quizSettings.adminOverride?.enabled && (
+                        <>
+                          <Typography variant="body2" sx={{ mt: 1 }}>
+                            <strong>Trigger Keys:</strong> {quizSettings.adminOverride.triggerButtons?.button1} + {quizSettings.adminOverride.triggerButtons?.button2}
+                          </Typography>
+                          <Typography variant="body2">
+                            <strong>Session Timeout:</strong> {quizSettings.adminOverride?.sessionTimeout} seconds
+                          </Typography>
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+
+
+                {/* Violation Settings */}
+                <Grid item xs={12} md={6}>
+                  <Card>
+                    <CardHeader
+                      title="⚠️ Violation Management"
+                      subheader="Configure violation limits and responses"
+                    />
+                    <CardContent>
+                      <Typography variant="body2">
+                        <strong>Max Violations:</strong> {quizSettings.violationSettings?.maxViolations}
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Warning Threshold:</strong> {quizSettings.violationSettings?.warningThreshold}
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Auto Terminate:</strong> {quizSettings.violationSettings?.autoTerminate ? '✅ Yes' : '❌ No'}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+
+                {/* Logging Settings */}
+                <Grid item xs={12} md={6}>
+                  <Card>
+                    <CardHeader
+                      title="📊 Logging Settings"
+                      subheader="Configure security event logging"
+                    />
+                    <CardContent>
+                      <Typography variant="body2">
+                        <strong>Log Violations:</strong> {quizSettings.loggingSettings?.logViolations ? '✅ Yes' : '❌ No'}
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Log Admin Overrides:</strong> {quizSettings.loggingSettings?.logAdminOverrides ? '✅ Yes' : '❌ No'}
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Retention Period:</strong> {quizSettings.loggingSettings?.retentionDays} days
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
+            </Paper>
+          </Grid>
+        </Grid>
+      )}
+
+      {/* Quiz Settings Edit Dialog */}
+      <Dialog
+        open={openQuizSettingsDialog}
+        onClose={() => setOpenQuizSettingsDialog(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Edit Quiz Security Settings</DialogTitle>
+        <DialogContent>
+          {/* Debug: Log current quiz settings */}
+          {console.log('🔍 Current quiz settings in dialog:', quizSettings)}
+          <Grid container spacing={3} sx={{ mt: 1 }}>
+            {/* Admin Override Settings */}
+            <Grid item xs={12}>
+              <Typography variant="h6" gutterBottom>🔧 Admin Override Settings</Typography>
+              <FormGroup>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={quizSettings.adminOverride?.enabled || false}
+                      onChange={(e) => handleDirectQuizSettingsChange('adminOverride', 'enabled', e.target.checked)}
+                    />
+                  }
+                  label="Enable Admin Override System"
+                />
+              </FormGroup>
+
+              {quizSettings.adminOverride?.enabled && (
+                <Grid container spacing={2} sx={{ mt: 1 }}>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Admin Override Password"
+                      type="password"
+                      value={quizSettings.adminOverride?.password || ''}
+                      onChange={(e) => handleDirectQuizSettingsChange('adminOverride', 'password', e.target.value)}
+                      helperText="Password for administrative emergency access"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Session Timeout (seconds)"
+                      type="number"
+                      value={quizSettings.adminOverride?.sessionTimeout || 300}
+                      onChange={(e) => handleDirectQuizSettingsChange('adminOverride', 'sessionTimeout', parseInt(e.target.value))}
+                      helperText="How long override lasts"
+                      inputProps={{ min: 60, max: 1800 }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <FormControl fullWidth>
+                      <InputLabel>First Trigger Key</InputLabel>
+                      <Select
+                        value={quizSettings.adminOverride?.triggerButtons?.button1 || 'Ctrl'}
+                        onChange={(e) => handleNestedQuizSettingsChange('adminOverride', 'triggerButtons', 'button1', e.target.value)}
+                        label="First Trigger Key"
+                      >
+                        {['Ctrl', 'Alt', 'Shift', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map(key => (
+                          <MenuItem key={key} value={key}>{key}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <FormControl fullWidth>
+                      <InputLabel>Second Trigger Key</InputLabel>
+                      <Select
+                        value={quizSettings.adminOverride?.triggerButtons?.button2 || '6'}
+                        onChange={(e) => handleNestedQuizSettingsChange('adminOverride', 'triggerButtons', 'button2', e.target.value)}
+                        label="Second Trigger Key"
+                      >
+                        {['Ctrl', 'Alt', 'Shift', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map(key => (
+                          <MenuItem key={key} value={key}>{key}</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                </Grid>
+              )}
+            </Grid>
+
+            <Grid item xs={12}>
+              <Divider />
+            </Grid>
+
+
+
+            {/* Violation Settings */}
+            <Grid item xs={12}>
+              <Typography variant="h6" gutterBottom>⚠️ Violation Management</Typography>
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={4}>
+                  <TextField
+                    fullWidth
+                    label="Maximum Violations"
+                    type="number"
+                    value={quizSettings.violationSettings?.maxViolations || 5}
+                    onChange={(e) => handleDirectQuizSettingsChange('violationSettings', 'maxViolations', parseInt(e.target.value))}
+                    inputProps={{ min: 1, max: 20 }}
+                    helperText="Quiz terminates after this many violations"
+                  />
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <TextField
+                    fullWidth
+                    label="Warning Threshold"
+                    type="number"
+                    value={quizSettings.violationSettings?.warningThreshold || 3}
+                    onChange={(e) => handleDirectQuizSettingsChange('violationSettings', 'warningThreshold', parseInt(e.target.value))}
+                    inputProps={{ min: 1, max: 10 }}
+                    helperText="Show final warning after this many violations"
+                  />
+                </Grid>
+                <Grid item xs={12} sm={4}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={quizSettings.violationSettings?.autoTerminate || false}
+                        onChange={(e) => handleDirectQuizSettingsChange('violationSettings', 'autoTerminate', e.target.checked)}
+                      />
+                    }
+                    label="Auto-terminate Quiz"
+                  />
+                </Grid>
+              </Grid>
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenQuizSettingsDialog(false)}>Cancel</Button>
+          <Button onClick={handleQuizSettingsSubmit} variant="contained">Save Settings</Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };
