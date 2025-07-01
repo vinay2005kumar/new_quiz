@@ -24,10 +24,13 @@ import {
   OutlinedInput,
   Chip,
   Switch,
-  FormGroup
+  FormGroup,
+  Tooltip
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
+import CodeIcon from '@mui/icons-material/Code';
+import FormatIndentIncreaseIcon from '@mui/icons-material/FormatIndentIncrease';
 import SaveIcon from '@mui/icons-material/Save';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import api from '../../config/axios';
@@ -36,6 +39,149 @@ import { useAuth } from '../../context/AuthContext';
 const SECTIONS = ['A', 'B', 'C', 'D', 'E'];
 const YEARS = [1, 2, 3, 4];
 const SEMESTERS = ['1', '2'];
+
+// Universal Indentation Restoration Function (SAME AS MANUAL FORM)
+const restoreIndentationForAllLanguages = (questionText) => {
+  if (!questionText || typeof questionText !== 'string') return questionText;
+
+  const lines = questionText.split('\n');
+  const restoredLines = [];
+  let currentIndentLevel = 0;
+  let insideBraces = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+
+    if (!line) {
+      restoredLines.push('');
+      continue;
+    }
+
+    // PYTHON - Function/class definitions stay at base level
+    if (line.match(/^(def|class)\s+\w+/)) {
+      currentIndentLevel = 0;
+      restoredLines.push(line);
+      if (line.endsWith(':')) {
+        currentIndentLevel = 1;
+      }
+      continue;
+    }
+
+    // PYTHON - Control structures inside functions
+    if (line.match(/^(if|elif|else|for|while|try|except|finally|with)\s/)) {
+      const indent = '    '.repeat(currentIndentLevel);
+      restoredLines.push(indent + line);
+      if (line.endsWith(':')) {
+        currentIndentLevel++;
+      }
+      continue;
+    }
+
+    // PYTHON - Return statements (always inside functions)
+    if (line.match(/^(return|break|continue|pass|raise)\s/)) {
+      const indent = '    '.repeat(Math.max(currentIndentLevel, 1));
+      restoredLines.push(indent + line);
+      continue;
+    }
+
+    // PYTHON - Print statements - check if they're at base level or inside function
+    if (line.match(/^print\s*\(/)) {
+      const nextLine = i + 1 < lines.length ? lines[i + 1].trim() : '';
+      if (!nextLine || nextLine.match(/^[A-D]\)/)) {
+        restoredLines.push(line);
+        currentIndentLevel = 0;
+      } else {
+        const indent = '    '.repeat(Math.max(currentIndentLevel, 1));
+        restoredLines.push(indent + line);
+      }
+      continue;
+    }
+
+    // PYTHON - Import statements (always at base level)
+    if (line.match(/^(import|from)\s/)) {
+      restoredLines.push(line);
+      currentIndentLevel = 0;
+      continue;
+    }
+
+    // PYTHON - Variable assignments and function calls
+    if (line.match(/^[a-zA-Z_][a-zA-Z0-9_]*\s*[=+\-*\/]/) ||
+        line.match(/^[a-zA-Z_][a-zA-Z0-9_]*\(/)) {
+      if (currentIndentLevel > 0) {
+        const indent = '    '.repeat(currentIndentLevel);
+        restoredLines.push(indent + line);
+      } else {
+        restoredLines.push(line);
+      }
+      continue;
+    }
+
+    // C/C++/JAVA/JAVASCRIPT - Function definitions and control structures
+    if (line.match(/^(public|private|protected|static|void|int|float|double|char|string|bool|function|var|let|const)\s/) ||
+        line.match(/^(if|else|for|while|do|switch|case|default|try|catch|finally)\s*\(/) ||
+        line.match(/^\w+\s+\w+\s*\(/)) {
+      const indent = '    '.repeat(currentIndentLevel);
+      restoredLines.push(indent + line);
+      if (line.includes('{')) {
+        currentIndentLevel++;
+        insideBraces++;
+      }
+      continue;
+    }
+
+    // Handle closing braces
+    if (line.includes('}')) {
+      currentIndentLevel = Math.max(0, currentIndentLevel - 1);
+      insideBraces = Math.max(0, insideBraces - 1);
+      const indent = '    '.repeat(currentIndentLevel);
+      restoredLines.push(indent + line);
+      continue;
+    }
+
+    // Handle opening braces on separate lines
+    if (line === '{') {
+      const indent = '    '.repeat(currentIndentLevel);
+      restoredLines.push(indent + line);
+      currentIndentLevel++;
+      insideBraces++;
+      continue;
+    }
+
+    // C/C++/JAVA/JAVASCRIPT - Regular statements inside blocks
+    if (line.match(/.*;$/) || line.match(/^\/\//)) {
+      const indent = '    '.repeat(Math.max(currentIndentLevel, insideBraces > 0 ? 1 : 0));
+      restoredLines.push(indent + line);
+      continue;
+    }
+
+    // HTML/XML - Tags
+    if (line.match(/^<\w+/) || line.match(/^<\/\w+/)) {
+      const indent = '    '.repeat(currentIndentLevel);
+      restoredLines.push(indent + line);
+      continue;
+    }
+
+    // Default: apply current indentation if we're inside any block
+    if (currentIndentLevel > 0 || insideBraces > 0) {
+      const indent = '    '.repeat(Math.max(currentIndentLevel, insideBraces > 0 ? 1 : 0));
+      restoredLines.push(indent + line);
+    } else {
+      restoredLines.push(line);
+    }
+  }
+
+  return restoredLines.join('\n');
+};
+
+// Function to detect if text needs format preservation
+const needsFormatPreservation = (text) => {
+  if (!text) return false;
+  return text.includes('def ') || text.includes('if ') || text.includes('for ') ||
+         text.includes('while ') || text.includes('class ') || text.includes('function ') ||
+         text.includes('{') || text.includes('}') || text.includes('<') || text.includes('>') ||
+         text.includes('    ') || text.includes('\t') || text.includes('print(') ||
+         text.includes('import ') || text.includes('from ') || text.includes('return ');
+};
 
 const QuizEdit = () => {
   const { id } = useParams();
@@ -904,11 +1050,38 @@ const QuizEdit = () => {
                       Question {questionIndex + 1} ({question.marks || 1} marks{quiz.negativeMarkingEnabled && question.negativeMarks > 0 ? ` | -${question.negativeMarks} for wrong` : ''})
                     </Typography>
 
-                    {/* Question Text with UNIVERSAL Formatting Preservation */}
+                    {/* Enhanced Question Input with Smart Indentation */}
                     <Box sx={{ mb: 2 }}>
-                      <Typography variant="body2" color="text.secondary" gutterBottom>
-                        Question Text (all formatting preserved):
-                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                        <Typography variant="body2" color="text.secondary">
+                          Question Text (with smart indentation support):
+                        </Typography>
+                        {needsFormatPreservation(question.question) && (
+                          <>
+                            <Chip
+                              icon={<CodeIcon />}
+                              label="Code Detected"
+                              size="small"
+                              color="primary"
+                              variant="outlined"
+                            />
+                            <Tooltip title="Apply smart indentation for programming code">
+                              <Button
+                                size="small"
+                                startIcon={<FormatIndentIncreaseIcon />}
+                                onClick={() => {
+                                  const formattedText = restoreIndentationForAllLanguages(question.question);
+                                  handleQuestionChange(questionIndex, 'question', formattedText);
+                                }}
+                                variant="outlined"
+                                color="secondary"
+                              >
+                                Fix Indentation
+                              </Button>
+                            </Tooltip>
+                          </>
+                        )}
+                      </Box>
 
                       {/* Display formatted question text for easy reading */}
                       <Box sx={{
@@ -917,15 +1090,20 @@ const QuizEdit = () => {
                         bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
                         borderRadius: 1,
                         border: '1px solid',
-                        borderColor: 'divider',
+                        borderColor: needsFormatPreservation(question.question) ? 'primary.main' : 'divider',
                         fontFamily: 'monospace',
                         fontSize: '0.9rem',
                         lineHeight: 1.5,
-                        whiteSpace: 'pre-wrap', // ALWAYS preserve all formatting
+                        whiteSpace: 'pre-wrap',
                         overflow: 'auto',
                         maxHeight: '300px',
                         overflowY: 'auto'
                       }}>
+                        {needsFormatPreservation(question.question) && (
+                          <Typography variant="caption" color="primary.main" sx={{ display: 'block', mb: 1 }}>
+                            ✓ Programming Code Preview:
+                          </Typography>
+                        )}
                         {question.question || 'Enter your question below...'}
                       </Box>
 
@@ -936,15 +1114,20 @@ const QuizEdit = () => {
                         value={question.question}
                         onChange={(e) => handleQuestionChange(questionIndex, 'question', e.target.value)}
                         multiline
-                        rows={6}
+                        rows={needsFormatPreservation(question.question) ? 8 : 6}
                         sx={{
                           '& .MuiInputBase-input': {
-                            fontFamily: 'monospace',
-                            fontSize: '0.9rem',
+                            fontFamily: needsFormatPreservation(question.question) ? 'monospace' : 'inherit',
+                            fontSize: needsFormatPreservation(question.question) ? '0.9rem' : 'inherit',
                             lineHeight: 1.5,
-                            whiteSpace: 'pre-wrap' // ALWAYS preserve formatting
+                            whiteSpace: 'pre-wrap'
                           }
                         }}
+                        helperText={
+                          needsFormatPreservation(question.question)
+                            ? "Programming code detected. Use 'Fix Indentation' to apply smart formatting."
+                            : "Enter your question text. Programming code will be automatically detected."
+                        }
                       />
                     </Box>
                   </Box>

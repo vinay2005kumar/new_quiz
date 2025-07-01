@@ -107,9 +107,29 @@ const ImageQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate }) =>
   return (
     <Box sx={{ mt: 2 }}>
       <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>
-          Image Upload Instructions
+        <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', fontWeight: 'bold' }}>
+          📸 Image Upload Instructions
         </Typography>
+
+        {/* Quick Answer to Common Question */}
+        <Box sx={{
+          p: 2,
+          mb: 3,
+          bgcolor: 'primary.light',
+          borderRadius: 1,
+          border: '2px solid',
+          borderColor: 'primary.main'
+        }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: 'primary.contrastText', mb: 1 }}>
+            ❓ Can questions be positioned anywhere in the image?
+          </Typography>
+          <Typography variant="body2" sx={{ color: 'primary.contrastText' }}>
+            <strong>✅ YES!</strong> Questions can be positioned anywhere - left side, center, right side, or even at an angle.
+            The OCR technology will automatically detect and extract text from any position in your image.
+            Just ensure the text is clear and readable!
+          </Typography>
+        </Box>
+
         <Typography variant="body2" paragraph>
           1. Take clear photos of your quiz questions
         </Typography>
@@ -117,27 +137,24 @@ const ImageQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate }) =>
           2. Each image should contain one complete question with options
         </Typography>
         <Typography variant="body2" paragraph>
-          3. Ensure text is clearly visible and properly aligned
+          3. Position text anywhere in the image - OCR will find it automatically
         </Typography>
 
         <Box sx={{ mb: 3 }}>
           <Typography variant="subtitle1" gutterBottom>
-            Image Requirements:
+            Quick Requirements:
           </Typography>
           <Typography variant="body2" component="div">
             <ul>
-              <li>Supported formats: JPG, PNG</li>
-              <li>Maximum size: 5MB per image</li>
-              <li>Clear, well-lit photos</li>
-              <li>Text should be clearly readable</li>
-              <li>No blurry or skewed images</li>
-              <li><strong>For Programming Questions:</strong> Write code with clear indentation</li>
-              <li><strong>Code Support:</strong> Python, Java, C/C++, HTML, CSS, JavaScript, SQL, etc.</li>
+              <li>JPG/PNG files, max 5MB each</li>
+              <li>Clear, readable text</li>
+              <li>Position anywhere in image</li>
+              <li>Include negative marking: [Negative: X]</li>
             </ul>
           </Typography>
         </Box>
 
-        {/* Example Section */}
+        {/* Example Section - Left Aligned Layout */}
         <Box sx={{
           my: 2,
           p: 2,
@@ -146,33 +163,56 @@ const ImageQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate }) =>
           border: (theme) => `1px solid ${theme.palette.divider}`
         }}>
           <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>
-            📷 Image Format Example:
+            📷 Image Format Examples:
           </Typography>
-          <Box sx={{
-            p: 2,
-            bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'white',
-            borderRadius: 1,
-            fontFamily: 'monospace',
-            fontSize: '0.875rem',
-            lineHeight: 1.6,
-            whiteSpace: 'pre-line',
-            border: '1px solid #ddd',
-            textAlign: 'center'
-          }}>
-{`📄 Example Question Image Content:
 
-Q1. What is the capital of France? (1 marks) [Negative: 1]
+          {/* Two Column Layout */}
+          <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', md: 'row' } }}>
+
+            {/* Left Column - Regular Question */}
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                📄 Regular Question Format:
+              </Typography>
+              <Box sx={{
+                p: 2,
+                mt: 1,
+                bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'white',
+                borderRadius: 1,
+                fontFamily: 'monospace',
+                fontSize: '0.8rem',
+                lineHeight: 1.5,
+                whiteSpace: 'pre-wrap',  // Changed to preserve indentation
+                border: '1px solid #ddd',
+                textAlign: 'left'
+              }}>
+{`Q1. What is the capital of France? (1 marks) [Negative: 0.25]
 
 A) Paris*
 B) London
 C) Berlin
-D) Madrid
+D) Madrid`}
+              </Box>
+            </Box>
 
----
-
-📄 Programming Question Example:
-
-Q2. What is the output of this Python code? (2 marks)
+            {/* Right Column - Programming Question */}
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="caption" sx={{ fontWeight: 'bold', color: 'secondary.main' }}>
+                💻 Programming Question Format:
+              </Typography>
+              <Box sx={{
+                p: 2,
+                mt: 1,
+                bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'white',
+                borderRadius: 1,
+                fontFamily: 'monospace',
+                fontSize: '0.8rem',
+                lineHeight: 1.5,
+                whiteSpace: 'pre-wrap',  // Changed to preserve indentation
+                border: '1px solid #ddd',
+                textAlign: 'left'
+              }}>
+{`Q2. What is the output? (2 marks) [Negative: 0.5]
 
 def factorial(n):
     if n <= 1:
@@ -184,24 +224,51 @@ print(factorial(4))
 A) 24*
 B) 12
 C) 16
-D) Error
-
----
-
-Each image should contain:
-• One complete question with marks: (X marks)
-• Optional negative marking: [Negative: X]
-• All four options (A, B, C, D)
-• Clear indication of correct answer with *
-• For code: Write with proper indentation - it will be preserved!
-• Good lighting and readable text`}
+D) Error`}
+              </Box>
+            </Box>
           </Box>
-          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-            💡 <strong>Tips:</strong> Take photos in good lighting. Ensure text is straight and clearly readable. Mark correct answers with asterisk (*) or highlighting. One question per image works best.
+
+          {/* Important Notes */}
+          <Box sx={{ mt: 2, p: 2, bgcolor: 'info.light', borderRadius: 1, color: 'info.contrastText' }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+              📋 Each image must contain:
+            </Typography>
+            <Box sx={{ fontSize: '0.875rem', lineHeight: 1.6 }}>
+              • Question with marks: (X marks)<br/>
+              • <strong>Negative marking: [Negative: X]</strong> - Required for proper scoring<br/>
+              • Four options (A, B, C, D)<br/>
+              • Mark correct answer with asterisk (*)
+            </Box>
+          </Box>
+        </Box>
+
+        {/* Enhanced Tips Section */}
+        <Box sx={{ mt: 2, p: 2, bgcolor: 'success.light', borderRadius: 1, color: 'success.contrastText' }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+            💡 Photography Tips:
           </Typography>
-          <Typography variant="caption" color="primary.main" sx={{ mt: 1, display: 'block', fontWeight: 'bold' }}>
-            🔥 <strong>For Programming Questions:</strong> Write code with proper indentation! The OCR will extract text and preserve formatting automatically for Python, Java, C, HTML, CSS, and more. Make sure indentation is clear and consistent.
+          <Box sx={{ fontSize: '0.875rem', lineHeight: 1.6 }}>
+            • <strong>Position:</strong> Questions can be anywhere in the image - left, center, or right side<br/>
+            • <strong>Lighting:</strong> Take photos in good lighting for clear text recognition<br/>
+            • <strong>Angle:</strong> Keep text straight and avoid tilted photos<br/>
+            • <strong>Quality:</strong> Ensure text is clearly readable and not blurry<br/>
+            • <strong>Answers:</strong> Mark correct answers with asterisk (*) or highlighting<br/>
+            • <strong>Format:</strong> One complete question per image works best
+          </Box>
+        </Box>
+
+        <Box sx={{ mt: 2, p: 2, bgcolor: 'warning.light', borderRadius: 1, color: 'warning.contrastText' }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mb: 1 }}>
+            🔥 Programming Questions:
           </Typography>
+          <Box sx={{ fontSize: '0.875rem', lineHeight: 1.6 }}>
+            • Write code with <strong>proper indentation</strong> - it will be preserved automatically<br/>
+            • Works for <strong>all languages:</strong> Python, Java, C, C++, JavaScript, HTML, CSS, SQL, etc.<br/>
+            • Make sure indentation is <strong>clear and consistent</strong><br/>
+            • Use spaces or tabs consistently throughout your code<br/>
+            • The OCR will extract and preserve your formatting exactly as written
+          </Box>
         </Box>
 
         <input

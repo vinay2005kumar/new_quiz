@@ -32,11 +32,17 @@ const ExcelQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate }) =>
     // Create template workbook
     const wb = XLSX.utils.book_new();
     
-    // Template data with example
+    // Template data with example including programming question
     const templateData = [
       ['Question', 'Option A', 'Option B', 'Option C', 'Option D', 'Correct Answer (A/B/C/D)', 'Marks', 'Negative Marks'],
       ['What is the capital of France?', 'Paris', 'London', 'Berlin', 'Madrid', 'A', '1', '1'],
       ['Which planet is known as the Red Planet?', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'B', '2', '0'],
+      [`What is the output of this Python code?
+def factorial(n):
+    if n <= 1:
+        return 1
+    return n * factorial(n-1)
+print(factorial(4))`, '24', '120', '4', '1', 'A', '3', '1'],
       ['', '', '', '', '', '', '', ''],
       ['Instructions:', '', '', '', '', '', '', ''],
       ['1. Do not modify the header row', '', '', '', '', '', '', ''],
@@ -44,10 +50,46 @@ const ExcelQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate }) =>
       ['3. Provide exactly 4 options for each question', '', '', '', '', '', '', ''],
       ['4. Specify correct answer as A, B, C, or D', '', '', '', '', '', '', ''],
       ['5. Marks should be a positive number', '', '', '', '', '', '', ''],
-      ['6. Negative Marks: 0 = no penalty, default = same as positive marks', '', '', '', '', '', '', '']
+      ['6. Negative Marks: 0 = no penalty, default = same as positive marks', '', '', '', '', '', '', ''],
+      ['7. Programming code indentation is automatically restored!', '', '', '', '', '', '', ''],
+      ['8. Just paste raw code - no need to format indentation manually', '', '', '', '', '', '', ''],
+      ['9. Supports Python, JavaScript, Java, C++, HTML, and more', '', '', '', '', '', '', ''],
+      ['10. Programming example shows properly formatted result', '', '', '', '', '', '', ''],
+      ['11. You can paste code without any indentation - system will fix it!', '', '', '', '', '', '', '']
     ];
     
     const ws = XLSX.utils.aoa_to_sheet(templateData);
+
+    // Set column widths to better display the content
+    ws['!cols'] = [
+      { wch: 50 }, // Question column - wider for code
+      { wch: 15 }, // Option A
+      { wch: 15 }, // Option B
+      { wch: 15 }, // Option C
+      { wch: 15 }, // Option D
+      { wch: 20 }, // Correct Answer
+      { wch: 10 }, // Marks
+      { wch: 15 }  // Negative Marks
+    ];
+
+    // Set text wrapping for the question column to preserve line breaks
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    for (let row = range.s.r; row <= range.e.r; row++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: row, c: 0 }); // Column A (questions)
+      if (ws[cellAddress]) {
+        ws[cellAddress].s = {
+          alignment: {
+            wrapText: true,
+            vertical: 'top'
+          },
+          font: {
+            name: 'Courier New', // Monospace font for code
+            sz: 10
+          }
+        };
+      }
+    }
+
     XLSX.utils.book_append_sheet(wb, ws, 'Quiz Questions');
     
     // Save the file
@@ -129,7 +171,10 @@ const ExcelQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate }) =>
           2. Fill in your questions following the format in the template
         </Typography>
         <Typography variant="body2" paragraph>
-          3. Upload the completed Excel file
+          3. For programming questions, just paste the code - indentation will be automatically restored
+        </Typography>
+        <Typography variant="body2" paragraph>
+          4. Upload the completed Excel file
         </Typography>
         
         <Button
@@ -151,6 +196,12 @@ const ExcelQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate }) =>
         }}>
           <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>
             📋 Excel Format Example:
+          </Typography>
+          <Typography variant="caption" color="primary.main" sx={{ display: 'block', mb: 1, fontWeight: 'bold' }}>
+            💡 The programming question below shows how your code will look AFTER automatic indentation restoration
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+            📝 Note: In the downloadable template, the code appears unformatted (as you would paste it) - the system automatically applies proper indentation during upload
           </Typography>
           <Box sx={{ overflowX: 'auto' }}>
             <table style={{
@@ -192,11 +243,38 @@ const ExcelQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate }) =>
                   <td style={{ border: '1px solid #ccc', padding: '8px' }}>2</td>
                   <td style={{ border: '1px solid #ccc', padding: '8px' }}>0</td>
                 </tr>
+                <tr style={{ backgroundColor: 'rgba(25, 118, 210, 0.08)' }}>
+                  <td style={{
+                    border: '1px solid #ccc',
+                    padding: '8px',
+                    fontFamily: 'monospace',
+                    fontSize: '0.8rem',
+                    whiteSpace: 'pre-wrap',
+                    backgroundColor: 'rgba(25, 118, 210, 0.05)'
+                  }}>
+                    {`What is the output of this Python code?
+def factorial(n):
+    if n <= 1:
+        return 1
+    return n * factorial(n-1)
+print(factorial(4))`}
+                  </td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px' }}>24</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px' }}>120</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px' }}>4</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px' }}>1</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px' }}>A</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px' }}>3</td>
+                  <td style={{ border: '1px solid #ccc', padding: '8px' }}>1</td>
+                </tr>
               </tbody>
             </table>
           </Box>
           <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
             💡 <strong>Tips:</strong> First row should contain headers. Correct Answer should be A, B, C, or D. Marks should be a positive number. Negative Marks: 0 = no penalty, default = same as positive marks.
+          </Typography>
+          <Typography variant="caption" color="primary.main" sx={{ mt: 1, display: 'block', fontWeight: 'bold' }}>
+            🚀 <strong>NEW:</strong> Programming code indentation is automatically restored! Just paste your code without worrying about formatting - the system will apply proper indentation for Python, JavaScript, Java, C++, HTML, and more.
           </Typography>
         </Box>
 

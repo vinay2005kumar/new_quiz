@@ -458,9 +458,22 @@ const QuizCreate = () => {
                   </span>
                 )})
               </Typography>
-              <Typography variant="body1" gutterBottom sx={{ fontWeight: 'medium' }}>
+              {/* Question Text with UNIVERSAL Formatting Preservation */}
+              <Box sx={{
+                p: 2,
+                mb: 2,
+                bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
+                borderRadius: 1,
+                border: '1px solid',
+                borderColor: 'divider',
+                fontFamily: 'monospace',
+                fontSize: '0.9rem',
+                lineHeight: 1.5,
+                whiteSpace: 'pre-wrap', // ALWAYS preserve all formatting
+                overflow: 'auto'
+              }}>
                 {question.question || 'No question text found'}
-              </Typography>
+              </Box>
               <Grid container spacing={2}>
                 {(question.options || []).map((option, optIndex) => (
                   <Grid item xs={12} sm={6} key={optIndex}>
