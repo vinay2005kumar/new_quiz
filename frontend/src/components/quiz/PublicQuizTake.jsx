@@ -296,9 +296,23 @@ const PublicQuizTake = () => {
             <Typography variant="h6" gutterBottom>
               Question {index + 1} ({question.marks} mark{question.marks !== 1 ? 's' : ''})
             </Typography>
-            <Typography variant="body1" paragraph>
+
+            {/* Question Text with UNIVERSAL Formatting Preservation */}
+            <Box sx={{
+              p: 2,
+              mb: 3,
+              bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
+              borderRadius: 1,
+              border: '1px solid',
+              borderColor: 'divider',
+              fontFamily: 'monospace',
+              fontSize: '0.9rem',
+              lineHeight: 1.5,
+              whiteSpace: 'pre-wrap', // ALWAYS preserve all formatting
+              overflow: 'auto'
+            }}>
               {question.question}
-            </Typography>
+            </Box>
             
             <FormControl component="fieldset">
               <RadioGroup

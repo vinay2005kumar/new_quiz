@@ -274,9 +274,24 @@ const EventQuizSubmissionView = () => {
                         <ListItem>
                           <Box sx={{ width: '100%' }}>
                             <Typography variant="subtitle1" gutterBottom>
-                              <strong>Question {index + 1}:</strong> {question.question}
-                              {' '}({question.marks || 1} marks)
+                              <strong>Question {index + 1}:</strong> ({question.marks || 1} marks)
                             </Typography>
+                            {/* Question Text with UNIVERSAL Formatting Preservation */}
+                            <Box sx={{
+                              p: 2,
+                              mb: 2,
+                              bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
+                              borderRadius: 1,
+                              border: '1px solid',
+                              borderColor: 'divider',
+                              fontFamily: 'monospace',
+                              fontSize: '0.9rem',
+                              lineHeight: 1.5,
+                              whiteSpace: 'pre-wrap', // ALWAYS preserve all formatting
+                              overflow: 'auto'
+                            }}>
+                              {question.question}
+                            </Box>
                             <RadioGroup
                               value={studentAnswer !== null ? studentAnswer : ''}
                               sx={{ ml: 2 }}

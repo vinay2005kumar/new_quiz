@@ -73,20 +73,7 @@ const UserManagement = () => {
     }
   };
 
-  const validateAdmissionNumber = async (admissionNumber, department, year, isLateral) => {
-    try {
-      const response = await api.post('/api/admin/validate-admission', {
-        admissionNumber,
-        department,
-        year,
-        isLateral
-      });
-      return response.data.isValid;
-    } catch (err) {
-      console.error('Error validating admission number:', err);
-      throw new Error(err.response?.data?.message || 'Failed to validate admission number');
-    }
-  };
+
 
   const handleOpenDialog = (user = null) => {
     if (user) {
@@ -127,21 +114,6 @@ const UserManagement = () => {
     e.preventDefault();
     try {
       setError('');
-
-      // Validate admission number against ranges if it's a student
-      if (formData.role === 'student') {
-        const isValid = await validateAdmissionNumber(
-          formData.admissionNumber,
-          formData.department,
-          formData.year,
-          formData.isLateral
-        );
-
-        if (!isValid) {
-          setError('Invalid admission number. The number is not within the allowed ranges for the selected department and year.');
-          return;
-        }
-      }
 
       if (selectedUser) {
         await api.put(`/api/admin/users/${selectedUser._id}`, formData);

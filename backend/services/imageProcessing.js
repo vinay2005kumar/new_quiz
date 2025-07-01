@@ -56,33 +56,65 @@ class ImageProcessor {
 
   parseQuizContent(text) {
     console.log('Raw text from image:', text);
-    
-    // Split text into lines and remove empty lines
-    const lines = text.split('\n').filter(line => line.trim());
+
+    // Preserve original text with indentation for code detection
+    const originalText = text;
+
+    // Split text into lines but preserve empty lines for code blocks
+    const lines = text.split('\n');
     console.log('Processed lines:', lines);
     
     let questions = [];
     let currentQuestion = null;
     let currentOptions = [];
     let currentCorrectAnswer = null;
-    
+    let isCodeBlock = false;
+    let codeLines = [];
+
+    // Helper function to detect if text needs formatting preservation (Universal)
+    const needsFormatPreservation = (text) => {
+      // Simple check: if text has intentional formatting, preserve it
+      return (
+        text.includes('\n') ||           // Multiple lines
+        /^\s{2,}/m.test(text) ||        // Lines with 2+ leading spaces (indentation)
+        /\t/.test(text) ||              // Contains tabs
+        text.split('\n').some(line =>
+          line.trim() !== line &&       // Line has leading/trailing spaces
+          line.trim().length > 0        // But is not empty
+        )
+      );
+    };
+
+    // Keep the old function name for compatibility - now uses simple formatting detection
+    const detectCodeBlock = (text) => {
+      return needsFormatPreservation(text);
+    };
+
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
-      
+      const line = lines[i];
+      const trimmedLine = line.trim();
+
+      // Skip completely empty lines
+      if (!trimmedLine) continue;
+
       // Match question pattern: starts with a number
-      if (/^\d+[\.\)]/.test(line)) {
+      if (/^\d+[\.\)]/.test(trimmedLine)) {
         // Save previous question if complete
         if (currentQuestion && currentOptions.length === 4 && currentCorrectAnswer !== null) {
+          // Check if question contains code and preserve formatting
+          const questionText = detectCodeBlock(currentQuestion) ?
+            currentQuestion : currentQuestion;
+
           questions.push({
-            question: currentQuestion,
+            question: questionText,
             options: [...currentOptions],
             correctAnswer: currentCorrectAnswer,
-            marks: 1
+            marks: 1,
+            isCodeQuestion: detectCodeBlock(currentQuestion)
           });
         }
-        
-        currentQuestion = line;
+
+        currentQuestion = trimmedLine;
         currentOptions = [];
         currentCorrectAnswer = null;
         continue;
@@ -99,19 +131,33 @@ class ImageProcessor {
       const answerMatch = line.toLowerCase().match(/correct\s*answer\s*[:\-\s]\s*([a-d])/);
       if (answerMatch) {
         currentCorrectAnswer = answerMatch[1].toUpperCase().charCodeAt(0) - 'A'.charCodeAt(0);
-        
+
         // Save question if we have all components
         if (currentQuestion && currentOptions.length === 4) {
           questions.push({
             question: currentQuestion,
             options: [...currentOptions],
             correctAnswer: currentCorrectAnswer,
-            marks: 1
+            marks: 1,
+            isCodeQuestion: detectCodeBlock(currentQuestion)
           });
-          
+
           currentQuestion = null;
           currentOptions = [];
           currentCorrectAnswer = null;
+        }
+        continue;
+      }
+
+      // If we have a current question, this might be a continuation
+      if (currentQuestion && currentOptions.length < 4) {
+        // Check if this line contains code (preserve formatting)
+        if (detectCodeBlock(line) || line.match(/^\s{2,}/)) {
+          // This looks like code - preserve original formatting with line breaks
+          currentQuestion += '\n' + line;
+        } else {
+          // Regular text continuation
+          currentQuestion += ' ' + trimmedLine;
         }
       }
     }
@@ -122,7 +168,8 @@ class ImageProcessor {
         question: currentQuestion,
         options: [...currentOptions],
         correctAnswer: currentCorrectAnswer,
-        marks: 1
+        marks: 1,
+        isCodeQuestion: detectCodeBlock(currentQuestion)
       });
     }
     

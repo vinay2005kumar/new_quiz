@@ -16,25 +16,63 @@ import AddIcon from '@mui/icons-material/Add';
 import api from '../../../config/axios';
 
 // Create a memoized Question component
-const Question = memo(({ 
-  question, 
-  questionIndex, 
-  onQuestionChange, 
-  onOptionChange, 
-  onRemove, 
-  isReview 
+const Question = memo(({
+  question,
+  questionIndex,
+  onQuestionChange,
+  onOptionChange,
+  onRemove,
+  isReview
 }) => (
   <Paper sx={{ p: 2, mb: 2 }}>
     <Grid container spacing={2}>
       <Grid item xs={11}>
-        <TextField
-          fullWidth
-          label={`Question ${questionIndex + 1}`}
-          value={question.question}
-          onChange={(e) => onQuestionChange(questionIndex, 'question', e.target.value)}
-          required
-          disabled={isReview}
-        />
+        {/* Question Text with UNIVERSAL Formatting Preservation */}
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="body2" color="text.secondary" gutterBottom>
+            Question {questionIndex + 1} (all formatting preserved):
+          </Typography>
+
+          {/* Display formatted question text for easy reading */}
+          {question.question && (
+            <Box sx={{
+              p: 2,
+              mb: 2,
+              bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
+              borderRadius: 1,
+              border: '1px solid',
+              borderColor: 'divider',
+              fontFamily: 'monospace',
+              fontSize: '0.9rem',
+              lineHeight: 1.5,
+              whiteSpace: 'pre-wrap', // ALWAYS preserve all formatting
+              overflow: 'auto',
+              maxHeight: '200px',
+              overflowY: 'auto'
+            }}>
+              {question.question}
+            </Box>
+          )}
+
+          <TextField
+            fullWidth
+            label={`Enter Question ${questionIndex + 1}`}
+            value={question.question}
+            onChange={(e) => onQuestionChange(questionIndex, 'question', e.target.value)}
+            required
+            disabled={isReview}
+            multiline
+            rows={4}
+            sx={{
+              '& .MuiInputBase-input': {
+                fontFamily: 'monospace',
+                fontSize: '0.9rem',
+                lineHeight: 1.5,
+                whiteSpace: 'pre-wrap' // ALWAYS preserve formatting
+              }
+            }}
+          />
+        </Box>
       </Grid>
       <Grid item xs={1}>
         {!isReview && (

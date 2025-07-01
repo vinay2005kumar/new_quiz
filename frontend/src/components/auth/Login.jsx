@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import { useAuth } from '../../context/AuthContext';
 import { useCollegeInfo } from '../../hooks/useCollegeInfo';
+import HomeIcon from '@mui/icons-material/Home';
 
 // Helper function to get dashboard path based on role
 const getDashboardPath = (role) => {
@@ -78,6 +79,15 @@ const Login = () => {
           alignItems: 'center',
         }}
       >
+        {/* Home Button */}
+        <Button
+          startIcon={<HomeIcon />}
+          variant="outlined"
+          sx={{ mb: 2, alignSelf: 'flex-start' }}
+          onClick={() => navigate('/')}
+        >
+          Home
+        </Button>
         <Paper elevation={3} sx={{ p: 4, width: '100%' }}>
           {/* College Header */}
           <Box sx={{ textAlign: 'center', mb: 3 }}>

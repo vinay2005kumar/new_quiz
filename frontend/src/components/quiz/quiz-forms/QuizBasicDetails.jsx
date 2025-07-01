@@ -694,6 +694,28 @@ const QuizBasicDetails = ({
             Enables all security features and monitors user activity
           </Typography>
         </FormGroup>
+
+        {/* Shuffle Questions Setting */}
+        <FormGroup sx={{ mt: 2 }}>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={basicDetails.shuffleQuestions || false}
+                onChange={(e) => handleBasicDetailsChange({
+                  target: {
+                    name: 'shuffleQuestions',
+                    value: e.target.checked
+                  }
+                })}
+                name="shuffleQuestions"
+              />
+            }
+            label="🔀 Shuffle Questions"
+          />
+          <Typography variant="caption" color="text.secondary">
+            Each student will receive questions in a different random order
+          </Typography>
+        </FormGroup>
       </Grid>
 
       <Grid item xs={12} sm={6}>

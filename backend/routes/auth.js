@@ -3,7 +3,6 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const AdmissionRange = require('../models/AdmissionRange');
 const EventQuizAccount = require('../models/EventQuizAccount');
 const { auth } = require('../middleware/auth');
 const { authorize } = require('../middleware/authorize');
@@ -22,30 +21,6 @@ router.post('/register', async (req, res) => {
     if (role === 'student') {
       if (!year || !admissionNumber || !section) {
         return res.status(400).json({ message: 'Students must provide year, section, and admission number' });
-      }
-
-      // Validate admission number against defined ranges
-      const range = await AdmissionRange.findOne({
-        department,
-        year,
-        section,
-        isActive: true
-      });
-
-      if (!range) {
-        return res.status(400).json({ message: 'No admission range defined for this department, year and section' });
-      }
-
-      const isRegular = admissionNumber.startsWith('y');
-      const entry = isRegular ? range.regularEntry : range.lateralEntry;
-      const num = parseInt(admissionNumber.slice(-3));
-      const startNum = parseInt(entry.start.slice(-3));
-      const endNum = parseInt(entry.end.slice(-3));
-
-      if (num < startNum || num > endNum) {
-        return res.status(400).json({ 
-          message: `Invalid admission number. Must be between ${entry.start} and ${entry.end}` 
-        });
       }
     }
 
@@ -533,32 +508,7 @@ router.put('/change-password', auth, async (req, res) => {
 // // Call this function when server starts
 // createAdminIfNotExists();
 
-// Get admission ranges for registration
-router.get('/admission-ranges', async (req, res) => {
-  try {
-    const { department, year, section } = req.query;
-    
-    if (!department || !year || !section) {
-      return res.status(400).json({ message: 'Department, year, and section are required' });
-    }
 
-    const range = await AdmissionRange.findOne({
-      department,
-      year,
-      section,
-      isActive: true
-    });
-
-    if (!range) {
-      return res.status(404).json({ message: 'No admission range found for the selected criteria' });
-    }
-
-    res.json(range);
-  } catch (error) {
-    console.error('Error fetching admission ranges:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
 
 // Check if admin exists
 router.get('/check-admin', async (req, res) => {

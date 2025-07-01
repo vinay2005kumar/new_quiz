@@ -591,8 +591,13 @@ router.get('/:id', auth, async (req, res) => {
       return res.status(404).json({ message: 'Quiz not found' });
     }
 
-    // For students, check if quiz is available
+    // For students, check if quiz is available or already attempted
     if (req.user.role === 'student') {
+      const hasAttempted = await QuizSubmission.findOne({
+        quiz: quiz._id,
+        student: req.user._id
+      });
+
       const isAvailable = quiz.isActive &&
         quiz.startTime <= new Date() &&
         quiz.endTime >= new Date() &&
@@ -602,8 +607,16 @@ router.get('/:id', auth, async (req, res) => {
           group.section === req.user.section
         );
 
-      if (!isAvailable) {
+      if (!isAvailable && !hasAttempted) {
         return res.status(403).json({ message: 'Quiz not available' });
+      }
+
+      // If shuffle is enabled, return shuffled questions for this student
+      if (quiz.shuffleQuestions) {
+        const shuffledQuestions = quiz.getShuffledQuestions(req.user._id);
+        const quizWithShuffledQuestions = quiz.toObject();
+        quizWithShuffledQuestions.questions = shuffledQuestions;
+        return res.json(quizWithShuffledQuestions);
       }
     }
 
@@ -1307,13 +1320,12 @@ router.post('/parse/excel', auth, authorize('faculty', 'admin', 'event'), memory
         const marks = parseInt(row[6]) || 1;
         const providedNegativeMarks = row[7] ? parseFloat(row[7]) : null;
 
-        // Use provided negative marks, or default to same as positive marks if negative marking enabled
+        // Use provided negative marks, or default to 0 for parsing
         let negativeMarks = 0;
         if (providedNegativeMarks !== null) {
           negativeMarks = providedNegativeMarks;
-        } else if (formData.negativeMarkingEnabled) {
-          negativeMarks = marks;
         }
+        // Note: Default negative marking will be set when creating the actual quiz
 
         const question = {
           question: String(row[0] || '').trim(),
@@ -1405,17 +1417,69 @@ router.post('/parse/word', auth, authorize('faculty', 'admin', 'event'), memoryU
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    // Extract text from Word document
-    const result = await mammoth.extractRawText({ buffer: req.file.buffer });
-    const text = result.value;
+    // Extract text from Word document with better formatting preservation
+    // Use convertToHtml first to preserve structure, then convert to text
+    const htmlResult = await mammoth.convertToHtml({ buffer: req.file.buffer });
+
+    // Convert HTML to text while preserving line breaks, indentation, AND HTML tags as literal text
+    let text = htmlResult.value
+      .replace(/<p[^>]*>/g, '\n')           // Convert paragraphs to line breaks
+      .replace(/<\/p>/g, '')               // Remove closing paragraph tags
+      .replace(/<br[^>]*>/g, '\n')         // Convert line breaks
+      .replace(/<div[^>]*>/g, '\n')        // Convert divs to line breaks
+      .replace(/<\/div>/g, '')             // Remove closing div tags
+      .replace(/&nbsp;/g, ' ')             // Convert non-breaking spaces
+      .replace(/&lt;/g, '<')               // Convert HTML entities to preserve HTML tags as text
+      .replace(/&gt;/g, '>')               // Convert HTML entities to preserve HTML tags as text
+      .replace(/&amp;/g, '&')              // Convert HTML entities
+      // Only remove mammoth-generated formatting tags, preserve content HTML tags
+      .replace(/<(strong|b|em|i|u|span)[^>]*>/g, '')     // Remove formatting tags
+      .replace(/<\/(strong|b|em|i|u|span)>/g, '')        // Remove closing formatting tags
+      .replace(/\n\s*\n/g, '\n')           // Remove extra empty lines
+      .trim();
+
+    // If the HTML conversion didn't preserve much formatting, fall back to raw text
+    if (!text.includes('\n') || text.length < 50) {
+      const rawResult = await mammoth.extractRawText({ buffer: req.file.buffer });
+      text = rawResult.value;
+    }
 
     console.log('Extracted text from Word document:');
     console.log('='.repeat(50));
     console.log(text);
     console.log('='.repeat(50));
 
-    // Parse questions from text - improved logic
-    const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+    // Helper function to detect if text needs formatting preservation (Universal)
+    const needsFormatPreservation = (text) => {
+      // Enhanced check for code-like content
+      return (
+        text.includes('\n') ||           // Multiple lines
+        /^\s{2,}/m.test(text) ||        // Lines with 2+ leading spaces (indentation)
+        /\t/.test(text) ||              // Contains tabs
+        // Programming language keywords
+        /\b(def|function|class|if|else|for|while|return|import|from|print|console\.log|var|let|const|public|private|static)\b/.test(text) ||
+        // Common code patterns
+        /[{}();]/.test(text) ||         // Brackets, parentheses, semicolons
+        /\w+\(\w*\)/.test(text) ||      // Function calls like func()
+        /\w+\.\w+/.test(text) ||        // Object notation like obj.prop
+        /[<>]=?/.test(text) ||          // Comparison operators
+        /\w+\s*=\s*\w+/.test(text) ||   // Assignment operations
+        // HTML/XML tags
+        /<\w+[^>]*>/.test(text) ||      // HTML tags
+        text.split('\n').some(line =>
+          line.trim() !== line &&       // Line has leading/trailing spaces
+          line.trim().length > 0        // But is not empty
+        )
+      );
+    };
+
+    // Keep the old function name for compatibility
+    const detectCodeBlock = (text) => {
+      return needsFormatPreservation(text);
+    };
+
+    // Parse questions from text - improved logic with code preservation
+    const lines = text.split('\n').filter(line => line.length > 0);
     console.log('All lines:', lines);
 
     const questions = [];
@@ -1438,12 +1502,17 @@ router.post('/parse/word', auth, authorize('faculty', 'admin', 'event'), memoryU
             options: cleanOptions,
             correctAnswer: correctAnswer >= 0 ? correctAnswer : 0,
             marks: currentQuestion.marks,
-            negativeMarks: currentQuestion.negativeMarks || 0
+            negativeMarks: currentQuestion.negativeMarks || 0,
+            isCodeQuestion: detectCodeBlock(currentQuestion.question)
           });
         }
 
         // Start new question
-        let questionText = line.replace(/^Q\d+\.\s*/, '').replace(/\(\d+\s*marks?\)/, '').replace(/\[Negative:\s*[\d.]+\]/, '').trim();
+        let questionText = line.replace(/^Q\d+\.\s*/, '').replace(/\(\d+\s*marks?\)/, '').replace(/\[Negative:\s*[\d.]+\]/, '');
+        // Only trim leading/trailing whitespace if it's not a code question
+        if (!needsFormatPreservation(questionText)) {
+          questionText = questionText.trim();
+        }
         const marksMatch = line.match(/\((\d+)\s*marks?\)/);
         const marks = marksMatch ? parseInt(marksMatch[1]) : 1;
 
@@ -1453,10 +1522,8 @@ router.post('/parse/word', auth, authorize('faculty', 'admin', 'event'), memoryU
 
         if (negativeMatch) {
           negativeMarks = parseFloat(negativeMatch[1]);
-        } else if (formData.negativeMarkingEnabled) {
-          // Use default based on marks (equal to positive marks)
-          negativeMarks = marks;
         }
+        // Note: Default negative marking will be set when creating the actual quiz
 
         currentQuestion = { question: questionText, marks, negativeMarks };
         currentOptions = [];
@@ -1467,6 +1534,18 @@ router.post('/parse/word', auth, authorize('faculty', 'admin', 'event'), memoryU
         const option = line.replace(/^[A-D]\)\s*/, '').trim();
         currentOptions.push(option);
         console.log('Found option:', option);
+      }
+      // Handle question continuation (especially for code blocks)
+      else if (currentQuestion && currentOptions.length === 0) {
+        // This might be a continuation of the question text
+        if (detectCodeBlock(line) || line.match(/^\s{2,}/)) {
+          // This looks like code - preserve original formatting
+          currentQuestion.question += '\n' + line;
+        } else {
+          // Regular text continuation
+          currentQuestion.question += ' ' + line.trim();
+        }
+        console.log('Question continuation:', line);
       }
     }
 
@@ -1480,7 +1559,8 @@ router.post('/parse/word', auth, authorize('faculty', 'admin', 'event'), memoryU
         options: cleanOptions,
         correctAnswer: correctAnswer >= 0 ? correctAnswer : 0,
         marks: currentQuestion.marks,
-        negativeMarks: currentQuestion.negativeMarks || 0
+        negativeMarks: currentQuestion.negativeMarks || 0,
+        isCodeQuestion: detectCodeBlock(currentQuestion.question)
       });
     }
 
@@ -1504,9 +1584,31 @@ router.post('/word', auth, authorize('faculty', 'admin', 'event'), upload.single
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    // Extract text from Word document
-    const result = await mammoth.extractRawText({ buffer: req.file.buffer });
-    const text = result.value;
+    // Extract text from Word document with HTML tag preservation
+    const htmlResult = await mammoth.convertToHtml({ buffer: req.file.buffer });
+
+    // Convert HTML to text while preserving HTML tags as literal text
+    let text = htmlResult.value
+      .replace(/<p[^>]*>/g, '\n')           // Convert paragraphs to line breaks
+      .replace(/<\/p>/g, '')               // Remove closing paragraph tags
+      .replace(/<br[^>]*>/g, '\n')         // Convert line breaks
+      .replace(/<div[^>]*>/g, '\n')        // Convert divs to line breaks
+      .replace(/<\/div>/g, '')             // Remove closing div tags
+      .replace(/&nbsp;/g, ' ')             // Convert non-breaking spaces
+      .replace(/&lt;/g, '<')               // Convert HTML entities to preserve HTML tags as text
+      .replace(/&gt;/g, '>')               // Convert HTML entities to preserve HTML tags as text
+      .replace(/&amp;/g, '&')              // Convert HTML entities
+      // Only remove mammoth-generated formatting tags, preserve content HTML tags
+      .replace(/<(strong|b|em|i|u|span)[^>]*>/g, '')     // Remove formatting tags
+      .replace(/<\/(strong|b|em|i|u|span)>/g, '')        // Remove closing formatting tags
+      .replace(/\n\s*\n/g, '\n')           // Remove extra empty lines
+      .trim();
+
+    // If the HTML conversion didn't preserve much formatting, fall back to raw text
+    if (!text.includes('\n') || text.length < 50) {
+      const rawResult = await mammoth.extractRawText({ buffer: req.file.buffer });
+      text = rawResult.value;
+    }
 
     // Parse questions from text
     const questionBlocks = text.split(/\n\s*\n/); // Split by blank lines

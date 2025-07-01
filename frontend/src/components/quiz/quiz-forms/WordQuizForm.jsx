@@ -47,13 +47,34 @@ B) London\\par
 C) Berlin\\par
 D) Madrid\\par
 \\par
-\\b Q2. Which planet is known as the Red Planet? (1 marks)\\b0\\par
-A) Venus\\par
-B) Mars*\\par
-C) Jupiter\\par
-D) Saturn\\par
+\\b Q2. What is the output of this Python code? (2 marks)\\b0\\par
 \\par
-\\b Q3. What is 2 + 2? (1 marks)\\b0\\par
+def greet(name):\\par
+    if name:\\par
+        return f"Hello, {name}!"\\par
+    else:\\par
+        return "Hello, World!"\\par
+\\par
+print(greet("Alice"))\\par
+\\par
+A) Hello, Alice!*\\par
+B) Hello, World!\\par
+C) Error\\par
+D) None\\par
+\\par
+\\b Q3. What does this HTML create? (2 marks)\\b0\\par
+\\par
+<div class="container">\\par
+    <h1>Welcome</h1>\\par
+    <p>This is a paragraph.</p>\\par
+</div>\\par
+\\par
+A) A form with input fields\\par
+B) A navigation menu\\par
+C) A container with heading and paragraph*\\par
+D) A table with data\\par
+\\par
+\\b Q4. What is 2 + 2? (1 marks)\\b0\\par
 A) 3\\par
 B) 4*\\par
 C) 5\\par
@@ -68,10 +89,17 @@ D) 6\\par
 - Mark correct answer with asterisk (*) at the end\\par
 - Leave blank lines between questions for better readability\\par
 \\par
+\\b Programming Questions:\\b0\\par
+- Type code with proper indentation - it will be preserved automatically!\\par
+- Supported: Python, Java, C/C++, HTML, CSS, JavaScript, SQL, and more\\par
+- Just maintain normal indentation as you would in any editor\\par
+- The system detects and preserves formatting automatically\\par
+\\par
 \\b Tips:\\b0\\par
 - Keep questions clear and concise\\par
 - Ensure all options are plausible\\par
 - Double-check the correct answers\\par
+- For code questions, test your code before adding to quiz\\par
 - Save the file as .docx format before uploading\\par
 }`;
 
@@ -170,6 +198,8 @@ D) 6\\par
               <li>List options as A), B), C), D)</li>
               <li>Mark correct answer with an asterisk (*)</li>
               <li>Leave a blank line between questions</li>
+              <li><strong>For Programming Questions:</strong> Type code with proper indentation - it will be preserved automatically!</li>
+              <li><strong>Supported Languages:</strong> Python, Java, C/C++, HTML, CSS, JavaScript, SQL, and more</li>
             </ul>
           </Typography>
         </Box>
@@ -204,19 +234,40 @@ D) 6\\par
             whiteSpace: 'pre-line',
             border: '1px solid #ddd'
           }}>
-            {`Q1. What is the capital of France? (1 marks) [Negative: 1]
+{`Q1. What is the capital of France? (1 marks) [Negative: 1]
 A) Paris*
 B) London
 C) Berlin
 D) Madrid
 
-Q2. Which planet is known as the Red Planet? (2 marks) [Negative: 0]
-A) Venus
-B) Mars*
-C) Jupiter
-D) Saturn
+Q2. What is the output of this Python code? (2 marks) [Negative: 0]
 
-Q3. What is 2 + 2? (3 marks) [Negative: 3]
+def greet(name):
+    if name:
+        return f"Hello, {name}!"
+    else:
+        return "Hello, World!"
+
+print(greet("Alice"))
+
+A) Hello, Alice!*
+B) Hello, World!
+C) Error
+D) None
+
+Q3. What does this HTML code create? (2 marks) [Negative: 1]
+
+<div class="container">
+    <h1>Welcome</h1>
+    <p>This is a paragraph.</p>
+</div>
+
+A) A form with input fields
+B) A navigation menu
+C) A container with heading and paragraph*
+D) A table with data
+
+Q4. What is 2 + 2? (1 marks) [Negative: 0]
 A) 3
 B) 4*
 C) 5
@@ -224,6 +275,9 @@ D) 6`}
           </Box>
           <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
             💡 <strong>Tips:</strong> Use Q1., Q2., etc. for questions. Add (marks) after each question. Add [Negative: X] for negative marking (optional). Mark correct answers with asterisk (*). Leave blank lines between questions.
+          </Typography>
+          <Typography variant="caption" color="primary.main" sx={{ mt: 1, display: 'block', fontWeight: 'bold' }}>
+            🔥 <strong>For Programming Questions:</strong> Just type your code with proper indentation! The system will automatically preserve formatting for Python, Java, C, HTML, CSS, SQL, and any other language. No special formatting needed - just maintain your indentation as you normally would.
           </Typography>
         </Box>
 

@@ -131,6 +131,8 @@ const ImageQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate }) =>
               <li>Clear, well-lit photos</li>
               <li>Text should be clearly readable</li>
               <li>No blurry or skewed images</li>
+              <li><strong>For Programming Questions:</strong> Write code with clear indentation</li>
+              <li><strong>Code Support:</strong> Python, Java, C/C++, HTML, CSS, JavaScript, SQL, etc.</li>
             </ul>
           </Typography>
         </Box>
@@ -157,7 +159,7 @@ const ImageQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate }) =>
             border: '1px solid #ddd',
             textAlign: 'center'
           }}>
-            {`📄 Example Question Image Content:
+{`📄 Example Question Image Content:
 
 Q1. What is the capital of France? (1 marks) [Negative: 1]
 
@@ -168,15 +170,37 @@ D) Madrid
 
 ---
 
+📄 Programming Question Example:
+
+Q2. What is the output of this Python code? (2 marks)
+
+def factorial(n):
+    if n <= 1:
+        return 1
+    return n * factorial(n-1)
+
+print(factorial(4))
+
+A) 24*
+B) 12
+C) 16
+D) Error
+
+---
+
 Each image should contain:
 • One complete question with marks: (X marks)
 • Optional negative marking: [Negative: X]
 • All four options (A, B, C, D)
 • Clear indication of correct answer with *
+• For code: Write with proper indentation - it will be preserved!
 • Good lighting and readable text`}
           </Box>
           <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
             💡 <strong>Tips:</strong> Take photos in good lighting. Ensure text is straight and clearly readable. Mark correct answers with asterisk (*) or highlighting. One question per image works best.
+          </Typography>
+          <Typography variant="caption" color="primary.main" sx={{ mt: 1, display: 'block', fontWeight: 'bold' }}>
+            🔥 <strong>For Programming Questions:</strong> Write code with proper indentation! The OCR will extract text and preserve formatting automatically for Python, Java, C, HTML, CSS, and more. Make sure indentation is clear and consistent.
           </Typography>
         </Box>
 

@@ -96,6 +96,7 @@ const EventQuizEdit = () => {
     registrationEnabled: true,
     spotRegistrationEnabled: false,
     negativeMarkingEnabled: false,
+    shuffleQuestions: false,
     securitySettings: {
       enableFullscreen: false,
       disableRightClick: false,
@@ -146,6 +147,7 @@ const EventQuizEdit = () => {
           registrationEnabled: quizResponse.registrationEnabled !== undefined ? quizResponse.registrationEnabled : true,
           spotRegistrationEnabled: quizResponse.spotRegistrationEnabled !== undefined ? quizResponse.spotRegistrationEnabled : false,
           negativeMarkingEnabled: quizResponse.negativeMarkingEnabled !== undefined ? quizResponse.negativeMarkingEnabled : false,
+          shuffleQuestions: quizResponse.shuffleQuestions !== undefined ? quizResponse.shuffleQuestions : false,
           securitySettings: quizResponse.securitySettings || {
             enableFullscreen: false,
             disableRightClick: false,
@@ -637,6 +639,26 @@ const EventQuizEdit = () => {
                   </Typography>
                 </Grid>
               </Grid>
+
+              {/* Shuffle Questions Setting */}
+              <Grid item xs={12}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={formData.shuffleQuestions || false}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        shuffleQuestions: e.target.checked
+                      }))}
+                      name="shuffleQuestions"
+                    />
+                  }
+                  label="🔀 Shuffle Questions"
+                />
+                <Typography variant="caption" color="text.secondary" display="block">
+                  Each participant will receive questions in a different random order
+                </Typography>
+              </Grid>
             </Grid>
 
             {/* Participation Mode Section */}
@@ -816,6 +838,26 @@ const EventQuizEdit = () => {
                           </span>
                         )})
                       </Typography>
+                    </Box>
+
+                    {/* Question Text with UNIVERSAL Formatting Preservation */}
+                    <Box sx={{
+                      p: 2,
+                      mb: 2,
+                      bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
+                      borderRadius: 1,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      fontFamily: 'monospace',
+                      fontSize: '0.9rem',
+                      lineHeight: 1.5,
+                      whiteSpace: 'pre-wrap', // ALWAYS preserve all formatting
+                      overflow: 'auto'
+                    }}>
+                      {question.question}
+                    </Box>
+
+                    <Box>
                       <IconButton 
                         color="error" 
                         onClick={() => removeQuestion(index)}
@@ -825,15 +867,49 @@ const EventQuizEdit = () => {
                       </IconButton>
                     </Box>
 
-                    <TextField
-                      required
-                      fullWidth
-                      multiline
-                      rows={2}
-                      label="Question Text"
-                      value={question.question || ''}
-                      onChange={(e) => handleQuestionChange(index, 'question', e.target.value)}
-                    />
+                    {/* Question Text Input with UNIVERSAL Formatting Preservation */}
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Question Text (all formatting preserved):
+                      </Typography>
+
+                      {/* Display formatted question text for easy reading */}
+                      <Box sx={{
+                        p: 2,
+                        mb: 2,
+                        bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
+                        borderRadius: 1,
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        fontFamily: 'monospace',
+                        fontSize: '0.9rem',
+                        lineHeight: 1.5,
+                        whiteSpace: 'pre-wrap', // ALWAYS preserve all formatting
+                        overflow: 'auto',
+                        maxHeight: '300px',
+                        overflowY: 'auto'
+                      }}>
+                        {question.question || 'Enter your question below...'}
+                      </Box>
+
+                      <TextField
+                        required
+                        fullWidth
+                        multiline
+                        rows={6}
+                        label="Edit Question Text"
+                        value={question.question || ''}
+                        onChange={(e) => handleQuestionChange(index, 'question', e.target.value)}
+                        sx={{
+                          '& .MuiInputBase-input': {
+                            fontFamily: 'monospace',
+                            fontSize: '0.9rem',
+                            lineHeight: 1.5,
+                            whiteSpace: 'pre-wrap' // ALWAYS preserve formatting
+                          }
+                        }}
+                      />
+                    </Box>
 
                     {(question.options || []).map((option, optionIndex) => (
                       <Box key={optionIndex} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

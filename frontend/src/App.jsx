@@ -25,7 +25,6 @@ import QuizEdit from './components/quiz/QuizEdit';
 import SubjectList from './components/subject/SubjectList';
 import SubjectCreate from './components/subject/SubjectCreate';
 import SubjectEdit from './components/subject/SubjectEdit';
-import AdmissionRanges from './components/admin/AdmissionRanges';
 import QuizOverview from './components/quiz/QuizOverview';
 import QuizStatistics from './components/quiz/QuizStatistics';
 import AdminRoutes from './routes/AdminRoutes';
@@ -164,7 +163,7 @@ const AppRoutes = () => {
         <Route path="/dashboard" element={<RoleBasedRedirect />} />
 
         {/* Catch-all route */}
-        <Route path="*" element={<Navigate to={user ? "/dashboard" : "/login"} replace />} />
+        <Route path="*" element={<Navigate to={user ? "/dashboard" : "/"} replace />} />
       </Routes>
     </Box>
   );

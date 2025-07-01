@@ -972,7 +972,8 @@ router.get('/:id/public-access', async (req, res) => {
       question: q.question,
       options: q.options,
       marks: q.marks,
-      image: q.image
+      image: q.image,
+      isCodeQuestion: q.isCodeQuestion || false
     }));
 
     res.json({
@@ -1051,13 +1052,24 @@ router.get('/:id/questions', async (req, res) => {
       return res.status(400).json({ message: 'No questions available for this quiz' });
     }
 
+    // Get participant ID for shuffling (use session token as unique identifier)
+    const participantId = sessionToken;
+
+    // Get questions (shuffled if enabled)
+    let questionsToUse = quiz.questions;
+    if (quiz.shuffleQuestions) {
+      questionsToUse = quiz.getShuffledQuestions(participantId);
+      console.log(`🔍 QUESTIONS: Questions shuffled for participant ${participantId.substring(0, 8)}...`);
+    }
+
     // Return questions without correct answers
-    const questions = quiz.questions.map((q, index) => ({
+    const questions = questionsToUse.map((q, index) => ({
       id: index,
       question: q.question,
       options: q.options,
       marks: q.marks,
-      image: q.image
+      image: q.image,
+      isCodeQuestion: q.isCodeQuestion || false
     }));
 
     console.log(`🔍 QUESTIONS: Prepared ${questions.length} questions`);
@@ -1629,9 +1641,50 @@ router.post('/word', auth, authorize(['event']), upload.single('file'), async (r
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    // Extract text from Word document
-    const result = await mammoth.extractRawText({ buffer: req.file.buffer });
-    const text = result.value;
+    // Extract text from Word document with HTML tag preservation
+    const htmlResult = await mammoth.convertToHtml({ buffer: req.file.buffer });
+
+    // Convert HTML to text while preserving HTML tags as literal text
+    let text = htmlResult.value
+      .replace(/<p[^>]*>/g, '\n')           // Convert paragraphs to line breaks
+      .replace(/<\/p>/g, '')               // Remove closing paragraph tags
+      .replace(/<br[^>]*>/g, '\n')         // Convert line breaks
+      .replace(/<div[^>]*>/g, '\n')        // Convert divs to line breaks
+      .replace(/<\/div>/g, '')             // Remove closing div tags
+      .replace(/&nbsp;/g, ' ')             // Convert non-breaking spaces
+      .replace(/&lt;/g, '<')               // Convert HTML entities to preserve HTML tags as text
+      .replace(/&gt;/g, '>')               // Convert HTML entities to preserve HTML tags as text
+      .replace(/&amp;/g, '&')              // Convert HTML entities
+      // Only remove mammoth-generated formatting tags, preserve content HTML tags
+      .replace(/<(strong|b|em|i|u|span)[^>]*>/g, '')     // Remove formatting tags
+      .replace(/<\/(strong|b|em|i|u|span)>/g, '')        // Remove closing formatting tags
+      .replace(/\n\s*\n/g, '\n')           // Remove extra empty lines
+      .trim();
+
+    // If the HTML conversion didn't preserve much formatting, fall back to raw text
+    if (!text.includes('\n') || text.length < 50) {
+      const rawResult = await mammoth.extractRawText({ buffer: req.file.buffer });
+      text = rawResult.value;
+    }
+
+    // Helper function to detect if text needs formatting preservation (Universal)
+    const needsFormatPreservation = (text) => {
+      // Simple check: if text has intentional formatting, preserve it
+      return (
+        text.includes('\n') ||           // Multiple lines
+        /^\s{2,}/m.test(text) ||        // Lines with 2+ leading spaces (indentation)
+        /\t/.test(text) ||              // Contains tabs
+        text.split('\n').some(line =>
+          line.trim() !== line &&       // Line has leading/trailing spaces
+          line.trim().length > 0        // But is not empty
+        )
+      );
+    };
+
+    // Keep the old function name for compatibility
+    const detectCodeBlock = (text) => {
+      return needsFormatPreservation(text);
+    };
 
     // Parse questions from text
     const questionBlocks = text.split(/\n\s*\n/); // Split by blank lines
@@ -1639,7 +1692,11 @@ router.post('/word', auth, authorize(['event']), upload.single('file'), async (r
       .filter(block => block.trim().startsWith('Q'))
       .map(block => {
         const lines = block.trim().split('\n');
-        const questionText = lines[0].replace(/^Q\d+\.\s*/, '').replace(/\(\d+\s*marks?\)/, '').trim();
+        let questionText = lines[0].replace(/^Q\d+\.\s*/, '').replace(/\(\d+\s*marks?\)/, '');
+        // Only trim if it's not a code question
+        if (!needsFormatPreservation(questionText)) {
+          questionText = questionText.trim();
+        }
         const options = lines.slice(1, 5).map(line => line.replace(/^[A-D]\)\s*/, '').replace(/\*$/, '').trim());
         const correctAnswer = lines.slice(1, 5).findIndex(line => line.includes('*'));
         const marksMatch = lines[0].match(/\((\d+)\s*marks?\)/);
@@ -1649,7 +1706,8 @@ router.post('/word', auth, authorize(['event']), upload.single('file'), async (r
           question: questionText,
           options,
           correctAnswer,
-          marks
+          marks,
+          isCodeQuestion: detectCodeBlock(questionText)
         };
       });
 
@@ -1693,7 +1751,8 @@ router.post('/image', auth, authorize(['event']), upload.array('images'), async 
         );
 
         // Parse the extracted text to find questions and options
-        const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
+        // Don't trim lines to preserve code formatting
+        const lines = text.split('\n').filter(line => line.length > 0);
         let currentQuestion = null;
         let options = [];
         let correctAnswer = -1;

@@ -672,13 +672,22 @@ const AuthenticatedQuizTake = () => {
                       )}
                     </Typography>
 
-                    <Typography variant="h6" paragraph sx={{
-                      lineHeight: 1.6,
+                    {/* Question Text with UNIVERSAL Formatting Preservation */}
+                    <Box sx={{
+                      p: 2,
                       mb: 4,
-                      fontSize: '1.2rem'
+                      bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
+                      borderRadius: 1,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      fontFamily: 'monospace',
+                      fontSize: '1.1rem',
+                      lineHeight: 1.6,
+                      whiteSpace: 'pre-wrap', // ALWAYS preserve all formatting
+                      overflow: 'auto'
                     }}>
                       {questions[currentQuestion].question}
-                    </Typography>
+                    </Box>
 
                     <FormControl component="fieldset" sx={{ width: '100%' }}>
                       <RadioGroup
@@ -776,13 +785,22 @@ const AuthenticatedQuizTake = () => {
                           )}
                         </Typography>
 
-                        <Typography variant="body1" paragraph sx={{
-                          lineHeight: 1.6,
+                        {/* Question Text with UNIVERSAL Formatting Preservation */}
+                        <Box sx={{
+                          p: 2,
                           mb: 3,
-                          fontSize: '1.1rem'
+                          bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
+                          borderRadius: 1,
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          fontFamily: 'monospace',
+                          fontSize: '0.9rem',
+                          lineHeight: 1.5,
+                          whiteSpace: 'pre-wrap', // ALWAYS preserve all formatting
+                          overflow: 'auto'
                         }}>
                           {question.question}
-                        </Typography>
+                        </Box>
 
                         <FormControl component="fieldset" sx={{ width: '100%' }}>
                           <RadioGroup

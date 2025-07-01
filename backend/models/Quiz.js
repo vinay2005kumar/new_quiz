@@ -3,8 +3,8 @@ const mongoose = require('mongoose');
 const questionSchema = new mongoose.Schema({
   question: {
     type: String,
-    required: true,
-    trim: true
+    required: true
+    // Note: trim removed to preserve code formatting and indentation
   },
   options: {
     type: [{
@@ -36,6 +36,10 @@ const questionSchema = new mongoose.Schema({
     type: Number,
     default: 0,
     min: 0
+  },
+  isCodeQuestion: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -119,6 +123,10 @@ const quizSchema = new mongoose.Schema({
     default: 0
   },
   negativeMarkingEnabled: {
+    type: Boolean,
+    default: false
+  },
+  shuffleQuestions: {
     type: Boolean,
     default: false
   },
@@ -402,6 +410,38 @@ quizSchema.methods.getSectionSettings = function(section) {
     allowedAttempts: 1,
     instructions: ''
   };
+};
+
+// Method to shuffle questions for a specific student
+quizSchema.methods.getShuffledQuestions = function(studentId) {
+  if (!this.shuffleQuestions) {
+    return this.questions;
+  }
+
+  // Create a deterministic shuffle based on quiz ID + student ID
+  // This ensures the same student always gets the same order
+  const seed = this._id.toString() + studentId.toString();
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    const char = seed.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+
+  // Use the hash as seed for shuffling
+  const questions = [...this.questions];
+  const random = (seed) => {
+    const x = Math.sin(seed) * 10000;
+    return x - Math.floor(x);
+  };
+
+  // Fisher-Yates shuffle with deterministic random
+  for (let i = questions.length - 1; i > 0; i--) {
+    const j = Math.floor(random(hash + i) * (i + 1));
+    [questions[i], questions[j]] = [questions[j], questions[i]];
+  }
+
+  return questions;
 };
 
 // Middleware to calculate total marks before saving

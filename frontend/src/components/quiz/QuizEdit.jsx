@@ -93,6 +93,7 @@ const QuizEdit = () => {
     startTime: '',
     endTime: '',
     negativeMarkingEnabled: false,
+    shuffleQuestions: false,
     securitySettings: {
       enableFullscreen: false,
       disableRightClick: false,
@@ -196,6 +197,7 @@ const QuizEdit = () => {
         semester: firstGroup.semester || '',
         sections: sections,
         subject: response.subject?.code || response.subject || '',
+        shuffleQuestions: response.shuffleQuestions || false,
         securitySettings: response.securitySettings || {
           enableFullscreen: false,
           disableRightClick: false,
@@ -809,6 +811,28 @@ const QuizEdit = () => {
                   </FormGroup>
                 </Grid>
               </Grid>
+
+              {/* Shuffle Questions Setting */}
+              <Grid item xs={12}>
+                <FormGroup sx={{ mt: 2 }}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={quiz.shuffleQuestions || false}
+                        onChange={(e) => setQuiz(prev => ({
+                          ...prev,
+                          shuffleQuestions: e.target.checked
+                        }))}
+                        name="shuffleQuestions"
+                      />
+                    }
+                    label="🔀 Shuffle Questions"
+                  />
+                  <Typography variant="caption" color="text.secondary">
+                    Each student will receive questions in a different random order
+                  </Typography>
+                </FormGroup>
+              </Grid>
             </Grid>
 
             <Grid item xs={12} sm={6}>
@@ -875,15 +899,55 @@ const QuizEdit = () => {
             <CardContent>
               <Grid container spacing={2}>
                 <Grid item xs={11}>
-                  <TextField
-                    required
-                    fullWidth
-                    label={`Question ${questionIndex + 1} (${question.marks || 1} marks${quiz.negativeMarkingEnabled && question.negativeMarks > 0 ? ` | -${question.negativeMarks} for wrong` : ''})`}
-                    value={question.question}
-                    onChange={(e) => handleQuestionChange(questionIndex, 'question', e.target.value)}
-                    multiline
-                    rows={2}
-                  />
+                  <Box>
+                    <Typography variant="subtitle2" gutterBottom>
+                      Question {questionIndex + 1} ({question.marks || 1} marks{quiz.negativeMarkingEnabled && question.negativeMarks > 0 ? ` | -${question.negativeMarks} for wrong` : ''})
+                    </Typography>
+
+                    {/* Question Text with UNIVERSAL Formatting Preservation */}
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Question Text (all formatting preserved):
+                      </Typography>
+
+                      {/* Display formatted question text for easy reading */}
+                      <Box sx={{
+                        p: 2,
+                        mb: 2,
+                        bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
+                        borderRadius: 1,
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        fontFamily: 'monospace',
+                        fontSize: '0.9rem',
+                        lineHeight: 1.5,
+                        whiteSpace: 'pre-wrap', // ALWAYS preserve all formatting
+                        overflow: 'auto',
+                        maxHeight: '300px',
+                        overflowY: 'auto'
+                      }}>
+                        {question.question || 'Enter your question below...'}
+                      </Box>
+
+                      <TextField
+                        required
+                        fullWidth
+                        label="Edit Question Text"
+                        value={question.question}
+                        onChange={(e) => handleQuestionChange(questionIndex, 'question', e.target.value)}
+                        multiline
+                        rows={6}
+                        sx={{
+                          '& .MuiInputBase-input': {
+                            fontFamily: 'monospace',
+                            fontSize: '0.9rem',
+                            lineHeight: 1.5,
+                            whiteSpace: 'pre-wrap' // ALWAYS preserve formatting
+                          }
+                        }}
+                      />
+                    </Box>
+                  </Box>
                 </Grid>
                 <Grid item xs={1}>
                   <IconButton

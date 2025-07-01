@@ -263,14 +263,14 @@ const LandingPageStructure = ({
                 display: 'block',
                 mb: isPreview ? 0.5 : undefined
               }}>
-                Student Login
+                Login
               </Typography>
               <Typography variant="caption" color="text.secondary" sx={{
                 mb: isPreview ? 1 : 2,
                 display: 'block',
                 fontSize: isPreview ? '10px' : undefined
               }}>
-                {isPreview ? 'Access quizzes' : 'Access your academic quizzes'}
+                {isPreview ? 'Access your account' : 'Access your account'}
               </Typography>
               {!isPreview && (
                 <Button
@@ -298,10 +298,6 @@ const LandingPageStructure = ({
                 minWidth: isPreview ? 90 : 200,
                 textAlign: 'center',
                 transition: 'all 0.3s ease',
-                '&:hover': !isPreview ? {
-                  transform: 'translateY(-4px)',
-                  boxShadow: '0 8px 25px rgba(0,0,0,0.1)'
-                } : {}
               }}
             >
               <EventIcon sx={{ fontSize: isPreview ? 24 : 40, color: 'secondary.main', mb: 1 }} />

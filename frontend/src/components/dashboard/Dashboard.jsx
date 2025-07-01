@@ -360,21 +360,7 @@ const Dashboard = () => {
           </Card>
         </Grid>
 
-        <Grid item xs={12} sm={6} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6">Admission Ranges</Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                Configure admission number ranges for departments
-              </Typography>
-            </CardContent>
-            <CardActions>
-              <Button size="small" onClick={() => navigate('/admin/admission-ranges')}>
-                Manage Ranges
-              </Button>
-            </CardActions>
-          </Card>
-        </Grid>
+
 
         <Grid item xs={12} sm={6} md={4}>
           <Card>

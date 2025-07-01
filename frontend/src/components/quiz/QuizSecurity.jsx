@@ -845,7 +845,6 @@ const QuizSecurity = ({
         }}
       >
         <DialogTitle sx={{
-          color: 'error.main',
           textAlign: 'center',
           fontSize: '1.5rem',
           fontWeight: 'bold',
@@ -1037,7 +1036,6 @@ const QuizSecurity = ({
         }}
       >
         <DialogTitle sx={{
-          color: 'warning.main',
           textAlign: 'center',
           fontSize: '1.5rem',
           fontWeight: 'bold',

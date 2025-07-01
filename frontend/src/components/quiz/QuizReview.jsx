@@ -237,8 +237,25 @@ const QuizReview = () => {
               }}
             >
               <Typography variant="h6" gutterBottom>
-                {index + 1}. {question.question}
+                Question {index + 1}:
               </Typography>
+
+              {/* Question Text with UNIVERSAL Formatting Preservation */}
+              <Box sx={{
+                p: 2,
+                mb: 2,
+                bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
+                borderRadius: 1,
+                border: '1px solid',
+                borderColor: 'divider',
+                fontFamily: 'monospace',
+                fontSize: '0.9rem',
+                lineHeight: 1.5,
+                whiteSpace: 'pre-wrap', // ALWAYS preserve all formatting
+                overflow: 'auto'
+              }}>
+                {question.question}
+              </Box>
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Marks: {userAnswer?.marks || 0} / {question.marks || 0}
                 {quizData?.negativeMarkingEnabled && question.negativeMarks > 0 && (
