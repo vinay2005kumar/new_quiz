@@ -97,8 +97,8 @@ class ImageProcessor {
       // Skip completely empty lines
       if (!trimmedLine) continue;
 
-      // Match question pattern: starts with a number
-      if (/^\d+[\.\)]/.test(trimmedLine)) {
+      // Match question pattern: starts with a number or Q followed by number
+      if (/^(Q?\d+[\.\)])/.test(trimmedLine)) {
         // Save previous question if complete
         if (currentQuestion && currentOptions.length === 4 && currentCorrectAnswer !== null) {
           // Check if question contains code and preserve formatting
@@ -121,13 +121,23 @@ class ImageProcessor {
       }
       
       // Match option pattern: starts with A-D followed by space or dot or parenthesis
+      // Also handle options with asterisk (*) indicating correct answer
       const optionMatch = line.match(/^([A-D])(?:[\.\)\s]+)(.+)/);
       if (optionMatch) {
-        currentOptions.push(optionMatch[2].trim());
+        const optionText = optionMatch[2].trim();
+        const optionLetter = optionMatch[1];
+
+        // Check if this option has an asterisk (indicating correct answer)
+        if (optionText.endsWith('*')) {
+          currentCorrectAnswer = optionLetter.charCodeAt(0) - 'A'.charCodeAt(0);
+          currentOptions.push(optionText.replace(/\*$/, '').trim());
+        } else {
+          currentOptions.push(optionText);
+        }
         continue;
       }
       
-      // Match correct answer pattern
+      // Match correct answer pattern (traditional format)
       const answerMatch = line.toLowerCase().match(/correct\s*answer\s*[:\-\s]\s*([a-d])/);
       if (answerMatch) {
         currentCorrectAnswer = answerMatch[1].toUpperCase().charCodeAt(0) - 'A'.charCodeAt(0);
@@ -155,15 +165,28 @@ class ImageProcessor {
         if (detectCodeBlock(line) || line.match(/^\s{2,}/)) {
           // This looks like code - preserve original formatting with line breaks
           currentQuestion += '\n' + line;
-        } else {
-          // Regular text continuation
-          currentQuestion += ' ' + trimmedLine;
+        } else if (trimmedLine) {
+          // Regular text continuation - only add if not empty
+          // Check if this looks like a separate statement (like print function call)
+          if (trimmedLine.match(/^(print|console\.log|System\.out|cout|printf)\s*\(/)) {
+            // This is a separate statement, add with newline
+            currentQuestion += '\n\n' + trimmedLine;
+          } else {
+            // Regular text continuation
+            currentQuestion += ' ' + trimmedLine;
+          }
         }
       }
     }
     
-    // Add last question if complete
-    if (currentQuestion && currentOptions.length === 4 && currentCorrectAnswer !== null) {
+    // Add last question if complete (handle case where correct answer was marked with asterisk)
+    if (currentQuestion && currentOptions.length === 4) {
+      // If no correct answer was explicitly found, default to 0 (option A)
+      if (currentCorrectAnswer === null) {
+        currentCorrectAnswer = 0;
+        console.warn('No correct answer found for question, defaulting to option A');
+      }
+
       questions.push({
         question: currentQuestion,
         options: [...currentOptions],

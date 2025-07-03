@@ -452,6 +452,15 @@ quizSchema.pre('save', function(next) {
   next();
 });
 
+// Middleware to calculate total marks before updating
+quizSchema.pre(['findOneAndUpdate', 'updateOne', 'updateMany'], function(next) {
+  const update = this.getUpdate();
+  if (update.questions) {
+    update.totalMarks = update.questions.reduce((sum, question) => sum + question.marks, 0);
+  }
+  next();
+});
+
 // Add a custom method to validate dates
 quizSchema.statics.validateDates = function(startTime, endTime) {
   const start = new Date(startTime);

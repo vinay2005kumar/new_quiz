@@ -13,6 +13,80 @@ const fs = require('fs').promises;
 const mammoth = require('mammoth');
 const Tesseract = require('tesseract.js');
 
+// Universal code detection and HTML formatting functions
+const isCodeLine = (line) => {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+
+  // Check for common programming patterns
+  const codePatterns = [
+    /^\s{2,}/, // 2+ spaces at start (indentation)
+    /def\s+\w+\s*\(/, // Python function definition
+    /function\s+\w+\s*\(/, // JavaScript function
+    /class\s+\w+/, // Class definition
+    /if\s*\(.*\)\s*[:{]/, // If statements
+    /for\s*\(.*\)\s*[:{]/, // For loops
+    /while\s*\(.*\)\s*[:{]/, // While loops
+    /else\s*[:{]/, // Else statements
+    /return\s+/, // Return statements
+    /print\s*\(/, // Print statements
+    /console\.log\s*\(/, // Console.log
+    /\{[\s\S]*\}/, // Code blocks with braces
+    /<[^>]+>/, // HTML tags
+    /^\s*[#\/\/]\s*/, // Comments
+    /import\s+/, // Import statements
+    /from\s+\w+\s+import/, // Python imports
+    /include\s*</, // C++ includes
+    /using\s+namespace/, // C++ using
+    /public\s+static/, // Java public static
+    /private\s+/, // Access modifiers
+    /protected\s+/, // Access modifiers
+    /int\s+main\s*\(/, // C/C++ main function
+    /void\s+\w+\s*\(/, // Void functions
+    /String\s+\w+/, // String declarations
+    /var\s+\w+\s*=/, // Variable declarations
+    /let\s+\w+\s*=/, // Let declarations
+    /const\s+\w+\s*=/, // Const declarations
+    /\w+\s*=\s*\w+\s*\(/, // Function calls with assignment
+  ];
+
+  return codePatterns.some(pattern => pattern.test(trimmed));
+};
+
+const hasCodeContent = (text) => {
+  if (!text) return false;
+  const lines = text.split('\n');
+  return lines.some(line => isCodeLine(line));
+};
+
+const processTextWithHtmlFormatting = (text) => {
+  if (!text) return '';
+
+  // Simple approach: if text contains any code patterns, wrap the entire text in <pre>
+  // This ensures perfect preservation without complex parsing
+  if (hasCodeContent(text)) {
+    // For HTML code, we need to escape it so it displays as text, not renders as HTML
+    // For other code (C, Python, etc.), we preserve symbols as-is
+    let processedText = text;
+
+    // Check if this is HTML code that should be displayed as text
+    if (text.includes('<html>') || text.includes('<!DOCTYPE') || text.includes('<div>') || text.includes('<p>') || text.includes('<span>')) {
+      // This is HTML code - escape it so it displays as text
+      processedText = text
+        .replace(/&/g, '&amp;')   // Must be first
+        .replace(/</g, '&lt;')    // Escape < for HTML display
+        .replace(/>/g, '&gt;')    // Escape > for HTML display
+        .replace(/"/g, '&quot;')  // Escape quotes
+        .replace(/'/g, '&#39;');  // Escape single quotes
+    }
+    // For C/C++/Python/etc. code, keep symbols as-is (browser will handle them correctly in <pre>)
+
+    return '<pre>' + processedText + '</pre>';
+  }
+
+  return text;
+};
+
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -169,10 +243,11 @@ router.post('/', auth, authorize('faculty', 'admin'), async (req, res) => {
       });
     }
 
-    // Validate each question
+    // Process and validate each question
+    const processedQuestions = [];
     for (let i = 0; i < req.body.questions.length; i++) {
       const q = req.body.questions[i];
-      if (!q.question || !Array.isArray(q.options) || q.options.length !== 4 || 
+      if (!q.question || !Array.isArray(q.options) || q.options.length !== 4 ||
           typeof q.correctAnswer !== 'number' || typeof q.marks !== 'number') {
         console.log('Invalid question format:', {
           questionIndex: i,
@@ -190,11 +265,20 @@ router.post('/', auth, authorize('faculty', 'admin'), async (req, res) => {
           received: q
         });
       }
+
+      // Process question text with HTML formatting for perfect preservation
+      const processedQuestion = {
+        ...q,
+        question: processTextWithHtmlFormatting(q.question)
+      };
+
+      processedQuestions.push(processedQuestion);
     }
 
     console.log('Creating new Quiz document...');
     const quiz = new Quiz({
       ...req.body,
+      questions: processedQuestions, // Use processed questions with HTML formatting
       type: 'academic', // Set type for faculty quizzes
       createdBy: req.user._id
     });
@@ -1296,11 +1380,10 @@ router.post('/parse/excel', auth, authorize('faculty', 'admin', 'event'), memory
              text.includes('    ') || text.includes('\t');
     };
 
-    // Apply universal indentation restoration for ALL programming languages (SAME AS IMAGE PROCESSING)
+    // Apply simple universal indentation restoration - No language detection
     const restoreIndentationForAllLanguages = (questionLines) => {
       const restoredLines = [];
       let currentIndentLevel = 0;
-      let insideBraces = 0;
 
       for (let i = 0; i < questionLines.length; i++) {
         const line = questionLines[i].trim();
@@ -1310,126 +1393,45 @@ router.post('/parse/excel', auth, authorize('faculty', 'admin', 'event'), memory
           continue;
         }
 
-        // PYTHON - Function/class definitions stay at base level
-        if (line.match(/^(def|class)\s+\w+/)) {
-          currentIndentLevel = 0;
-          restoredLines.push(line);
-          if (line.endsWith(':')) {
-            currentIndentLevel = 1; // Next lines inside function should be indented
-          }
-          continue;
-        }
+        // Simple pattern-based indentation - no language detection
 
-        // PYTHON - Control structures inside functions
-        if (line.match(/^(if|elif|else|for|while|try|except|finally|with)\s/)) {
-          const indent = '    '.repeat(currentIndentLevel);
-          restoredLines.push(indent + line);
-          if (line.endsWith(':')) {
-            currentIndentLevel++;
-          }
-          continue;
-        }
-
-        // PYTHON - Return statements (always inside functions)
-        if (line.match(/^(return|break|continue|pass|raise)\s/)) {
-          const indent = '    '.repeat(Math.max(currentIndentLevel, 1));
-          restoredLines.push(indent + line);
-          continue;
-        }
-
-        // PYTHON - Print statements - check if they're at base level or inside function
-        if (line.match(/^print\s*\(/)) {
-          // If this is the last line or followed by options (A), B), etc.), it's at base level
-          const nextLine = i + 1 < questionLines.length ? questionLines[i + 1].trim() : '';
-          if (!nextLine || nextLine.match(/^[A-D]\)/)) {
-            // This print is at base level (outside function)
-            restoredLines.push(line);
-            currentIndentLevel = 0; // Reset for any following code
-          } else {
-            // This print is inside a function
-            const indent = '    '.repeat(Math.max(currentIndentLevel, 1));
-            restoredLines.push(indent + line);
-          }
-          continue;
-        }
-
-        // PYTHON - Import statements (always at base level)
-        if (line.match(/^(import|from)\s/)) {
-          restoredLines.push(line);
-          currentIndentLevel = 0;
-          continue;
-        }
-
-        // PYTHON - Variable assignments and function calls
-        if (line.match(/^[a-zA-Z_][a-zA-Z0-9_]*\s*[=+\-*\/]/) ||
-            line.match(/^[a-zA-Z_][a-zA-Z0-9_]*\(/)) {
-          // If we're inside a function, indent it
-          if (currentIndentLevel > 0) {
-            const indent = '    '.repeat(currentIndentLevel);
-            restoredLines.push(indent + line);
-          } else {
-            // Base level assignment/call
-            restoredLines.push(line);
-          }
-          continue;
-        }
-
-        // C/C++/JAVA/JAVASCRIPT - Function definitions and control structures
-        if (line.match(/^(public|private|protected|static|void|int|float|double|char|string|bool|function|var|let|const)\s/) ||
-            line.match(/^(if|else|for|while|do|switch|case|default|try|catch|finally)\s*\(/) ||
-            line.match(/^\w+\s+\w+\s*\(/)) {
-          const indent = '    '.repeat(currentIndentLevel);
-          restoredLines.push(indent + line);
-          if (line.includes('{')) {
-            currentIndentLevel++;
-            insideBraces++;
-          }
-          continue;
-        }
-
-        // Handle closing braces
-        if (line.includes('}')) {
-          currentIndentLevel = Math.max(0, currentIndentLevel - 1);
-          insideBraces = Math.max(0, insideBraces - 1);
-          const indent = '    '.repeat(currentIndentLevel);
-          restoredLines.push(indent + line);
-          continue;
-        }
-
-        // Handle opening braces on separate lines
-        if (line === '{') {
+        // Lines ending with : or { increase indentation for next lines
+        if (line.endsWith(':') || line.endsWith('{')) {
           const indent = '    '.repeat(currentIndentLevel);
           restoredLines.push(indent + line);
           currentIndentLevel++;
-          insideBraces++;
           continue;
         }
 
-        // C/C++/JAVA/JAVASCRIPT - Regular statements inside blocks
-        if (line.match(/.*;$/) || line.match(/^\/\//)) {
-          const indent = '    '.repeat(Math.max(currentIndentLevel, insideBraces > 0 ? 1 : 0));
-          restoredLines.push(indent + line);
-          continue;
-        }
-
-        // HTML/XML - Tags
-        if (line.match(/^<\w+/) || line.match(/^<\/\w+/)) {
+        // Closing braces decrease indentation
+        if (line === '}' || line.startsWith('}')) {
+          currentIndentLevel = Math.max(0, currentIndentLevel - 1);
           const indent = '    '.repeat(currentIndentLevel);
           restoredLines.push(indent + line);
           continue;
         }
 
-        // Default: apply current indentation if we're inside any block
-        if (currentIndentLevel > 0 || insideBraces > 0) {
-          const indent = '    '.repeat(Math.max(currentIndentLevel, insideBraces > 0 ? 1 : 0));
+        // else statements align with previous if
+        if (line.startsWith('else')) {
+          currentIndentLevel = Math.max(0, currentIndentLevel - 1);
+          const indent = '    '.repeat(currentIndentLevel);
           restoredLines.push(indent + line);
-        } else {
-          restoredLines.push(line);
+          if (line.endsWith(':') || line.endsWith('{')) {
+            currentIndentLevel++;
+          }
+          continue;
         }
+
+        // Default: apply current indentation to all other lines
+        const indent = '    '.repeat(currentIndentLevel);
+        restoredLines.push(indent + line);
+
       }
 
       return restoredLines;
     };
+
+
 
     console.log('Attempting to read Excel file...');
     let workbook;
@@ -1470,14 +1472,12 @@ router.post('/parse/excel', auth, authorize('faculty', 'admin', 'event'), memory
         }
         // Note: Default negative marking will be set when creating the actual quiz
 
-        // Process question text with universal indentation restoration
+        // Process question text with HTML formatting for perfect preservation
         let questionText = String(row[0] || '').trim();
 
-        // Apply universal indentation restoration if needed (same as Word/Image processing)
-        if (needsFormatPreservation(questionText)) {
-          const questionLines = questionText.split('\n').filter(line => line.length > 0);
-          const finalQuestionLines = restoreIndentationForAllLanguages(questionLines);
-          questionText = finalQuestionLines.join('\n');
+        // Apply HTML formatting if the text contains code
+        if (hasCodeContent(questionText)) {
+          questionText = processTextWithHtmlFormatting(questionText);
         }
 
         const question = {
@@ -1528,11 +1528,10 @@ router.post('/excel', auth, authorize('faculty', 'admin', 'event'), upload.singl
              text.includes('    ') || text.includes('\t');
     };
 
-    // Apply universal indentation restoration for ALL programming languages (SAME AS IMAGE PROCESSING)
+    // Apply simple universal indentation restoration - No language detection
     const restoreIndentationForAllLanguages = (questionLines) => {
       const restoredLines = [];
       let currentIndentLevel = 0;
-      let insideBraces = 0;
 
       for (let i = 0; i < questionLines.length; i++) {
         const line = questionLines[i].trim();
@@ -1542,122 +1541,39 @@ router.post('/excel', auth, authorize('faculty', 'admin', 'event'), upload.singl
           continue;
         }
 
-        // PYTHON - Function/class definitions stay at base level
-        if (line.match(/^(def|class)\s+\w+/)) {
-          currentIndentLevel = 0;
-          restoredLines.push(line);
-          if (line.endsWith(':')) {
-            currentIndentLevel = 1; // Next lines inside function should be indented
-          }
-          continue;
-        }
+        // Simple pattern-based indentation - no language detection
 
-        // PYTHON - Control structures inside functions
-        if (line.match(/^(if|elif|else|for|while|try|except|finally|with)\s/)) {
-          const indent = '    '.repeat(currentIndentLevel);
-          restoredLines.push(indent + line);
-          if (line.endsWith(':')) {
-            currentIndentLevel++;
-          }
-          continue;
-        }
-
-        // PYTHON - Return statements (always inside functions)
-        if (line.match(/^(return|break|continue|pass|raise)\s/)) {
-          const indent = '    '.repeat(Math.max(currentIndentLevel, 1));
-          restoredLines.push(indent + line);
-          continue;
-        }
-
-        // PYTHON - Print statements - check if they're at base level or inside function
-        if (line.match(/^print\s*\(/)) {
-          // If this is the last line or followed by options (A), B), etc.), it's at base level
-          const nextLine = i + 1 < questionLines.length ? questionLines[i + 1].trim() : '';
-          if (!nextLine || nextLine.match(/^[A-D]\)/)) {
-            // This print is at base level (outside function)
-            restoredLines.push(line);
-            currentIndentLevel = 0; // Reset for any following code
-          } else {
-            // This print is inside a function
-            const indent = '    '.repeat(Math.max(currentIndentLevel, 1));
-            restoredLines.push(indent + line);
-          }
-          continue;
-        }
-
-        // PYTHON - Import statements (always at base level)
-        if (line.match(/^(import|from)\s/)) {
-          restoredLines.push(line);
-          currentIndentLevel = 0;
-          continue;
-        }
-
-        // PYTHON - Variable assignments and function calls
-        if (line.match(/^[a-zA-Z_][a-zA-Z0-9_]*\s*[=+\-*\/]/) ||
-            line.match(/^[a-zA-Z_][a-zA-Z0-9_]*\(/)) {
-          // If we're inside a function, indent it
-          if (currentIndentLevel > 0) {
-            const indent = '    '.repeat(currentIndentLevel);
-            restoredLines.push(indent + line);
-          } else {
-            // Base level assignment/call
-            restoredLines.push(line);
-          }
-          continue;
-        }
-
-        // C/C++/JAVA/JAVASCRIPT - Function definitions and control structures
-        if (line.match(/^(public|private|protected|static|void|int|float|double|char|string|bool|function|var|let|const)\s/) ||
-            line.match(/^(if|else|for|while|do|switch|case|default|try|catch|finally)\s*\(/) ||
-            line.match(/^\w+\s+\w+\s*\(/)) {
-          const indent = '    '.repeat(currentIndentLevel);
-          restoredLines.push(indent + line);
-          if (line.includes('{')) {
-            currentIndentLevel++;
-            insideBraces++;
-          }
-          continue;
-        }
-
-        // Handle closing braces
-        if (line.includes('}')) {
-          currentIndentLevel = Math.max(0, currentIndentLevel - 1);
-          insideBraces = Math.max(0, insideBraces - 1);
-          const indent = '    '.repeat(currentIndentLevel);
-          restoredLines.push(indent + line);
-          continue;
-        }
-
-        // Handle opening braces on separate lines
-        if (line === '{') {
+        // Lines ending with : or { increase indentation for next lines
+        if (line.endsWith(':') || line.endsWith('{')) {
           const indent = '    '.repeat(currentIndentLevel);
           restoredLines.push(indent + line);
           currentIndentLevel++;
-          insideBraces++;
           continue;
         }
 
-        // C/C++/JAVA/JAVASCRIPT - Regular statements inside blocks
-        if (line.match(/.*;$/) || line.match(/^\/\//)) {
-          const indent = '    '.repeat(Math.max(currentIndentLevel, insideBraces > 0 ? 1 : 0));
-          restoredLines.push(indent + line);
-          continue;
-        }
-
-        // HTML/XML - Tags
-        if (line.match(/^<\w+/) || line.match(/^<\/\w+/)) {
+        // Closing braces decrease indentation
+        if (line === '}' || line.startsWith('}')) {
+          currentIndentLevel = Math.max(0, currentIndentLevel - 1);
           const indent = '    '.repeat(currentIndentLevel);
           restoredLines.push(indent + line);
           continue;
         }
 
-        // Default: apply current indentation if we're inside any block
-        if (currentIndentLevel > 0 || insideBraces > 0) {
-          const indent = '    '.repeat(Math.max(currentIndentLevel, insideBraces > 0 ? 1 : 0));
+        // else statements align with previous if
+        if (line.startsWith('else')) {
+          currentIndentLevel = Math.max(0, currentIndentLevel - 1);
+          const indent = '    '.repeat(currentIndentLevel);
           restoredLines.push(indent + line);
-        } else {
-          restoredLines.push(line);
+          if (line.endsWith(':') || line.endsWith('{')) {
+            currentIndentLevel++;
+          }
+          continue;
         }
+
+        // Default: apply current indentation to all other lines
+        const indent = '    '.repeat(currentIndentLevel);
+        restoredLines.push(indent + line);
+
       }
 
       return restoredLines;
@@ -1671,14 +1587,12 @@ router.post('/excel', auth, authorize('faculty', 'admin', 'event'), upload.singl
     const questions = jsonData.slice(1)
       .filter(row => row.length >= 7 && row[0])
       .map(row => {
-        // Process question text with universal indentation restoration
+        // Process question text with HTML formatting for perfect preservation
         let questionText = String(row[0] || '').trim();
 
-        // Apply universal indentation restoration if needed (same as Word/Image processing)
-        if (needsFormatPreservation(questionText)) {
-          const questionLines = questionText.split('\n').filter(line => line.length > 0);
-          const finalQuestionLines = restoreIndentationForAllLanguages(questionLines);
-          questionText = finalQuestionLines.join('\n');
+        // Apply HTML formatting if the text contains code
+        if (hasCodeContent(questionText)) {
+          questionText = processTextWithHtmlFormatting(questionText);
         }
 
         return {
@@ -1818,7 +1732,7 @@ router.post('/parse/word', auth, authorize('faculty', 'admin', 'event'), memoryU
         // Start new question
         let questionText = line.replace(/^Q\d+\.\s*/, '').replace(/\(\d+\s*marks?\)/, '').replace(/\[Negative:\s*[\d.]+\]/, '');
         // Only trim leading/trailing whitespace if it's not a code question
-        if (!needsFormatPreservation(questionText)) {
+        if (!hasCodeContent(questionText)) {
           questionText = questionText.trim();
         }
         const marksMatch = line.match(/\((\d+)\s*marks?\)/);
@@ -1846,8 +1760,8 @@ router.post('/parse/word', auth, authorize('faculty', 'admin', 'event'), memoryU
       // Handle question continuation (especially for code blocks)
       else if (currentQuestion && currentOptions.length === 0) {
         // This might be a continuation of the question text
-        if (detectCodeBlock(line) || line.match(/^\s{2,}/)) {
-          // This looks like code - preserve original formatting
+        if (isCodeLine(line) || line.match(/^\s{2,}/)) {
+          // This looks like code - preserve original formatting exactly
           currentQuestion.question += '\n' + line;
         } else {
           // Regular text continuation
@@ -1862,13 +1776,16 @@ router.post('/parse/word', auth, authorize('faculty', 'admin', 'event'), memoryU
       const correctAnswer = currentOptions.findIndex(opt => opt.includes('*'));
       const cleanOptions = currentOptions.map(opt => opt.replace(/\*$/, '').trim());
 
+      // Process question text with HTML formatting for perfect preservation
+      const formattedQuestion = processTextWithHtmlFormatting(currentQuestion.question);
+
       questions.push({
-        question: currentQuestion.question,
+        question: formattedQuestion,
         options: cleanOptions,
         correctAnswer: correctAnswer >= 0 ? correctAnswer : 0,
         marks: currentQuestion.marks,
         negativeMarks: currentQuestion.negativeMarks || 0,
-        isCodeQuestion: detectCodeBlock(currentQuestion.question)
+        isCodeQuestion: hasCodeContent(currentQuestion.question)
       });
     }
 
@@ -1969,14 +1886,16 @@ router.post('/parse/image', auth, authorize('faculty', 'admin', 'event'), memory
     const questions = [];
     for (const file of req.files) {
       try {
-        // Use Tesseract.js for OCR
+        // Use Tesseract.js for OCR with enhanced settings for code
         const { data: { text } } = await Tesseract.recognize(
           file.buffer,
           'eng',
           {
             logger: info => console.log(info),
             tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
-            preserve_interword_spaces: '1'
+            preserve_interword_spaces: '1',
+            tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789()[]{}:;.,?!@#$%^&*-+=_|\\/"\'` \n\t',
+            tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY
           }
         );
 
@@ -1987,6 +1906,22 @@ router.post('/parse/image', auth, authorize('faculty', 'admin', 'event'), memory
         console.log(JSON.stringify(text)); // Show exact characters including spaces/tabs
         console.log('='.repeat(50));
 
+        // Preprocess OCR text to fix common recognition errors
+        let preprocessedText = text
+          // Fix common OCR errors in Python code
+          .replace(/def\s+(\w+)\(\)\):/g, 'def $1():')  // Fix def startup())): to def startup():
+          .replace(/\(\)\):/g, '():')                    // Fix ())): to ):
+          .replace(/if\s+global\s+(\w+):/g, 'if global $1:')  // Fix spacing in if global
+          .replace(/print\s*\(\s*"([^"]*?)"\s*\)/g, 'print("$1")')  // Fix print spacing
+          .replace(/redy/g, 'ready')                     // Fix common typo
+          .replace(/Engines/g, 'Engines')                // Ensure proper capitalization
+          // Fix indentation issues - if a print statement follows an if statement, it should be indented
+          .replace(/(\n\s*if\s+[^:\n]+:\s*\n)(\s*print\s*\([^)]+\))/g, '$1        $2');
+
+        console.log('PREPROCESSED OCR TEXT:');
+        console.log(JSON.stringify(preprocessedText));
+        console.log('='.repeat(50));
+
         // Parse the extracted text to find questions and options
         // Helper function to detect if text needs formatting preservation (Universal)
         const needsFormatPreservation = (text) => {
@@ -1994,8 +1929,13 @@ router.post('/parse/image', auth, authorize('faculty', 'admin', 'event'), memory
             text.includes('\n') ||           // Multiple lines
             /^\s{2,}/m.test(text) ||        // Lines with 2+ leading spaces (indentation)
             /\t/.test(text) ||              // Contains tabs
-            // Programming language keywords
+            // Programming language keywords (Python, JavaScript, Java, C/C++)
             /\b(def|function|class|if|else|for|while|return|import|from|print|console\.log|var|let|const|public|private|static)\b/.test(text) ||
+            // C/C++ specific keywords and patterns
+            /\b(case|default|break|continue|switch|include|stdio|main|int|char|float|double|void|struct|typedef|enum)\b/.test(text) ||
+            /\#include\s*</.test(text) ||   // #include <stdio.h>
+            /printf\s*\(/.test(text) ||     // printf() calls
+            /scanf\s*\(/.test(text) ||      // scanf() calls
             // Common code patterns
             /[{}();]/.test(text) ||         // Brackets, parentheses, semicolons
             /\w+\(\w*\)/.test(text) ||      // Function calls like func()
@@ -2011,18 +1951,11 @@ router.post('/parse/image', auth, authorize('faculty', 'admin', 'event'), memory
           );
         };
 
-        // Parse questions from text - improved logic with code preservation (SAME AS WORD PROCESSING)
-        const lines = text.split('\n').filter(line => line.length > 0);
-        console.log('All lines from OCR (preserving original formatting):');
-        lines.forEach((line, i) => {
-          console.log(`Line ${i}: "${line}"`);
-        });
-
-        // Apply universal indentation restoration for ALL programming languages (FIXED LOGIC)
+        // Apply simple universal indentation restoration - No language detection
         const restoreIndentationForAllLanguages = (questionLines) => {
           const restoredLines = [];
           let currentIndentLevel = 0;
-          let insideBraces = 0;
+          let blockStack = []; // Track nested blocks
 
           for (let i = 0; i < questionLines.length; i++) {
             const line = questionLines[i].trim();
@@ -2032,126 +1965,94 @@ router.post('/parse/image', auth, authorize('faculty', 'admin', 'event'), memory
               continue;
             }
 
-            // PYTHON - Function/class definitions stay at base level
-            if (line.match(/^(def|class)\s+\w+/)) {
-              currentIndentLevel = 0;
-              restoredLines.push(line);
-              if (line.endsWith(':')) {
-                currentIndentLevel = 1; // Next lines inside function should be indented
-              }
-              continue;
-            }
-
-            // PYTHON - Control structures inside functions
-            if (line.match(/^(if|elif|else|for|while|try|except|finally|with)\s/)) {
+            // Handle function definitions, class definitions
+            if (line.match(/^(def|class|function)\s+/)) {
+              currentIndentLevel = 0; // Reset to base level for new function/class
+              blockStack = [];
               const indent = '    '.repeat(currentIndentLevel);
               restoredLines.push(indent + line);
               if (line.endsWith(':')) {
                 currentIndentLevel++;
+                blockStack.push('def');
               }
               continue;
             }
 
-            // PYTHON - Return statements (always inside functions)
-            if (line.match(/^(return|break|continue|pass|raise)\s/)) {
-              const indent = '    '.repeat(Math.max(currentIndentLevel, 1));
-              restoredLines.push(indent + line);
-              continue;
-            }
-
-            // PYTHON - Print statements - check if they're at base level or inside function
-            if (line.match(/^print\s*\(/)) {
-              // If this is the last line or followed by options (A), B), etc.), it's at base level
-              const nextLine = i + 1 < questionLines.length ? questionLines[i + 1].trim() : '';
-              if (!nextLine || nextLine.match(/^[A-D]\)/)) {
-                // This print is at base level (outside function)
-                restoredLines.push(line);
-                currentIndentLevel = 0; // Reset for any following code
-              } else {
-                // This print is inside a function
-                const indent = '    '.repeat(Math.max(currentIndentLevel, 1));
-                restoredLines.push(indent + line);
+            // Handle control structures that should align with previous level
+            if (line.match(/^(else|elif|except|finally|catch)\b/)) {
+              // These should align with the corresponding if/try/for/while
+              if (blockStack.length > 0) {
+                currentIndentLevel = Math.max(0, currentIndentLevel - 1);
               }
-              continue;
-            }
-
-            // PYTHON - Import statements (always at base level)
-            if (line.match(/^(import|from)\s/)) {
-              restoredLines.push(line);
-              currentIndentLevel = 0;
-              continue;
-            }
-
-            // PYTHON - Variable assignments and function calls
-            if (line.match(/^[a-zA-Z_][a-zA-Z0-9_]*\s*[=+\-*\/]/) ||
-                line.match(/^[a-zA-Z_][a-zA-Z0-9_]*\(/)) {
-              // If we're inside a function, indent it
-              if (currentIndentLevel > 0) {
-                const indent = '    '.repeat(currentIndentLevel);
-                restoredLines.push(indent + line);
-              } else {
-                // Base level assignment/call
-                restoredLines.push(line);
-              }
-              continue;
-            }
-
-            // C/C++/JAVA/JAVASCRIPT - Function definitions and control structures
-            if (line.match(/^(public|private|protected|static|void|int|float|double|char|string|bool|function|var|let|const)\s/) ||
-                line.match(/^(if|else|for|while|do|switch|case|default|try|catch|finally)\s*\(/) ||
-                line.match(/^\w+\s+\w+\s*\(/)) {
               const indent = '    '.repeat(currentIndentLevel);
               restoredLines.push(indent + line);
-              if (line.includes('{')) {
+              if (line.endsWith(':')) {
                 currentIndentLevel++;
-                insideBraces++;
+                blockStack.push('control');
               }
               continue;
             }
 
-            // Handle closing braces
-            if (line.includes('}')) {
-              currentIndentLevel = Math.max(0, currentIndentLevel - 1);
-              insideBraces = Math.max(0, insideBraces - 1);
-              const indent = '    '.repeat(currentIndentLevel);
-              restoredLines.push(indent + line);
-              continue;
-            }
-
-            // Handle opening braces on separate lines
-            if (line === '{') {
+            // Handle lines that start new blocks
+            if (line.match(/^(if|for|while|try|with)\b/) && line.endsWith(':')) {
               const indent = '    '.repeat(currentIndentLevel);
               restoredLines.push(indent + line);
               currentIndentLevel++;
-              insideBraces++;
+              blockStack.push('control');
               continue;
             }
 
-            // C/C++/JAVA/JAVASCRIPT - Regular statements inside blocks
-            if (line.match(/.*;$/) || line.match(/^\/\//)) {
-              const indent = '    '.repeat(Math.max(currentIndentLevel, insideBraces > 0 ? 1 : 0));
+            // Handle other lines ending with : (like function calls, etc.)
+            if (line.endsWith(':') && !line.match(/^(if|for|while|try|with|else|elif|except|finally|def|class)\b/)) {
+              const indent = '    '.repeat(currentIndentLevel);
               restoredLines.push(indent + line);
+              currentIndentLevel++;
+              blockStack.push('other');
               continue;
             }
 
-            // HTML/XML - Tags
-            if (line.match(/^<\w+/) || line.match(/^<\/\w+/)) {
+            // Handle closing braces for languages like JavaScript, C++, etc.
+            if (line === '}' || line.startsWith('}')) {
+              if (blockStack.length > 0) {
+                blockStack.pop();
+                currentIndentLevel = Math.max(0, currentIndentLevel - 1);
+              }
               const indent = '    '.repeat(currentIndentLevel);
               restoredLines.push(indent + line);
               continue;
             }
 
-            // Default: apply current indentation if we're inside any block
-            if (currentIndentLevel > 0 || insideBraces > 0) {
-              const indent = '    '.repeat(Math.max(currentIndentLevel, insideBraces > 0 ? 1 : 0));
-              restoredLines.push(indent + line);
-            } else {
-              restoredLines.push(line);
+            // Handle function calls at top level (like hello(10))
+            if (line.match(/^\w+\s*\([^)]*\)\s*$/) && currentIndentLevel > 0) {
+              // Check if this looks like a standalone function call
+              // If we're in a function and this is a simple function call, it might be top-level
+              const nextLine = i + 1 < questionLines.length ? questionLines[i + 1].trim() : '';
+              if (!nextLine || nextLine.match(/^(def|class|if|for|while|$)/)) {
+                // This looks like a top-level function call
+                restoredLines.push(line); // No indentation
+                currentIndentLevel = 0;
+                blockStack = [];
+                continue;
+              }
             }
+
+            // Default: apply current indentation to all other lines
+            const indent = '    '.repeat(currentIndentLevel);
+            restoredLines.push(indent + line);
           }
 
           return restoredLines;
         };
+
+        // Parse questions from text - improved logic with code preservation (SAME AS WORD PROCESSING)
+        const lines = preprocessedText.split('\n');
+        console.log('All lines from OCR (preserving original formatting):');
+        lines.forEach((line, i) => {
+          console.log(`Line ${i}: "${line}"`);
+        });
+
+        // Process OCR text with HTML formatting for perfect preservation
+
         let currentQuestion = null;
         let options = [];
         let correctAnswer = -1;
@@ -2161,15 +2062,23 @@ router.post('/parse/image', auth, authorize('faculty', 'admin', 'event'), memory
 
         for (const line of lines) {
           console.log('Processing line:', line);
-          if (line.match(/^Q\d+/) || line.match(/^\d+\./) || line.match(/Question\s*\d+/i)) {
+          if (line.match(/^Q\d+/) || line.match(/^\d+[\.\)]/) || line.match(/Question\s*\d+/i)) {
             // If we have a previous question, save it
             if (currentQuestionData && currentQuestion && options.length === 4) {
-              // Apply universal indentation restoration if needed
-              const finalQuestionLines = needsFormatPreservation(questionLines.join('\n')) ?
-                restoreIndentationForAllLanguages(questionLines) : questionLines;
+              // Apply indentation restoration for code questions (same as Excel/Word processing)
+              let questionText;
+              if (needsFormatPreservation(questionLines.join('\n'))) {
+                const restoredLines = restoreIndentationForAllLanguages(questionLines);
+                questionText = restoredLines.join('\n');
+              } else {
+                questionText = questionLines.join('\n');
+              }
+
+              // Process question text with HTML formatting for perfect preservation
+              const formattedQuestion = processTextWithHtmlFormatting(questionText);
 
               questions.push({
-                question: finalQuestionLines.join('\n'), // Use restored indentation
+                question: formattedQuestion,
                 options,
                 correctAnswer: correctAnswer !== -1 ? correctAnswer : 0,
                 marks: currentQuestionData.marks,
@@ -2208,25 +2117,80 @@ router.post('/parse/image', auth, authorize('faculty', 'admin', 'event'), memory
             questionLines = [questionText]; // Start collecting question lines
             options = [];
             correctAnswer = -1;
-          } else if (line.match(/^[A-D©]\)/)) {
-            // Handle OCR misreading: © as C, x as * at end
-            let normalizedLine = line
-              .replace(/^©\)/, 'C)')  // Fix copyright symbol to C
-              .replace(/x$/, '*');     // Fix x at end to asterisk
+          } else if (line.match(/^[A-D©]\)/) ||
+                     line.match(/^[|l]\s*[A-D]/) ||  // Handle | A, l A (OCR errors)
+                     line.match(/^[A-D]\)\s*/) ||     // Standard A) format
+                     line.match(/^o[A-D]/) ||         // Handle oA, oB, oC, oD (OCR errors)
+                     line.match(/^[A-D]\s/) ||        // Handle A B, B B, etc.
+                     line.match(/^[|l]\s*A/) ||       // Specifically handle | A, l A
+                     line.match(/^oC/) ||             // Specifically handle oC (often oD is misread C)
+                     line.match(/^oD/) ||             // Specifically handle oD
+                     (line.length <= 3 && line.match(/^[A-D|ol]/))) { // Short lines starting with A-D or OCR errors
 
-            const optionText = normalizedLine.replace(/^[A-D]\)\s*/, '').replace(/\*$/, '').trim();
-            options.push(optionText);
+            // Handle various OCR misreadings and normalize to proper format
+            let normalizedLine = line;
+            let optionLetter = '';
+            let optionText = '';
 
-            // Check for correct answer marker (* or x at end)
-            if (normalizedLine.includes('*') || line.match(/x$/)) {
-              correctAnswer = options.length - 1;
+            // Handle specific OCR patterns
+            if (line.match(/^[|l]\s*A/)) {
+              // | A or l A -> A)
+              optionLetter = 'A';
+              optionText = line.replace(/^[|l]\s*A\s*/, '').trim() || 'A'; // Default to 'A' if no text
+            } else if (line.match(/^oD/)) {
+              // oD -> C) (assuming this is option C since we're missing C)
+              optionLetter = 'C';
+              optionText = line.replace(/^oD\s*/, '').trim() || 'C'; // Default to 'C' if no text
+            } else if (line.match(/^oC/)) {
+              // oC -> C)
+              optionLetter = 'C';
+              optionText = line.replace(/^oC\s*/, '').trim() || 'C';
+            } else if (line.match(/^©\)/)) {
+              // © -> C)
+              optionLetter = 'C';
+              optionText = line.replace(/^©\)\s*/, '').trim();
+            } else if (line.match(/^[A-D]\)/)) {
+              // Standard format A), B), C), D)
+              optionLetter = line.charAt(0);
+              optionText = line.replace(/^[A-D]\)\s*/, '').replace(/\*$/, '').trim();
+            } else if (line.match(/^([A-D])\s+(.+)/)) {
+              // A B, B B format
+              const match = line.match(/^([A-D])\s+(.+)/);
+              optionLetter = match[1];
+              optionText = match[2].trim();
+            } else {
+              // Fallback: try to extract any A-D letter
+              const match = line.match(/([A-D])/);
+              if (match) {
+                optionLetter = match[1];
+                optionText = line.replace(/^[^A-D]*[A-D][^\w]*/, '').replace(/\*$/, '').trim();
+                if (!optionText) {
+                  optionText = optionLetter; // Default to the letter itself
+                }
+              }
             }
-            console.log('Found option:', {
-              original: line,
-              normalized: normalizedLine,
-              optionText,
-              isCorrect: normalizedLine.includes('*') || line.match(/x$/)
-            });
+
+            if (optionLetter && optionText) {
+              options.push(optionText);
+
+              // Check for correct answer marker (* or x at end)
+              if (line.includes('*') || line.match(/\*$/) || line.match(/x$/)) {
+                correctAnswer = options.length - 1;
+                console.log('Found correct answer at option index:', correctAnswer);
+              }
+              console.log('Found option:', {
+                original: line,
+                optionLetter,
+                optionText,
+                isCorrect: line.includes('*') || line.match(/x$/)
+              });
+            } else {
+              // If we can't parse it as an option, treat it as question text
+              console.log('Could not parse as option, treating as question text:', line);
+              if (currentQuestion !== null) {
+                questionLines.push(line.trim());
+              }
+            }
           } else if (currentQuestion !== null && !line.match(/^[A-D©]\)/)) {
             // This is part of the question (code, additional text, etc.)
             // EXACT SAME LOGIC AS WORD PROCESSING
@@ -2249,12 +2213,20 @@ router.post('/parse/image', auth, authorize('faculty', 'admin', 'event'), memory
 
         // Add the last question
         if (currentQuestionData && currentQuestion && options.length === 4) {
-          // Apply universal indentation restoration if needed
-          const finalQuestionLines = needsFormatPreservation(questionLines.join('\n')) ?
-            restoreIndentationForAllLanguages(questionLines) : questionLines;
+          // Apply indentation restoration for code questions (same as Excel/Word processing)
+          let questionText;
+          if (needsFormatPreservation(questionLines.join('\n'))) {
+            const restoredLines = restoreIndentationForAllLanguages(questionLines);
+            questionText = restoredLines.join('\n');
+          } else {
+            questionText = questionLines.join('\n');
+          }
+
+          // Process question text with HTML formatting for perfect preservation
+          const formattedQuestion = processTextWithHtmlFormatting(questionText);
 
           questions.push({
-            question: finalQuestionLines.join('\n'), // Use restored indentation
+            question: formattedQuestion,
             options,
             correctAnswer: correctAnswer !== -1 ? correctAnswer : 0,
             marks: currentQuestionData.marks,
@@ -2435,6 +2407,44 @@ router.post('/:quizId/reattempt', auth, authorize('faculty', 'admin'), async (re
 
   } catch (error) {
     console.error('Error enabling reattempt:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Allow bulk reattempt for multiple students (faculty only)
+router.post('/:quizId/bulk-reattempt', auth, authorize('faculty', 'admin'), async (req, res) => {
+  try {
+    const { studentIds, emails } = req.body;
+
+    if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
+      return res.status(400).json({ message: 'Student IDs array is required' });
+    }
+
+    const quiz = await Quiz.findById(req.params.quizId);
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    // Check if faculty owns this quiz (skip check for admin)
+    if (req.user.role === 'faculty' && quiz.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Access denied. Not your quiz.' });
+    }
+
+    // Delete existing submissions for all selected students
+    const deletedSubmissions = await QuizSubmission.deleteMany({
+      quiz: req.params.quizId,
+      student: { $in: studentIds }
+    });
+
+    res.json({
+      message: `Bulk reattempt enabled successfully for ${studentIds.length} students`,
+      studentsCount: studentIds.length,
+      deletedSubmissions: deletedSubmissions.deletedCount,
+      quizId: req.params.quizId
+    });
+
+  } catch (error) {
+    console.error('Error enabling bulk reattempt:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });

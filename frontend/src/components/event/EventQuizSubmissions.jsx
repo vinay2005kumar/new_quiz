@@ -30,7 +30,10 @@ import {
   Menu,
   ListItemIcon,
   ListItemText,
-  Divider
+  Divider,
+  Checkbox,
+  List,
+  ListItem
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -105,6 +108,10 @@ const EventQuizSubmissions = () => {
     sending: false
   });
   const [reattemptDialog, setReattemptDialog] = useState({ open: false, student: null });
+
+  // Bulk reattempt functionality
+  const [selectedStudents, setSelectedStudents] = useState(new Set());
+  const [bulkReattemptDialog, setBulkReattemptDialog] = useState({ open: false, students: [] });
 
   // Function to determine the correct submission view path
   const getSubmissionViewPath = (studentId) => {
@@ -376,6 +383,63 @@ const EventQuizSubmissions = () => {
 
   const handleCancelReattempt = () => {
     setReattemptDialog({ open: false, student: null });
+  };
+
+  // Bulk reattempt handlers
+  const handleSelectStudent = (studentId) => {
+    const newSelected = new Set(selectedStudents);
+    if (newSelected.has(studentId)) {
+      newSelected.delete(studentId);
+    } else {
+      newSelected.add(studentId);
+    }
+    setSelectedStudents(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    const submittedStudents = sortedStudents.filter(s => s.hasSubmitted);
+    if (selectedStudents.size === submittedStudents.length) {
+      setSelectedStudents(new Set());
+    } else {
+      setSelectedStudents(new Set(submittedStudents.map(s => s.student._id)));
+    }
+  };
+
+  const handleBulkReattempt = () => {
+    const selectedStudentData = sortedStudents.filter(s =>
+      selectedStudents.has(s.student._id) && s.hasSubmitted
+    );
+    setBulkReattemptDialog({ open: true, students: selectedStudentData });
+  };
+
+  const handleConfirmBulkReattempt = async () => {
+    const studentsToReattempt = bulkReattemptDialog.students;
+
+    try {
+      // Call backend API for bulk reattempt
+      const reattemptRequests = studentsToReattempt.map(s => ({
+        email: s.student.email,
+        isTeamRegistration: s.student.isTeamRegistration,
+        teamName: s.student.teamName
+      }));
+
+      await api.post(`/api/event-quiz/${id}/bulk-reattempt`, {
+        students: reattemptRequests
+      });
+
+      toast.success(`${studentsToReattempt.length} students can now reattempt the quiz!`);
+      setBulkReattemptDialog({ open: false, students: [] });
+      setSelectedStudents(new Set());
+      fetchData(); // Refresh the data to update the UI
+    } catch (error) {
+      console.error('Error allowing bulk reattempt:', error);
+      toast.error('Failed to allow bulk reattempt: ' + (error.response?.data?.message || error.message));
+      setBulkReattemptDialog({ open: false, students: [] });
+    }
+  };
+
+  const handleCancelBulkReattempt = () => {
+    setBulkReattemptDialog({ open: false, students: [] });
   };
 
   // Download functionality
@@ -889,10 +953,37 @@ const EventQuizSubmissions = () => {
           sx={{ mb: 3 }}
         />
 
+        {/* Bulk Actions */}
+        {selectedStudents.size > 0 && (
+          <Box sx={{ mb: 2, p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="body1">
+                {selectedStudents.size} student{selectedStudents.size !== 1 ? 's' : ''} selected
+              </Typography>
+              <Button
+                variant="contained"
+                color="warning"
+                startIcon={<QuizIcon />}
+                onClick={handleBulkReattempt}
+              >
+                Allow Reattempt for Selected
+              </Button>
+            </Box>
+          </Box>
+        )}
+
         <TableContainer>
           <Table>
             <TableHead>
               <TableRow>
+                <TableCell padding="checkbox">
+                  <Checkbox
+                    indeterminate={selectedStudents.size > 0 && selectedStudents.size < sortedStudents.filter(s => s.hasSubmitted).length}
+                    checked={sortedStudents.filter(s => s.hasSubmitted).length > 0 && selectedStudents.size === sortedStudents.filter(s => s.hasSubmitted).length}
+                    onChange={handleSelectAll}
+                    disabled={sortedStudents.filter(s => s.hasSubmitted).length === 0}
+                  />
+                </TableCell>
                 <TableCell>Shortlist</TableCell>
                 <TableCell>
                   <Tooltip title="Sort by Name">
@@ -972,6 +1063,13 @@ const EventQuizSubmissions = () => {
                     backgroundColor: isShortlisted(studentData.student._id) ? '#e8f5e8' : 'inherit'
                   }}
                 >
+                  <TableCell padding="checkbox">
+                    <Checkbox
+                      checked={selectedStudents.has(studentData.student._id)}
+                      onChange={() => handleSelectStudent(studentData.student._id)}
+                      disabled={!studentData.hasSubmitted}
+                    />
+                  </TableCell>
                   <TableCell>
                     {isShortlisted(studentData.student._id) ? (
                       <Button
@@ -1969,6 +2067,146 @@ const EventQuizSubmissions = () => {
             startIcon={<QuizIcon />}
           >
             Allow Reattempt
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Bulk Reattempt Confirmation Dialog */}
+      <Dialog
+        open={bulkReattemptDialog.open}
+        onClose={handleCancelBulkReattempt}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1}>
+            <QuizIcon color="warning" />
+            Confirm Bulk Quiz Reattempt
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 1 }}>
+            <Typography variant="body1" gutterBottom>
+              Are you sure you want to allow <strong>{bulkReattemptDialog.students.length} students</strong> to reattempt this quiz?
+            </Typography>
+
+            <Alert severity="warning" sx={{ mt: 2, mb: 2 }}>
+              <Typography variant="body2">
+                <strong>Warning:</strong> This action will:
+              </Typography>
+              <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>
+                <li>Delete their previous submissions and scores</li>
+                <li>Reset their quiz credentials</li>
+                <li>Allow them to take the quiz again</li>
+                <li>Reset team submissions for team registrations</li>
+              </ul>
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                This action cannot be undone.
+              </Typography>
+            </Alert>
+
+            <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
+              Selected Students:
+            </Typography>
+            <Box sx={{ maxHeight: 300, overflow: 'auto', border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+              <List dense>
+                {bulkReattemptDialog.students.map((studentData, index) => (
+                  <ListItem key={studentData.student._id}>
+                    <ListItemText
+                      primary={`${index + 1}. ${studentData.student.name}${studentData.student.isTeamRegistration ? ` (Team: ${studentData.student.teamName})` : ''}`}
+                      secondary={`${studentData.student.email} - ${studentData.student.college} - Score: ${studentData.totalMarks}/${quiz?.totalMarks}`}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={handleCancelBulkReattempt}
+            color="secondary"
+            variant="outlined"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirmBulkReattempt}
+            color="warning"
+            variant="contained"
+            startIcon={<QuizIcon />}
+          >
+            Allow Reattempt for {bulkReattemptDialog.students.length} Students
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Bulk Reattempt Confirmation Dialog */}
+      <Dialog
+        open={bulkReattemptDialog.open}
+        onClose={handleCancelBulkReattempt}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1}>
+            <QuizIcon color="warning" />
+            Confirm Bulk Quiz Reattempt
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 1 }}>
+            <Typography variant="body1" gutterBottom>
+              Are you sure you want to allow <strong>{bulkReattemptDialog.students.length} students</strong> to reattempt this quiz?
+            </Typography>
+
+            <Alert severity="warning" sx={{ mt: 2, mb: 2 }}>
+              <Typography variant="body2">
+                <strong>Warning:</strong> This action will:
+              </Typography>
+              <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>
+                <li>Delete their previous submissions and scores</li>
+                <li>Reset their quiz credentials</li>
+                <li>Allow them to take the quiz again</li>
+                <li>Reset team submissions for team registrations</li>
+              </ul>
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                This action cannot be undone.
+              </Typography>
+            </Alert>
+
+            <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
+              Selected Students:
+            </Typography>
+            <Box sx={{ maxHeight: 300, overflow: 'auto', border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+              <List dense>
+                {bulkReattemptDialog.students.map((studentData, index) => (
+                  <ListItem key={studentData.student._id}>
+                    <ListItemText
+                      primary={`${index + 1}. ${studentData.student.name}${studentData.student.isTeamRegistration ? ` (Team: ${studentData.student.teamName})` : ''}`}
+                      secondary={`${studentData.student.email} - ${studentData.student.college} - Score: ${studentData.totalMarks}/${quiz?.totalMarks}`}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={handleCancelBulkReattempt}
+            color="secondary"
+            variant="outlined"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirmBulkReattempt}
+            color="warning"
+            variant="contained"
+            startIcon={<QuizIcon />}
+          >
+            Allow Reattempt for {bulkReattemptDialog.students.length} Students
           </Button>
         </DialogActions>
       </Dialog>

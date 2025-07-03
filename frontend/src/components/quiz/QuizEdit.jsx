@@ -35,6 +35,7 @@ import SaveIcon from '@mui/icons-material/Save';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import api from '../../config/axios';
 import { useAuth } from '../../context/AuthContext';
+import AddQuestionModal from './AddQuestionModal';
 
 const SECTIONS = ['A', 'B', 'C', 'D', 'E'];
 const YEARS = [1, 2, 3, 4];
@@ -262,6 +263,9 @@ const QuizEdit = () => {
     department: ''
   });
 
+  // Add Question Modal state
+  const [addQuestionModalOpen, setAddQuestionModalOpen] = useState(false);
+
   // Fetch faculty structure on mount
   useEffect(() => {
     const fetchFacultyStructure = async () => {
@@ -473,24 +477,14 @@ const QuizEdit = () => {
   };
 
   const addQuestion = () => {
-    setQuiz(prev => {
-      const defaultMarks = 1;
-      const defaultNegativeMarks = prev.negativeMarkingEnabled ? defaultMarks : 0;
+    setAddQuestionModalOpen(true);
+  };
 
-      return {
-        ...prev,
-        questions: [
-          ...prev.questions,
-          {
-            question: '',
-            options: ['', '', '', ''],
-            correctAnswer: 0,
-            marks: defaultMarks,
-            negativeMarks: defaultNegativeMarks
-          }
-        ]
-      };
-    });
+  const handleQuestionsAdded = (newQuestions) => {
+    setQuiz(prev => ({
+      ...prev,
+      questions: [...prev.questions, ...newQuestions]
+    }));
   };
 
   const removeQuestion = (index) => {
@@ -1216,6 +1210,15 @@ const QuizEdit = () => {
           </Button>
         </Box>
       </Paper>
+
+      {/* Add Question Modal */}
+      <AddQuestionModal
+        open={addQuestionModalOpen}
+        onClose={() => setAddQuestionModalOpen(false)}
+        onQuestionsAdded={handleQuestionsAdded}
+        negativeMarkingEnabled={quiz.negativeMarkingEnabled}
+        isEventQuiz={false}
+      />
     </Container>
   );
 };

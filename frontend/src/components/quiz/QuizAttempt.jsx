@@ -418,16 +418,14 @@ const QuizAttempt = () => {
                           borderRadius: 1,
                           border: '1px solid',
                           borderColor: 'divider',
-                          fontFamily: 'monospace',
                           fontSize: '1.1rem',
                           lineHeight: 1.6,
-                          whiteSpace: 'pre-wrap', // ALWAYS preserve all formatting
                           overflow: 'auto',
                           maxHeight: '400px',
                           overflowY: 'auto'
-                        }}>
-                          {quiz.questions[currentQuestion].question}
-                        </Box>
+                        }}
+                        dangerouslySetInnerHTML={{ __html: quiz.questions[currentQuestion].question }}
+                        />
                       </Box>
 
                       <FormControl component="fieldset" sx={{ width: '100%' }}>
@@ -533,22 +531,20 @@ const QuizAttempt = () => {
 
                         {/* Question Text with UNIVERSAL Formatting Preservation */}
                         <Box sx={{ mb: 3 }}>
-                          <Box sx={{
-                            p: 2,
-                            bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
-                            borderRadius: 1,
-                            border: '1px solid',
-                            borderColor: 'divider',
-                            fontFamily: 'monospace',
-                            fontSize: '1.1rem',
-                            lineHeight: 1.6,
-                            whiteSpace: 'pre-wrap', // ALWAYS preserve all formatting
-                            overflow: 'auto',
-                            maxHeight: '400px',
-                            overflowY: 'auto'
-                          }}>
-                            {question.question}
-                          </Box>
+                          <div
+                            style={{
+                              padding: '16px',
+                              backgroundColor: 'var(--question-bg, #f8f9fa)',
+                              borderRadius: '8px',
+                              border: '1px solid var(--question-border, #e9ecef)',
+                              fontSize: '1.1rem',
+                              lineHeight: 1.6,
+                              overflow: 'auto',
+                              maxHeight: '400px',
+                              overflowY: 'auto'
+                            }}
+                            dangerouslySetInnerHTML={{ __html: question.question }}
+                          />
                         </Box>
 
                         <FormControl component="fieldset" sx={{ width: '100%' }}>

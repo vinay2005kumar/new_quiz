@@ -12,7 +12,7 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import DownloadIcon from '@mui/icons-material/Download';
 import api from '../../../config/axios';
 
-const WordQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate }) => {
+const WordQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate, hideNavigation = false, isEventQuiz = false }) => {
   const [uploading, setUploading] = useState(false);
   const [file, setFile] = useState(null);
 
@@ -134,7 +134,9 @@ D) 6\\par
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await api.post('/api/quiz/parse/word', formData, {
+      // Use the correct API endpoint based on quiz type
+      const endpoint = isEventQuiz ? '/api/eventQuiz/parse/word' : '/api/quiz/parse/word';
+      const response = await api.post(endpoint, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
@@ -313,7 +315,7 @@ D) 6`}
             onClick={handleUpload}
             disabled={!file || uploading}
           >
-            {uploading ? <CircularProgress size={24} /> : 'Upload and Create Quiz'}
+            {uploading ? <CircularProgress size={24} /> : (hideNavigation ? 'Upload Questions' : 'Upload and Create Quiz')}
           </Button>
         </Box>
       </Paper>

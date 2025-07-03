@@ -311,4 +311,13 @@ eventQuizSchema.pre('save', function(next) {
   next();
 });
 
+// Middleware to calculate total marks before updating
+eventQuizSchema.pre(['findOneAndUpdate', 'updateOne', 'updateMany'], function(next) {
+  const update = this.getUpdate();
+  if (update.questions) {
+    update.totalMarks = update.questions.reduce((sum, question) => sum + question.marks, 0);
+  }
+  next();
+});
+
 module.exports = mongoose.model('EventQuiz', eventQuizSchema); 

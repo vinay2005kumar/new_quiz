@@ -248,14 +248,12 @@ const QuizReview = () => {
                 borderRadius: 1,
                 border: '1px solid',
                 borderColor: 'divider',
-                fontFamily: 'monospace',
                 fontSize: '0.9rem',
                 lineHeight: 1.5,
-                whiteSpace: 'pre-wrap', // ALWAYS preserve all formatting
                 overflow: 'auto'
-              }}>
-                {question.question}
-              </Box>
+              }}
+              dangerouslySetInnerHTML={{ __html: question.question }}
+              />
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 Marks: {userAnswer?.marks || 0} / {question.marks || 0}
                 {quizData?.negativeMarkingEnabled && question.negativeMarks > 0 && (

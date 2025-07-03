@@ -156,3 +156,47 @@ th {
 }
 
 /* Menu item hover effect - handled by Material-UI theme */
+
+/* Quiz question formatting styles for HTML <pre> tags */
+pre {
+  background-color: #f8f9fa !important;
+  border: 1px solid #e9ecef !important;
+  border-radius: 6px !important;
+  padding: 16px !important;
+  margin: 12px 0 !important;
+  font-family: 'Fira Code', 'Courier New', Consolas, Monaco, monospace !important;
+  font-size: 0.9em !important;
+  line-height: 1.5 !important;
+  overflow-x: auto !important;
+  white-space: pre !important;
+  color: #212529 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+  display: block !important;
+}
+
+/* Dark mode support for pre tags */
+[data-theme="dark"] pre,
+.MuiBox-root[data-theme="dark"] pre,
+div[data-theme="dark"] pre {
+  background-color: #2d3748 !important;
+  border-color: #4a5568 !important;
+  color: #e2e8f0 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Ensure pre tags work well within Material-UI components with higher specificity */
+.MuiBox-root pre,
+.MuiCardContent-root pre,
+.MuiPaper-root pre,
+div[class*="MuiBox"] pre {
+  margin: 8px 0 !important;
+  display: block !important;
+  white-space: pre !important;
+}
+
+/* Force pre tag display even if there are conflicting styles */
+*[dangerouslySetInnerHTML] pre {
+  display: block !important;
+  white-space: pre !important;
+  font-family: 'Fira Code', 'Courier New', Consolas, Monaco, monospace !important;
+}

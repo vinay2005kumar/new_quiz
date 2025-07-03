@@ -13,7 +13,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import * as XLSX from 'xlsx';
 import api from '../../../config/axios';
 
-const ExcelQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate }) => {
+const ExcelQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate, hideNavigation = false, isEventQuiz = false }) => {
   const [uploading, setUploading] = useState(false);
   const [file, setFile] = useState(null);
 
@@ -109,7 +109,9 @@ print(factorial(4))`, '24', '120', '4', '1', 'A', '3', '1'],
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await api.post('/api/quiz/parse/excel', formData, {
+      // Use the correct API endpoint based on quiz type
+      const endpoint = isEventQuiz ? '/api/eventQuiz/parse/excel' : '/api/quiz/parse/excel';
+      const response = await api.post(endpoint, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
@@ -310,7 +312,7 @@ print(factorial(4))`}
             onClick={handleUpload}
             disabled={!file || uploading}
           >
-            {uploading ? <CircularProgress size={24} /> : 'Upload and Create Quiz'}
+            {uploading ? <CircularProgress size={24} /> : (hideNavigation ? 'Upload Questions' : 'Upload and Create Quiz')}
           </Button>
         </Box>
       </Paper>

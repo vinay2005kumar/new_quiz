@@ -680,14 +680,12 @@ const AuthenticatedQuizTake = () => {
                       borderRadius: 1,
                       border: '1px solid',
                       borderColor: 'divider',
-                      fontFamily: 'monospace',
                       fontSize: '1.1rem',
                       lineHeight: 1.6,
-                      whiteSpace: 'pre-wrap', // ALWAYS preserve all formatting
                       overflow: 'auto'
-                    }}>
-                      {questions[currentQuestion].question}
-                    </Box>
+                    }}
+                    dangerouslySetInnerHTML={{ __html: questions[currentQuestion].question }}
+                    />
 
                     <FormControl component="fieldset" sx={{ width: '100%' }}>
                       <RadioGroup

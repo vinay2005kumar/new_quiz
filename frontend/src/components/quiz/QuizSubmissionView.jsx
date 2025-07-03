@@ -197,14 +197,12 @@ const QuizSubmissionView = () => {
                               borderRadius: 1,
                               border: '1px solid',
                               borderColor: 'divider',
-                              fontFamily: 'monospace',
                               fontSize: '0.9rem',
                               lineHeight: 1.5,
-                              whiteSpace: 'pre-wrap', // ALWAYS preserve all formatting
                               overflow: 'auto'
-                            }}>
-                              {question.question}
-                            </Box>
+                            }}
+                            dangerouslySetInnerHTML={{ __html: question.question }}
+                            />
                             <RadioGroup
                               value={studentAnswer !== null && studentAnswer !== undefined ? studentAnswer : ''}
                               sx={{ ml: 2 }}

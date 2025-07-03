@@ -28,6 +28,7 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import api from '../../config/axios';
+import AddQuestionModal from '../quiz/AddQuestionModal';
 
 // Constants for dropdown options (fallback values)
 const DEPARTMENTS = [
@@ -108,6 +109,9 @@ const EventQuizEdit = () => {
     teamSize: 2,
     questions: []
   });
+
+  // Add Question Modal state
+  const [addQuestionModalOpen, setAddQuestionModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -283,24 +287,14 @@ const EventQuizEdit = () => {
   };
 
   const addQuestion = () => {
-    setFormData(prev => {
-      const defaultMarks = 1;
-      const defaultNegativeMarks = prev.negativeMarkingEnabled ? defaultMarks : 0;
+    setAddQuestionModalOpen(true);
+  };
 
-      return {
-        ...prev,
-        questions: [
-          ...prev.questions,
-          {
-            question: '',
-            options: ['', '', '', ''],
-            correctAnswer: 0,
-            marks: defaultMarks,
-            negativeMarks: defaultNegativeMarks
-          }
-        ]
-      };
-    });
+  const handleQuestionsAdded = (newQuestions) => {
+    setFormData(prev => ({
+      ...prev,
+      questions: [...prev.questions, ...newQuestions]
+    }));
   };
 
   const removeQuestion = (index) => {
@@ -981,6 +975,15 @@ const EventQuizEdit = () => {
           </Grid>
         </form>
       </Paper>
+
+      {/* Add Question Modal */}
+      <AddQuestionModal
+        open={addQuestionModalOpen}
+        onClose={() => setAddQuestionModalOpen(false)}
+        onQuestionsAdded={handleQuestionsAdded}
+        negativeMarkingEnabled={formData.negativeMarkingEnabled}
+        isEventQuiz={true}
+      />
     </Container>
   );
 };

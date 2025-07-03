@@ -14,7 +14,7 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import DeleteIcon from '@mui/icons-material/Delete';
 import api from '../../../config/axios';
 
-const ImageQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate }) => {
+const ImageQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate, hideNavigation = false, isEventQuiz = false }) => {
   const [uploading, setUploading] = useState(false);
   const [files, setFiles] = useState([]);
   const [previews, setPreviews] = useState([]);
@@ -67,7 +67,9 @@ const ImageQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate }) =>
         formData.append('images', file);
       });
 
-      const response = await api.post('/api/quiz/parse/image', formData, {
+      // Use the correct API endpoint based on quiz type
+      const endpoint = isEventQuiz ? '/api/eventQuiz/parse/image' : '/api/quiz/parse/image';
+      const response = await api.post(endpoint, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
@@ -331,7 +333,7 @@ D) Error`}
                 Processing Images...
               </>
             ) : (
-              'Upload and Process Images'
+              hideNavigation ? 'Upload Questions from Images' : 'Upload and Process Images'
             )}
           </Button>
         </Box>

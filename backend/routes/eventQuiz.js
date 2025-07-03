@@ -53,8 +53,17 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-const upload = multer({ 
+const upload = multer({
   storage: storage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  }
+});
+
+// Configure multer for memory uploads (for parsing endpoints)
+const memoryUpload = multer({
+  storage: multer.memoryStorage(),
   fileFilter: fileFilter,
   limits: {
     fileSize: 5 * 1024 * 1024 // 5MB limit
@@ -1633,10 +1642,25 @@ router.post('/excel', auth, authorize(['event']), upload.single('file'), async (
           continue;
         }
 
-        // PYTHON - Return statements (always inside functions)
+        // PYTHON - Return statements (context-aware indentation)
         if (line.match(/^(return|break|continue|pass|raise)\s/)) {
-          const indent = '    '.repeat(Math.max(currentIndentLevel, 1));
-          restoredLines.push(indent + line);
+          // Check if this return is inside an if block or at function level
+          const nextLine = i + 1 < questionLines.length ? questionLines[i + 1].trim() : '';
+
+          // If this return is followed by another return, this one is inside the if block
+          // and the next one should be at function level
+          if (nextLine.match(/^return\s/) && insideIfBlock) {
+            // This return is inside the if block
+            const indent = '    '.repeat(currentIndentLevel);
+            restoredLines.push(indent + line);
+            // Exit the if block for the next statement
+            insideIfBlock = false;
+            currentIndentLevel = 1; // Back to function level
+          } else {
+            // Regular return statement at current level
+            const indent = '    '.repeat(currentIndentLevel);
+            restoredLines.push(indent + line);
+          }
           continue;
         }
 
@@ -1887,6 +1911,642 @@ router.post('/word', auth, authorize(['event']), upload.single('file'), async (r
   }
 });
 
+// Parse Excel file and return questions (for preview) - WITH UNIVERSAL INDENTATION SUPPORT
+router.post('/parse/excel', auth, authorize(['event']), memoryUpload.single('file'), async (req, res) => {
+  try {
+    console.log('Event Excel parse request received');
+    console.log('File info:', {
+      hasFile: !!req.file,
+      filename: req.file?.originalname,
+      size: req.file?.size
+    });
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    // Read the Excel file
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+
+    // Convert to JSON
+    const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+    console.log('Excel data rows:', data.length);
+    console.log('First few rows:', data.slice(0, 3));
+
+    const questions = [];
+
+    // Skip header row and process data
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+
+      // Skip empty rows
+      if (!row || row.length === 0 || !row[0]) continue;
+
+      console.log(`Processing row ${i}:`, row);
+
+      try {
+        let questionText = row[0] ? String(row[0]).trim() : '';
+        const optionA = row[1] ? String(row[1]).trim() : '';
+        const optionB = row[2] ? String(row[2]).trim() : '';
+        const optionC = row[3] ? String(row[3]).trim() : '';
+        const optionD = row[4] ? String(row[4]).trim() : '';
+        const correctAnswer = row[5] ? String(row[5]).trim().toUpperCase() : '';
+        const marks = row[6] ? parseFloat(row[6]) : 1;
+        const negativeMarks = row[7] ? parseFloat(row[7]) : 0;
+
+        // Skip if essential fields are missing
+        if (!questionText || !optionA || !optionB || !correctAnswer) {
+          console.log(`Skipping row ${i}: Missing essential fields`);
+          continue;
+        }
+
+        // Apply universal indentation restoration (same as Word document processing)
+        const needsFormatPreservation = (text) => {
+          const codePatterns = [
+            /\b(def|class|if|else|elif|for|while|try|except|finally|with|import|from)\b/,
+            /\b(function|var|let|const|if|else|for|while|switch|case|return)\b/,
+            /\b(public|private|protected|class|interface|extends|implements)\b/,
+            /\b(#include|int|char|float|double|void|printf|scanf)\b/,
+            /<[^>]+>/,
+            /\{[\s\S]*\}/,
+            /^\s*(def|class|if|for|while|function|var|let|const|public|private)/m
+          ];
+          return codePatterns.some(pattern => pattern.test(text));
+        };
+
+        // Universal indentation restoration function
+        const restoreUniversalIndentation = (text) => {
+          if (!needsFormatPreservation(text)) {
+            return text;
+          }
+
+          const lines = text.split('\n');
+          const processedLines = [];
+          let currentIndentLevel = 0;
+          let insideFunction = false;
+          let insideClass = false;
+          let insideIfBlock = false;
+          let braceLevel = 0;
+
+          for (let i = 0; i < lines.length; i++) {
+            let line = lines[i].trim();
+
+            if (!line) {
+              processedLines.push('');
+              continue;
+            }
+
+            // Detect language and apply appropriate indentation
+            if (line.match(/\b(def|class|if|elif|else|for|while|try|except|finally|with)\b/)) {
+              // Python-like syntax
+              if (line.startsWith('def ')) {
+                processedLines.push(line);
+                insideFunction = true;
+                currentIndentLevel = 1;
+              } else if (line.startsWith('class ')) {
+                processedLines.push(line);
+                insideClass = true;
+                currentIndentLevel = 1;
+              } else if (line.match(/^(if|elif|for|while|try|with)\b/)) {
+                const indent = '    '.repeat(currentIndentLevel);
+                processedLines.push(indent + line);
+                insideIfBlock = true;
+                currentIndentLevel++;
+              } else if (line.startsWith('else:') || line.startsWith('except:') || line.startsWith('finally:')) {
+                const indent = '    '.repeat(Math.max(0, currentIndentLevel - 1));
+                processedLines.push(indent + line);
+                currentIndentLevel = Math.max(1, currentIndentLevel);
+              } else {
+                const indent = '    '.repeat(currentIndentLevel);
+                processedLines.push(indent + line);
+              }
+            } else if (line.match(/^(return|break|continue|pass)\b/)) {
+              // Python control statements
+              const indent = '    '.repeat(Math.max(1, currentIndentLevel));
+              processedLines.push(indent + line);
+            } else if (line.match(/\b(function|var|let|const|if|else|for|while|switch|case|return)\b/)) {
+              // JavaScript-like syntax
+              if (line.includes('{')) braceLevel++;
+              const indent = '    '.repeat(braceLevel);
+              processedLines.push(indent + line);
+              if (line.includes('}')) braceLevel = Math.max(0, braceLevel - 1);
+            } else if (line.match(/^(print|console\.log|System\.out\.println|printf|cout)\b/)) {
+              // Print statements - check context
+              if (insideFunction || insideIfBlock) {
+                const indent = '    '.repeat(Math.max(1, currentIndentLevel));
+                processedLines.push(indent + line);
+              } else {
+                // Base level print statement
+                processedLines.push(line);
+              }
+            } else {
+              // Regular code line
+              if (insideFunction || insideClass || currentIndentLevel > 0) {
+                const indent = '    '.repeat(Math.max(1, currentIndentLevel));
+                processedLines.push(indent + line);
+              } else {
+                processedLines.push(line);
+              }
+            }
+
+            // Reset context for certain patterns
+            if (line.match(/^(print|console\.log|System\.out\.println|printf|cout)\b/) && !insideFunction && !insideIfBlock) {
+              currentIndentLevel = 0;
+              insideFunction = false;
+              insideIfBlock = false;
+            }
+          }
+
+          return processedLines.join('\n');
+        };
+
+        // Apply indentation restoration to question text
+        questionText = restoreUniversalIndentation(questionText);
+
+        // Convert correct answer letter to index
+        let correctIndex;
+        switch (correctAnswer) {
+          case 'A': correctIndex = 0; break;
+          case 'B': correctIndex = 1; break;
+          case 'C': correctIndex = 2; break;
+          case 'D': correctIndex = 3; break;
+          default:
+            console.log(`Invalid correct answer: ${correctAnswer} for row ${i}`);
+            continue;
+        }
+
+        const question = {
+          question: questionText,
+          options: [optionA, optionB, optionC, optionD].filter(opt => opt),
+          correctAnswer: correctIndex,
+          marks: marks,
+          negativeMarks: negativeMarks
+        };
+
+        questions.push(question);
+        console.log(`Successfully processed question ${questions.length}:`, {
+          questionPreview: questionText.substring(0, 50) + '...',
+          optionsCount: question.options.length,
+          correctAnswer: correctIndex,
+          marks,
+          negativeMarks
+        });
+
+      } catch (rowError) {
+        console.error(`Error processing row ${i}:`, rowError);
+        continue;
+      }
+    }
+
+    console.log(`Event Excel parsing completed. Total questions: ${questions.length}`);
+
+    if (questions.length === 0) {
+      return res.status(400).json({
+        message: 'No valid questions found in the Excel file. Please check the format.'
+      });
+    }
+
+    res.json({ questions });
+
+  } catch (error) {
+    console.error('Event Excel parse error:', error);
+    res.status(500).json({ message: 'Failed to process Excel file', error: error.message });
+  }
+});
+
+// Parse Word file and return questions (for preview)
+router.post('/parse/word', auth, authorize(['event']), memoryUpload.single('file'), async (req, res) => {
+  try {
+    console.log('Event Word parse request received');
+    console.log('File info:', {
+      hasFile: !!req.file,
+      filename: req.file?.originalname,
+      size: req.file?.size
+    });
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+
+    // Extract text from Word document
+    const result = await mammoth.extractRawText({ buffer: req.file.buffer });
+    const text = result.value;
+
+    console.log('Extracted text length:', text.length);
+    console.log('First 200 characters:', text.substring(0, 200));
+
+    // Parse questions from text
+    const questions = [];
+    const lines = text.split('\n').map(line => line.trim()).filter(line => line);
+
+    let currentQuestion = null;
+    let questionLines = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      // Check if this line starts a new question
+      const questionMatch = line.match(/^(?:Q\d+\.?\s*|Question\s*\d+\.?\s*|\d+\.?\s*)(.*?)(?:\s*\((\d+(?:\.\d+)?)\s*marks?\))?\s*(?:\[Negative:\s*(\d+(?:\.\d+)?)\])?$/i);
+
+      if (questionMatch) {
+        // Process previous question if exists
+        if (currentQuestion && questionLines.length > 0) {
+          processWordQuestion(currentQuestion, questionLines, questions);
+        }
+
+        // Start new question
+        const questionText = questionMatch[1].trim();
+        const marks = questionMatch[2] ? parseFloat(questionMatch[2]) : 1;
+        const negativeMarks = questionMatch[3] ? parseFloat(questionMatch[3]) : 0;
+
+        currentQuestion = {
+          questionText: questionText,
+          marks: marks,
+          negativeMarks: negativeMarks,
+          options: [],
+          correctAnswer: null
+        };
+        questionLines = [];
+
+        // If question text is empty, collect it from next lines
+        if (!questionText) {
+          questionLines.push(line);
+        }
+      } else if (currentQuestion) {
+        questionLines.push(line);
+      }
+    }
+
+    // Process the last question
+    if (currentQuestion && questionLines.length > 0) {
+      processWordQuestion(currentQuestion, questionLines, questions);
+    }
+
+    console.log(`Event Word parsing completed. Total questions: ${questions.length}`);
+
+    if (questions.length === 0) {
+      return res.status(400).json({
+        message: 'No valid questions found in the Word document. Please check the format.'
+      });
+    }
+
+    res.json({ questions });
+
+  } catch (error) {
+    console.error('Event Word parse error:', error);
+    res.status(500).json({ message: 'Failed to process Word document', error: error.message });
+  }
+});
+
+// Helper function for processing Word questions (same as main quiz routes)
+function processWordQuestion(currentQuestion, questionLines, questions) {
+  try {
+    let questionText = currentQuestion.questionText;
+    const options = [];
+    let correctAnswer = null;
+    let collectingQuestionText = !questionText;
+
+    for (const line of questionLines) {
+      // Check for options
+      const optionMatch = line.match(/^([A-D])\)\s*(.+)$/i);
+      if (optionMatch) {
+        collectingQuestionText = false;
+        const optionLetter = optionMatch[1].toUpperCase();
+        const optionText = optionMatch[2].trim();
+
+        // Check if this option is marked as correct
+        const isCorrect = optionText.includes('*') || optionText.includes('(correct)') ||
+                         optionText.includes('[correct]') || optionText.includes('✓');
+
+        if (isCorrect) {
+          correctAnswer = options.length;
+          // Clean the option text
+          options.push(optionText.replace(/\*|\(correct\)|\[correct\]|✓/g, '').trim());
+        } else {
+          options.push(optionText);
+        }
+      } else if (collectingQuestionText) {
+        // Add to question text
+        questionText += (questionText ? '\n' : '') + line;
+      }
+    }
+
+    // Apply formatting preservation (same logic as main quiz routes)
+    const needsFormatPreservation = (text) => {
+      const codePatterns = [
+        /\b(def|class|if|else|elif|for|while|try|except|finally|with|import|from)\b/,
+        /\b(function|var|let|const|if|else|for|while|switch|case|return)\b/,
+        /\b(public|private|protected|class|interface|extends|implements)\b/,
+        /\b(#include|int|char|float|double|void|printf|scanf)\b/,
+        /<[^>]+>/,
+        /\{[\s\S]*\}/,
+        /^\s*(def|class|if|for|while|function|var|let|const|public|private)/m
+      ];
+      return codePatterns.some(pattern => pattern.test(text));
+    };
+
+    if (needsFormatPreservation(questionText)) {
+      // Preserve original line spacing for code
+      questionText = questionText.split('\n').map(line => line.trimRight()).join('\n');
+    }
+
+    // Validate question
+    if (questionText && options.length >= 2 && correctAnswer !== null) {
+      questions.push({
+        question: questionText,
+        options: options,
+        correctAnswer: correctAnswer,
+        marks: currentQuestion.marks,
+        negativeMarks: currentQuestion.negativeMarks
+      });
+
+      console.log(`Processed Word question: ${questionText.substring(0, 50)}...`);
+    }
+  } catch (error) {
+    console.error('Error processing Word question:', error);
+  }
+}
+
+// Parse images and return questions (for preview)
+router.post('/parse/image', auth, authorize(['event']), memoryUpload.array('images'), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: 'No images uploaded' });
+    }
+
+    // Process each image with OCR
+    const questions = [];
+    for (const file of req.files) {
+      try {
+        // Use Tesseract.js for OCR with enhanced settings for code
+        const { data: { text } } = await Tesseract.recognize(
+          file.buffer,
+          'eng',
+          {
+            logger: info => console.log(info),
+            tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
+            preserve_interword_spaces: '1',
+            tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789()[]{}:;.,?!@#$%^&*-+=_|\\/"\'` \n\t',
+            tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY
+          }
+        );
+
+        console.log('Event OCR extracted text:', text);
+        console.log('Event OCR text length:', text.length);
+        console.log('='.repeat(50));
+        console.log('RAW EVENT OCR TEXT WITH FORMATTING:');
+        console.log(JSON.stringify(text)); // Show exact characters including spaces/tabs
+        console.log('='.repeat(50));
+
+        // Apply same OCR preprocessing as main quiz routes
+        const preprocessOCRText = (text) => {
+          return text
+            .replace(/24x/g, '24*')  // Fix asterisk recognition
+            .replace(/©\)/g, 'C)')   // Fix copyright symbol to C)
+            .replace(/redy/g, 'ready') // Fix common OCR errors
+            .replace(/startup\(\)\)/g, 'startup()') // Fix extra parenthesis
+            .replace(/\bif global connected\b/g, 'if global_connected') // Fix variable names
+            .replace(/print \(/g, 'print('); // Fix space before parenthesis
+        };
+
+        const preprocessedText = preprocessOCRText(text);
+        console.log('PREPROCESSED EVENT OCR TEXT:');
+        console.log(JSON.stringify(preprocessedText));
+        console.log('='.repeat(50));
+
+        // Parse questions from OCR text (same logic as main quiz routes)
+        const lines = preprocessedText.split('\n');
+        console.log('All lines from Event OCR (preserving original formatting):');
+        lines.forEach((line, index) => {
+          console.log(`Line ${index}: "${line}"`);
+        });
+
+        let currentQuestion = null;
+        let questionLines = [];
+        let options = [];
+        let correctAnswer = null;
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i].trim();
+
+          console.log(`Processing line: ${line}`);
+
+          // Check if this line starts a new question
+          const questionMatch = line.match(/^(?:Q\d+\.?\s*|Question\s*\d+\.?\s*|\d+\.?\s*)(.*?)(?:\s*\((\d+(?:\.\d+)?)\s*marks?\))?\s*(?:\[Negative:\s*(\d+(?:\.\d+)?)\])?$/i);
+
+          if (questionMatch) {
+            // Process previous question if exists
+            if (currentQuestion && questionLines.length > 0 && options.length >= 2) {
+              const processedQuestion = processImageQuestion(currentQuestion, questionLines, options, correctAnswer);
+              if (processedQuestion) {
+                questions.push(processedQuestion);
+              }
+            }
+
+            // Start new question
+            const questionText = questionMatch[1].trim();
+            const marks = questionMatch[2] ? parseFloat(questionMatch[2]) : 1;
+            const negativeMarks = questionMatch[3] ? parseFloat(questionMatch[3]) : 0;
+
+            console.log(`Extracted question: { questionText: '${questionText}', marks: ${marks}, negativeMarks: ${negativeMarks} }`);
+
+            currentQuestion = {
+              questionText: questionText,
+              marks: marks,
+              negativeMarks: negativeMarks
+            };
+            questionLines = [];
+            options = [];
+            correctAnswer = null;
+            continue;
+          }
+
+          // Check for options
+          const optionMatch = line.match(/^([A-D])\)\s*(.+)$/i);
+          if (optionMatch) {
+            const optionLetter = optionMatch[1].toUpperCase();
+            const optionText = optionMatch[2].trim();
+
+            // Check if this option is marked as correct (contains *)
+            const isCorrect = optionText.includes('*');
+
+            if (isCorrect) {
+              correctAnswer = options.length;
+              console.log(`Found correct answer at option index: ${correctAnswer}`);
+            }
+
+            // Clean the option text and normalize
+            const cleanOptionText = optionText.replace(/\*/g, '').trim();
+            options.push(cleanOptionText);
+
+            console.log(`Found option: {
+              original: '${line}',
+              normalized: '${optionLetter}) ${cleanOptionText}',
+              optionText: '${cleanOptionText}',
+              isCorrect: ${isCorrect}
+            }`);
+            continue;
+          }
+
+          // If we have a current question and this isn't an option, it's part of the question
+          if (currentQuestion && line) {
+            questionLines.push(lines[i]); // Preserve original line with potential indentation
+            console.log(`Code line preserved (like Word): { original: '${lines[i]}' }`);
+          }
+        }
+
+        // Process the last question
+        if (currentQuestion && questionLines.length > 0 && options.length >= 2) {
+          const processedQuestion = processImageQuestion(currentQuestion, questionLines, options, correctAnswer);
+          if (processedQuestion) {
+            questions.push(processedQuestion);
+          }
+        }
+
+      } catch (ocrError) {
+        console.error('Event OCR error for image:', ocrError);
+        continue;
+      }
+    }
+
+    console.log('Sending questions to frontend:', questions);
+
+    if (questions.length === 0) {
+      return res.status(400).json({ message: 'No valid questions could be extracted from the images' });
+    }
+
+    res.json({ questions });
+
+  } catch (error) {
+    console.error('Event image parse error:', error);
+    res.status(500).json({ message: 'Failed to process images', error: error.message });
+  }
+});
+
+// Helper function for processing image questions (same as main quiz routes)
+function processImageQuestion(currentQuestion, questionLines, options, correctAnswer) {
+  try {
+    let questionText = currentQuestion.questionText;
+
+    // Add question lines with universal indentation restoration
+    if (questionLines.length > 0) {
+      const codeText = questionLines.join('\n');
+      const formattedCode = restoreUniversalIndentation(codeText);
+      questionText += (questionText ? '\n' : '') + formattedCode;
+    }
+
+    // Validate question
+    if (questionText && options.length >= 2 && correctAnswer !== null) {
+      return {
+        question: questionText,
+        options: options,
+        correctAnswer: correctAnswer,
+        marks: currentQuestion.marks,
+        negativeMarks: currentQuestion.negativeMarks
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error processing image question:', error);
+    return null;
+  }
+}
+
+// Universal indentation restoration function (same as main quiz routes)
+function restoreUniversalIndentation(text) {
+  const lines = text.split('\n');
+  const processedLines = [];
+  let currentIndentLevel = 0;
+  let insideFunction = false;
+  let insideClass = false;
+  let insideIfBlock = false;
+  let braceLevel = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i].trim();
+
+    if (!line) {
+      processedLines.push('');
+      continue;
+    }
+
+    // Check if this is a function call at base level (like hello(10))
+    if (line.match(/^\w+\([^)]*\)$/) && !line.match(/^(print|console\.log|System\.out\.println|printf|cout)\b/)) {
+      // Function call - should be at base level
+      processedLines.push(line);
+      // Reset all context after function call
+      currentIndentLevel = 0;
+      insideFunction = false;
+      insideClass = false;
+      insideIfBlock = false;
+      continue;
+    }
+
+    // Detect language and apply appropriate indentation
+    if (line.match(/\b(def|class|if|elif|else|for|while|try|except|finally|with)\b/)) {
+      // Python-like syntax
+      if (line.startsWith('def ')) {
+        processedLines.push(line);
+        insideFunction = true;
+        currentIndentLevel = 1;
+        insideIfBlock = false;
+      } else if (line.startsWith('class ')) {
+        processedLines.push(line);
+        insideClass = true;
+        currentIndentLevel = 1;
+        insideIfBlock = false;
+      } else if (line.match(/^(if|elif|for|while|try|with)\b/)) {
+        const indent = '    '.repeat(currentIndentLevel);
+        processedLines.push(indent + line);
+        insideIfBlock = true;
+        currentIndentLevel++;
+      } else if (line.startsWith('else:') || line.startsWith('except:') || line.startsWith('finally:')) {
+        // else should be at the same level as the corresponding if
+        const indent = '    '.repeat(Math.max(0, currentIndentLevel - 1));
+        processedLines.push(indent + line);
+        // Keep current indent level for the else block content
+        insideIfBlock = true;
+      } else {
+        const indent = '    '.repeat(currentIndentLevel);
+        processedLines.push(indent + line);
+      }
+    } else if (line.match(/^(return|break|continue|pass)\b/)) {
+      // Python control statements
+      const indent = '    '.repeat(Math.max(1, currentIndentLevel));
+      processedLines.push(indent + line);
+    } else if (line.match(/\b(function|var|let|const|if|else|for|while|switch|case|return)\b/)) {
+      // JavaScript-like syntax
+      if (line.includes('{')) braceLevel++;
+      const indent = '    '.repeat(braceLevel);
+      processedLines.push(indent + line);
+      if (line.includes('}')) braceLevel = Math.max(0, braceLevel - 1);
+    } else if (line.match(/^(print|console\.log|System\.out\.println|printf|cout)\b/)) {
+      // Print statements - check context for proper placement
+      if (insideFunction || insideIfBlock) {
+        const indent = '    '.repeat(currentIndentLevel);
+        processedLines.push(indent + line);
+      } else {
+        // Base level print statement (outside functions)
+        processedLines.push(line);
+      }
+    } else {
+      // Regular code line
+      if (insideFunction || insideClass || currentIndentLevel > 0) {
+        const indent = '    '.repeat(currentIndentLevel);
+        processedLines.push(indent + line);
+      } else {
+        processedLines.push(line);
+      }
+    }
+  }
+
+  return processedLines.join('\n');
+}
+
 // Create event quiz from images
 router.post('/image', auth, authorize(['event']), upload.array('images'), async (req, res) => {
   try {
@@ -1898,16 +2558,33 @@ router.post('/image', auth, authorize(['event']), upload.array('images'), async 
     const questions = [];
     for (const file of req.files) {
       try {
-        // Use Tesseract.js for OCR
+        // Use Tesseract.js for OCR with enhanced settings for code
         const { data: { text } } = await Tesseract.recognize(
           file.buffer,
           'eng',
           {
             logger: info => console.log(info),
             tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
-            preserve_interword_spaces: '1'
+            preserve_interword_spaces: '1',
+            tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789()[]{}:;.,?!@#$%^&*-+=_|\\/"\'` \n\t',
+            tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY
           }
         );
+
+        // Preprocess OCR text to fix common recognition errors
+        let preprocessedText = text
+          // Fix common OCR errors in Python code
+          .replace(/def\s+(\w+)\(\)\):/g, 'def $1():')  // Fix def startup())): to def startup():
+          .replace(/\(\)\):/g, '():')                    // Fix ())): to ):
+          .replace(/if\s+global\s+(\w+):/g, 'if global $1:')  // Fix spacing in if global
+          .replace(/print\s*\(\s*"([^"]*?)"\s*\)/g, 'print("$1")')  // Fix print spacing
+          .replace(/redy/g, 'ready')                     // Fix common typo
+          .replace(/Engines/g, 'Engines')                // Ensure proper capitalization
+          // Fix indentation issues - if a print statement follows an if statement, it should be indented
+          .replace(/(\n\s*if\s+[^:\n]+:\s*\n)(\s*print\s*\([^)]+\))/g, '$1        $2');
+
+        console.log('OCR extracted text:', text);
+        console.log('PREPROCESSED OCR TEXT:', preprocessedText);
 
         // Parse the extracted text to find questions and options
         // Don't trim lines to preserve code formatting
@@ -1935,13 +2612,15 @@ router.post('/image', auth, authorize(['event']), upload.array('images'), async 
         };
 
         // Parse questions from text - improved logic with code preservation (SAME AS WORD PROCESSING)
-        const lines = text.split('\n').filter(line => line.length > 0);
+        const lines = preprocessedText.split('\n').filter(line => line.length > 0);
 
         // Apply universal indentation restoration for ALL programming languages (FIXED LOGIC)
         const restoreIndentationForAllLanguages = (questionLines) => {
           const restoredLines = [];
           let currentIndentLevel = 0;
           let insideBraces = 0;
+          let insideFunction = false;
+          let insideIfBlock = false;
 
           for (let i = 0; i < questionLines.length; i++) {
             const line = questionLines[i].trim();
@@ -1954,6 +2633,8 @@ router.post('/image', auth, authorize(['event']), upload.array('images'), async 
             // PYTHON - Function/class definitions stay at base level
             if (line.match(/^(def|class)\s+\w+/)) {
               currentIndentLevel = 0;
+              insideFunction = true;
+              insideIfBlock = false;
               restoredLines.push(line);
               if (line.endsWith(':')) {
                 currentIndentLevel = 1; // Next lines inside function should be indented
@@ -1966,28 +2647,54 @@ router.post('/image', auth, authorize(['event']), upload.array('images'), async 
               const indent = '    '.repeat(currentIndentLevel);
               restoredLines.push(indent + line);
               if (line.endsWith(':')) {
+                insideIfBlock = true;
                 currentIndentLevel++;
               }
               continue;
             }
 
-            // PYTHON - Return statements (always inside functions)
+            // PYTHON - Return statements (context-aware indentation)
             if (line.match(/^(return|break|continue|pass|raise)\s/)) {
-              const indent = '    '.repeat(Math.max(currentIndentLevel, 1));
-              restoredLines.push(indent + line);
+              // Check if this return is at the same level as the function or inside an if block
+              const nextLine = i + 1 < questionLines.length ? questionLines[i + 1].trim() : '';
+
+              // If this return is followed by another return or a print call,
+              // this return ends the if block and the next return is at function level
+              if (nextLine.match(/^(return|print)\s/) && insideIfBlock) {
+                // This return is inside the if block
+                const indent = '    '.repeat(currentIndentLevel);
+                restoredLines.push(indent + line);
+                // Exit the if block for the next statement
+                insideIfBlock = false;
+                currentIndentLevel = 1; // Back to function level
+              } else {
+                // Regular return statement
+                const indent = '    '.repeat(Math.max(currentIndentLevel, 1));
+                restoredLines.push(indent + line);
+              }
               continue;
             }
 
-            // PYTHON - Print statements - check if they're at base level or inside function
+            // PYTHON - Print statements - improved logic for function calls
             if (line.match(/^print\s*\(/)) {
-              // If this is the last line or followed by options (A), B), etc.), it's at base level
+              // Check context to determine indentation level
               const nextLine = i + 1 < questionLines.length ? questionLines[i + 1].trim() : '';
+              const prevLine = i > 0 ? questionLines[i - 1].trim() : '';
+
+              // If this print is followed by options or is the last line, it's likely at base level
               if (!nextLine || nextLine.match(/^[A-D]\)/)) {
-                // This print is at base level (outside function)
+                // This print is at base level (outside function) - function call
                 restoredLines.push(line);
+                insideFunction = false;
+                insideIfBlock = false;
                 currentIndentLevel = 0; // Reset for any following code
+              }
+              // If previous line was an if/for/while statement, this print should be indented inside it
+              else if (prevLine.match(/^(if|elif|for|while|try|with)\s.*:$/)) {
+                const indent = '    '.repeat(Math.max(currentIndentLevel + 1, 2));
+                restoredLines.push(indent + line);
               } else {
-                // This print is inside a function
+                // This print is inside a function/block
                 const indent = '    '.repeat(Math.max(currentIndentLevel, 1));
                 restoredLines.push(indent + line);
               }
@@ -2685,6 +3392,94 @@ router.post('/:id/reattempt', auth, authorize('event', 'admin'), async (req, res
 
   } catch (error) {
     console.error('Error enabling reattempt:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Allow bulk reattempt for multiple students/teams
+router.post('/:id/bulk-reattempt', auth, authorize('event', 'admin'), async (req, res) => {
+  try {
+    const { students } = req.body;
+
+    if (!students || !Array.isArray(students) || students.length === 0) {
+      return res.status(400).json({ message: 'Students array is required' });
+    }
+
+    // First check if quiz exists
+    const quiz = await EventQuiz.findById(req.params.id);
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    // Only check createdBy for non-admin, non-event roles
+    if (req.userRole !== 'admin' && req.userRole !== 'event') {
+      if (!quiz.createdBy.equals(req.user._id)) {
+        return res.status(403).json({ message: 'You do not have permission to manage this quiz' });
+      }
+    }
+
+    let totalDeletedSubmissions = 0;
+    const results = [];
+
+    // Process each student/team
+    for (const studentData of students) {
+      const { email, isTeamRegistration, teamName } = studentData;
+
+      if (!email) {
+        results.push({ email: 'unknown', success: false, error: 'Email is required' });
+        continue;
+      }
+
+      try {
+        // Delete existing quiz credentials to allow reattempt
+        const deletedCredentials = await QuizCredentials.deleteMany({
+          quiz: req.params.id,
+          email: email,
+          ...(isTeamRegistration && teamName ? { teamName } : {})
+        });
+
+        // Delete existing submissions
+        const deletedSubmissions = await EventQuizResult.deleteMany({
+          quiz: req.params.id,
+          'student.email': email,
+          ...(isTeamRegistration && teamName ? { 'student.teamName': teamName } : {})
+        });
+
+        totalDeletedSubmissions += deletedSubmissions.deletedCount;
+
+        results.push({
+          email,
+          teamName: isTeamRegistration ? teamName : null,
+          success: true,
+          deletedCredentials: deletedCredentials.deletedCount,
+          deletedSubmissions: deletedSubmissions.deletedCount
+        });
+
+      } catch (error) {
+        console.error(`Error processing reattempt for ${email}:`, error);
+        results.push({
+          email,
+          teamName: isTeamRegistration ? teamName : null,
+          success: false,
+          error: error.message
+        });
+      }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    const failureCount = results.filter(r => !r.success).length;
+
+    res.json({
+      message: `Bulk reattempt processed: ${successCount} successful, ${failureCount} failed`,
+      totalStudents: students.length,
+      successCount,
+      failureCount,
+      totalDeletedSubmissions,
+      results
+    });
+
+  } catch (error) {
+    console.error('Error enabling bulk reattempt:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });

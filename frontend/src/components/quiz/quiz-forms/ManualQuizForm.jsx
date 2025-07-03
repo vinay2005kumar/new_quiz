@@ -239,25 +239,26 @@ const SmartQuestionInput = memo(({
 
       {/* Preview Box - Show formatted version */}
       {showFormatted && value && (
-        <Box sx={{
-          p: 2,
-          mb: 2,
-          bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
-          borderRadius: 1,
-          border: '1px solid',
-          borderColor: 'success.main',
-          fontFamily: 'monospace',
-          fontSize: '0.9rem',
-          lineHeight: 1.5,
-          whiteSpace: 'pre-wrap',
-          overflow: 'auto',
-          maxHeight: '200px',
-          overflowY: 'auto'
-        }}>
+        <Box sx={{ mb: 2 }}>
           <Typography variant="caption" color="success.main" sx={{ display: 'block', mb: 1 }}>
             ✓ Formatted Preview:
           </Typography>
-          {hasAppliedFormatting ? value : restoreIndentationForAllLanguages(value)}
+          <Box sx={{
+            p: 2,
+            bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
+            borderRadius: 1,
+            border: '1px solid',
+            borderColor: 'divider',
+            fontSize: '1rem',
+            lineHeight: 1.6,
+            overflow: 'auto',
+            maxHeight: '200px',
+            overflowY: 'auto'
+          }}
+          dangerouslySetInnerHTML={{
+            __html: `<pre>${hasAppliedFormatting ? value : restoreIndentationForAllLanguages(value)}</pre>`
+          }}
+          />
         </Box>
       )}
 
@@ -381,7 +382,9 @@ const ManualQuizForm = ({
   isReview,
   error,
   setError,
-  negativeMarkingEnabled = false
+  negativeMarkingEnabled = false,
+  hideNavigation = false,
+  isAddMode = false
 }) => {
   const [loading, setLoading] = useState(false);
 
@@ -543,17 +546,19 @@ const ManualQuizForm = ({
           )}
         </Grid>
 
-        <Grid item xs={12}>
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-            <Button
-              variant="contained"
-              onClick={handleNext}
-              disabled={loading}
-            >
-              {loading ? <CircularProgress size={24} /> : 'Next'}
-            </Button>
-          </Box>
-        </Grid>
+        {!hideNavigation && (
+          <Grid item xs={12}>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+              <Button
+                variant="contained"
+                onClick={handleNext}
+                disabled={loading}
+              >
+                {loading ? <CircularProgress size={24} /> : 'Next'}
+              </Button>
+            </Box>
+          </Grid>
+        )}
       </Grid>
     </Box>
   );
