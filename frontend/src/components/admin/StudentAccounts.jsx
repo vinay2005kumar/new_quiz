@@ -31,7 +31,14 @@ import {
   AccordionDetails,
   Checkbox,
   FormControlLabel,
-  Snackbar
+  Snackbar,
+  Card,
+  CardContent,
+  CardActions,
+  Chip,
+  Stack,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -58,6 +65,9 @@ const YEARS = ['1', '2', '3', '4'];
 const SEMESTERS = ['1', '2', '3', '4', '5', '6', '7', '8'];
 
 const StudentAccounts = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
   const [students, setStudents] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [sections, setSections] = useState([]);
@@ -851,8 +861,8 @@ const StudentAccounts = () => {
   if (error) {
     return (
       <Container sx={{ mt: 4 }}>
-        <Alert 
-          severity="error" 
+        <Alert
+          severity="error"
           action={<RetryButton />}
         >
           {error}
@@ -861,67 +871,111 @@ const StudentAccounts = () => {
     );
   }
 
+
+
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Paper sx={{ p: 3 }}>
-        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h4">Student Accounts</Typography>
-          <Box sx={{ display: 'flex', gap: 2 }}>
+    <Container maxWidth="lg" sx={{ mt: { xs: 2, md: 4 }, mb: 4, px: { xs: 1, sm: 2 } }}>
+      <Paper sx={{ p: { xs: 2, md: 3 } }}>
+        <Box sx={{
+          mb: 3,
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          justifyContent: 'space-between',
+          alignItems: { xs: 'stretch', sm: 'center' },
+          gap: { xs: 2, sm: 0 }
+        }}>
+          <Typography
+            variant={isMobile ? "h5" : "h4"}
+            sx={{ fontSize: { xs: '1.5rem', md: '2.125rem' } }}
+          >
+            Student Accounts
+          </Typography>
+          <Box sx={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: { xs: 0.5, sm: 1 },
+            width: '100%',
+            justifyContent: { xs: 'flex-start', sm: 'flex-end' }
+          }}>
             <Button
               variant="outlined"
               startIcon={<DownloadIcon className="download-icon" />}
               onClick={handleDownloadPDF}
+              size="small"
               sx={{
                 color: 'purple.main',
                 borderColor: 'purple.main',
+                fontSize: '0.75rem',
+                minWidth: 'auto',
+                px: { xs: 1, sm: 1.5 },
+                py: 0.5,
+                height: '32px',
                 '&:hover': {
                   borderColor: 'purple.dark',
                   backgroundColor: 'purple.50'
                 }
               }}
             >
-              Download PDF
+              PDF
             </Button>
             <Button
               variant="outlined"
               startIcon={<CloudUploadIcon className="upload-icon" />}
               onClick={() => setOpenUploadDialog(true)}
+              size="small"
               sx={{
                 color: 'orange.main',
                 borderColor: 'orange.main',
+                fontSize: '0.75rem',
+                minWidth: 'auto',
+                px: { xs: 1, sm: 1.5 },
+                py: 0.5,
+                height: '32px',
                 '&:hover': {
                   borderColor: 'orange.dark',
                   backgroundColor: 'orange.50'
                 }
               }}
             >
-              Upload Excel
+              Upload
             </Button>
             <Button
               variant="outlined"
               startIcon={<SchoolIcon />}
               onClick={handleOpenPromotionDialog}
+              size="small"
               sx={{
                 color: 'primary.main',
                 borderColor: 'primary.main',
+                fontSize: '0.75rem',
+                minWidth: 'auto',
+                px: { xs: 1, sm: 1.5 },
+                py: 0.5,
+                height: '32px',
                 '&:hover': {
                   borderColor: 'primary.dark',
                   backgroundColor: 'primary.50'
                 }
               }}
             >
-              Academic Promotion
+              Promote
             </Button>
             <Button
               variant="contained"
               startIcon={<AddIcon className="add-icon" />}
               onClick={() => handleOpenDialog()}
+              size="small"
               sx={{
                 backgroundColor: 'success.main',
+                fontSize: '0.75rem',
+                minWidth: 'auto',
+                px: { xs: 1, sm: 1.5 },
+                py: 0.5,
+                height: '32px',
                 '&:hover': { backgroundColor: 'success.dark' }
               }}
             >
-              Add Student
+              Add
             </Button>
           </Box>
         </Box>
@@ -954,15 +1008,24 @@ const StudentAccounts = () => {
             />
 
             {/* Count Display */}
-            <CountDisplayPaper sx={{ p: 2, mb: 2 }}>
+            <CountDisplayPaper sx={{ p: { xs: 1.5, md: 2 }, mb: 2 }}>
               <Grid container spacing={2} alignItems="center">
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                  <Typography
+                    variant="subtitle1"
+                    sx={{
+                      fontWeight: 600,
+                      fontSize: { xs: '0.9rem', md: '1rem' }
+                    }}
+                  >
                     Showing {getFilteredStudents().length} out of {students.length} students
                   </Typography>
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <Typography variant="body2">
+                  <Typography
+                    variant="body2"
+                    sx={{ fontSize: { xs: '0.8rem', md: '0.875rem' } }}
+                  >
                     {filters.department && `Department: ${filters.department}`}
                     {filters.year && ` • Year: ${filters.year}`}
                     {filters.semester && ` • Semester: ${filters.semester}`}
@@ -972,64 +1035,71 @@ const StudentAccounts = () => {
               </Grid>
             </CountDisplayPaper>
 
-            <TableContainer>
-              <Table>
+            <TableContainer sx={{ overflowX: 'auto' }}>
+              <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell>Name</TableCell>
-                    <TableCell>Email</TableCell>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>Name</TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>Email</TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                         Password
                         <Tooltip title={showAllPasswords ? "Hide All Passwords" : "Show All Passwords"}>
                           <IconButton
                             size="small"
                             onClick={toggleAllPasswords}
                             className="view-icon"
+                            sx={{ p: 0.5 }}
                           >
-                            {showAllPasswords ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                            {showAllPasswords ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
                           </IconButton>
                         </Tooltip>
                       </Box>
                     </TableCell>
-                    <TableCell>Department</TableCell>
-                    <TableCell>Year</TableCell>
-                    <TableCell>Semester</TableCell>
-                    <TableCell>Section</TableCell>
-                    <TableCell>Admission Number</TableCell>
-                    <TableCell>Actions</TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>Dept</TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>Yr</TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>Sem</TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>Sec</TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>Admission</TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {getFilteredStudents().map((student) => (
                     <TableRow key={student._id}>
-                      <TableCell>{student.name}</TableCell>
-                      <TableCell>{student.email}</TableCell>
-                      <TableCell>
-                        <Typography sx={{ fontFamily: 'monospace' }}>
+                      <TableCell sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, py: 0.5 }}>{student.name}</TableCell>
+                      <TableCell sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, py: 0.5 }}>{student.email}</TableCell>
+                      <TableCell sx={{ py: 0.5 }}>
+                        <Typography sx={{ fontFamily: 'monospace', fontSize: { xs: '0.7rem', md: '0.875rem' } }}>
                           {visiblePasswords[student._id] || '********'}
                         </Typography>
                       </TableCell>
-                      <TableCell>{student.department}</TableCell>
-                      <TableCell>{student.year}</TableCell>
-                      <TableCell>{student.semester}</TableCell>
-                      <TableCell>{student.section}</TableCell>
-                      <TableCell>{student.admissionNumber}</TableCell>
-                      <TableCell>
-                        <IconButton
-                          onClick={() => handleOpenDialog(student)}
-                          className="edit-icon"
-                          title="Edit Student"
-                        >
-                          <EditIcon />
-                        </IconButton>
-                        <IconButton
-                          onClick={() => handleDeleteClick(student)}
-                          className="delete-icon"
-                          title="Delete Student"
-                        >
-                          <DeleteIcon />
-                        </IconButton>
+                      <TableCell sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, py: 0.5 }}>{student.department}</TableCell>
+                      <TableCell sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, py: 0.5 }}>{student.year}</TableCell>
+                      <TableCell sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, py: 0.5 }}>{student.semester}</TableCell>
+                      <TableCell sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, py: 0.5 }}>{student.section}</TableCell>
+                      <TableCell sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, py: 0.5 }}>{student.admissionNumber}</TableCell>
+                      <TableCell sx={{ py: 0.5 }}>
+                        <Box sx={{ display: 'flex', gap: 0.25 }}>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleOpenDialog(student)}
+                            className="edit-icon"
+                            title="Edit Student"
+                            sx={{ p: 0.25 }}
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDeleteClick(student)}
+                            className="delete-icon"
+                            title="Delete Student"
+                            sx={{ p: 0.25 }}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Box>
                       </TableCell>
                     </TableRow>
                   ))}

@@ -24,13 +24,23 @@ import {
   TableHead,
   TableRow,
   Tooltip,
-  CircularProgress
+  CircularProgress,
+  Card,
+  CardContent,
+  CardActions,
+  Chip,
+  useTheme,
+  useMediaQuery,
+  Stack
 } from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  Upload as UploadIcon
+  Upload as UploadIcon,
+  Person as PersonIcon,
+  Email as EmailIcon,
+  School as SchoolIcon
 } from '@mui/icons-material';
 import * as XLSX from 'xlsx';
 import api from '../../config/axios';
@@ -39,6 +49,9 @@ const YEARS = [1, 2, 3, 4];
 const SECTIONS = ['A', 'B', 'C', 'D', 'E'];
 
 const AccountManagement = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
   const [accounts, setAccounts] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -158,6 +171,78 @@ const AccountManagement = () => {
     }
   };
 
+  // Mobile-friendly account card component
+  const AccountCard = ({ account }) => (
+    <Card
+      sx={{
+        mb: 2,
+        '&:hover': {
+          boxShadow: 4,
+          transform: 'translateY(-2px)',
+          transition: 'all 0.2s ease-in-out'
+        }
+      }}
+    >
+      <CardContent sx={{ pb: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+          <PersonIcon sx={{ mr: 1, color: 'primary.main', fontSize: '1.2rem' }} />
+          <Typography variant="h6" sx={{ fontSize: '1rem', fontWeight: 600 }}>
+            {account.name}
+          </Typography>
+        </Box>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+          <EmailIcon sx={{ mr: 1, color: 'text.secondary', fontSize: '1rem' }} />
+          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.85rem' }}>
+            {account.email}
+          </Typography>
+        </Box>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <SchoolIcon sx={{ mr: 1, color: 'text.secondary', fontSize: '1rem' }} />
+          <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.85rem' }}>
+            {account.department}
+          </Typography>
+        </Box>
+
+        <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+          <Chip
+            label={`Year ${account.year}`}
+            size="small"
+            variant="outlined"
+            sx={{ fontSize: '0.75rem', height: '24px' }}
+          />
+          <Chip
+            label={`Section ${account.section}`}
+            size="small"
+            variant="outlined"
+            sx={{ fontSize: '0.75rem', height: '24px' }}
+          />
+        </Stack>
+      </CardContent>
+
+      <CardActions sx={{ pt: 0, pb: 2, px: 2 }}>
+        <Button
+          size="small"
+          startIcon={<EditIcon />}
+          onClick={() => handleOpenDialog(account)}
+          sx={{ fontSize: '0.8rem', minWidth: 'auto', px: 2 }}
+        >
+          Edit
+        </Button>
+        <Button
+          size="small"
+          color="error"
+          startIcon={<DeleteIcon />}
+          onClick={() => handleDelete(account._id)}
+          sx={{ fontSize: '0.8rem', minWidth: 'auto', px: 2 }}
+        >
+          Delete
+        </Button>
+      </CardActions>
+    </Card>
+  );
+
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -201,11 +286,28 @@ const AccountManagement = () => {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Paper sx={{ p: 3 }}>
-        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h4">Account Management</Typography>
-          <Box>
+    <Container maxWidth="lg" sx={{ mt: { xs: 2, md: 4 }, mb: 4, px: { xs: 1, sm: 2 } }}>
+      <Paper sx={{ p: { xs: 2, md: 3 } }}>
+        <Box sx={{
+          mb: 3,
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          justifyContent: 'space-between',
+          alignItems: { xs: 'stretch', sm: 'center' },
+          gap: { xs: 2, sm: 0 }
+        }}>
+          <Typography
+            variant={isMobile ? "h5" : "h4"}
+            sx={{ fontSize: { xs: '1.5rem', md: '2.125rem' } }}
+          >
+            Account Management
+          </Typography>
+          <Box sx={{
+            display: 'flex',
+            flexDirection: { xs: 'column', sm: 'row' },
+            gap: { xs: 1, sm: 2 },
+            width: { xs: '100%', sm: 'auto' }
+          }}>
             <input
               type="file"
               accept=".xlsx,.xls"
@@ -213,12 +315,14 @@ const AccountManagement = () => {
               id="excel-upload"
               onChange={handleFileUpload}
             />
-            <label htmlFor="excel-upload">
+            <label htmlFor="excel-upload" style={{ width: isMobile ? '100%' : 'auto' }}>
               <Button
                 component="span"
                 variant="outlined"
                 startIcon={<UploadIcon />}
-                sx={{ mr: 2 }}
+                fullWidth={isMobile}
+                size={isMobile ? "medium" : "medium"}
+                sx={{ fontSize: { xs: '0.875rem', md: '0.875rem' } }}
               >
                 Upload Excel
               </Button>
@@ -227,6 +331,9 @@ const AccountManagement = () => {
               variant="contained"
               startIcon={<AddIcon />}
               onClick={() => handleOpenDialog()}
+              fullWidth={isMobile}
+              size={isMobile ? "medium" : "medium"}
+              sx={{ fontSize: { xs: '0.875rem', md: '0.875rem' } }}
             >
               Add Account
             </Button>
@@ -244,39 +351,60 @@ const AccountManagement = () => {
             <CircularProgress />
           </Box>
         ) : (
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Name</TableCell>
-                  <TableCell>Email</TableCell>
-                  <TableCell>Department</TableCell>
-                  <TableCell>Year</TableCell>
-                  <TableCell>Section</TableCell>
-                  <TableCell>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
+          <>
+            {/* Mobile View - Cards */}
+            {isMobile ? (
+              <Box sx={{ px: 1 }}>
                 {accounts.map((account) => (
-                  <TableRow key={account._id}>
-                    <TableCell>{account.name}</TableCell>
-                    <TableCell>{account.email}</TableCell>
-                    <TableCell>{account.department}</TableCell>
-                    <TableCell>{account.year}</TableCell>
-                    <TableCell>{account.section}</TableCell>
-                    <TableCell>
-                      <IconButton onClick={() => handleOpenDialog(account)}>
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton onClick={() => handleDelete(account._id)}>
-                        <DeleteIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
+                  <AccountCard key={account._id} account={account} />
                 ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                {accounts.length === 0 && (
+                  <Typography
+                    variant="body1"
+                    color="text.secondary"
+                    sx={{ textAlign: 'center', py: 4, fontSize: '0.9rem' }}
+                  >
+                    No accounts found
+                  </Typography>
+                )}
+              </Box>
+            ) : (
+              /* Desktop View - Table */
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Name</TableCell>
+                      <TableCell>Email</TableCell>
+                      <TableCell>Department</TableCell>
+                      <TableCell>Year</TableCell>
+                      <TableCell>Section</TableCell>
+                      <TableCell>Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {accounts.map((account) => (
+                      <TableRow key={account._id}>
+                        <TableCell>{account.name}</TableCell>
+                        <TableCell>{account.email}</TableCell>
+                        <TableCell>{account.department}</TableCell>
+                        <TableCell>{account.year}</TableCell>
+                        <TableCell>{account.section}</TableCell>
+                        <TableCell>
+                          <IconButton onClick={() => handleOpenDialog(account)}>
+                            <EditIcon />
+                          </IconButton>
+                          <IconButton onClick={() => handleDelete(account._id)}>
+                            <DeleteIcon />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </>
         )}
       </Paper>
 

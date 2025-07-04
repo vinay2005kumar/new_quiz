@@ -64,22 +64,59 @@ const AdminLayout = ({ children }) => {
 
   const drawer = (
     <div>
-      <Toolbar>
-        <Typography variant="h6" noWrap component="div">
+      <Toolbar sx={{ bgcolor: 'background.paper' }}>
+        <Typography
+          variant="h6"
+          noWrap
+          component="div"
+          sx={{
+            color: 'text.primary',
+            fontWeight: 600
+          }}
+        >
           Admin Panel
         </Typography>
       </Toolbar>
-      <Divider />
-      <List>
+      <Divider sx={{ borderColor: 'divider' }} />
+      <List sx={{ bgcolor: 'background.paper', height: '100%' }}>
         {menuItems.map((item) => (
           <ListItem
             button
             key={item.text}
             onClick={() => navigate(item.path)}
             selected={location.pathname === item.path}
+            sx={{
+              color: 'text.primary',
+              '&:hover': {
+                bgcolor: 'action.hover',
+                color: 'text.primary'
+              },
+              '&.Mui-selected': {
+                bgcolor: 'action.selected',
+                color: 'primary.main',
+                '&:hover': {
+                  bgcolor: 'action.selected'
+                }
+              }
+            }}
           >
-            <ListItemIcon>{item.icon}</ListItemIcon>
-            <ListItemText primary={item.text} />
+            <ListItemIcon
+              sx={{
+                color: location.pathname === item.path ? 'primary.main' : 'text.secondary',
+                minWidth: 40
+              }}
+            >
+              {item.icon}
+            </ListItemIcon>
+            <ListItemText
+              primary={item.text}
+              sx={{
+                '& .MuiListItemText-primary': {
+                  fontSize: '0.875rem',
+                  fontWeight: location.pathname === item.path ? 600 : 400
+                }
+              }}
+            />
           </ListItem>
         ))}
       </List>
@@ -138,7 +175,14 @@ const AdminLayout = ({ children }) => {
           }}
           sx={{
             display: { xs: 'block', sm: 'none' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth }
+            '& .MuiDrawer-paper': {
+              boxSizing: 'border-box',
+              width: drawerWidth,
+              bgcolor: 'background.paper',
+              color: 'text.primary',
+              borderRight: '1px solid',
+              borderColor: 'divider'
+            }
           }}
         >
           {drawer}
@@ -147,7 +191,14 @@ const AdminLayout = ({ children }) => {
           variant="permanent"
           sx={{
             display: { xs: 'none', sm: 'block' },
-            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth }
+            '& .MuiDrawer-paper': {
+              boxSizing: 'border-box',
+              width: drawerWidth,
+              bgcolor: 'background.paper',
+              color: 'text.primary',
+              borderRight: '1px solid',
+              borderColor: 'divider'
+            }
           }}
           open
         >
@@ -175,15 +226,59 @@ const AdminLayout = ({ children }) => {
         onClick={handleProfileMenuClose}
         transformOrigin={{ horizontal: 'right', vertical: 'top' }}
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+        PaperProps={{
+          elevation: 3,
+          sx: {
+            overflow: 'visible',
+            filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.32))',
+            mt: 1.5,
+            bgcolor: 'background.paper',
+            color: 'text.primary',
+            '& .MuiAvatar-root': {
+              width: 32,
+              height: 32,
+              ml: -0.5,
+              mr: 1,
+            },
+            '&:before': {
+              content: '""',
+              display: 'block',
+              position: 'absolute',
+              top: 0,
+              right: 14,
+              width: 10,
+              height: 10,
+              bgcolor: 'background.paper',
+              transform: 'translateY(-50%) rotate(45deg)',
+              zIndex: 0,
+            },
+          },
+        }}
       >
-        <MenuItem onClick={() => navigate('/profile')}>
-          <ListItemIcon>
+        <MenuItem
+          onClick={() => navigate('/profile')}
+          sx={{
+            color: 'text.primary',
+            '&:hover': {
+              bgcolor: 'action.hover'
+            }
+          }}
+        >
+          <ListItemIcon sx={{ color: 'text.primary' }}>
             <AccountCircleIcon fontSize="small" />
           </ListItemIcon>
           Profile
         </MenuItem>
-        <MenuItem onClick={handleLogout}>
-          <ListItemIcon>
+        <MenuItem
+          onClick={handleLogout}
+          sx={{
+            color: 'text.primary',
+            '&:hover': {
+              bgcolor: 'action.hover'
+            }
+          }}
+        >
+          <ListItemIcon sx={{ color: 'text.primary' }}>
             <LogoutIcon fontSize="small" />
           </ListItemIcon>
           Logout

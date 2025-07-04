@@ -106,14 +106,18 @@ const QuizAuthorizedStudents = () => {
 
   const fetchData = async () => {
     try {
+      console.log('📊 Fetching quiz data for ID:', id);
       setLoading(true);
       setError('');
 
-      // Fetch quiz details and submissions in parallel
-      const [quizResponse, submissionsResponse] = await Promise.all([
-        api.get(`api/quiz/${id}`),
-        api.get(`api/quiz/${id}/submissions`)
+      // Fetch quiz details and authorized students with submission status
+      const [quizResponse, studentsResponse] = await Promise.all([
+        api.get(`/api/quiz/${id}`),
+        api.get(`/api/quiz/${id}/authorized-students`)
       ]);
+
+      console.log('📊 Quiz Response:', quizResponse);
+      console.log('📊 Students Response:', studentsResponse);
 
       if (!quizResponse || !quizResponse.title) {
         throw new Error('Failed to fetch quiz details');
@@ -121,28 +125,65 @@ const QuizAuthorizedStudents = () => {
 
       setQuiz(quizResponse);
 
-      if (!submissionsResponse || !submissionsResponse.submissions) {
-        throw new Error('Failed to fetch submissions');
+      console.log('📊 Students Response:', studentsResponse);
+      console.log('📊 Students Array:', studentsResponse.students);
+      console.log('📊 Number of students:', studentsResponse.students?.length || 0);
+
+      if (!studentsResponse || !studentsResponse.students) {
+        console.warn('⚠️ No students found or invalid response structure');
+        setStudents([]);
+        setLoading(false);
+        return;
       }
 
-      // Transform submissions data to include all necessary details
-      const transformedStudents = submissionsResponse.submissions.map(submission => ({
-        student: {
-          _id: submission.student?._id,
-          name: submission.student?.name || 'N/A',
-          admissionNumber: submission.student?.admissionNumber || 'N/A',
-          department: submission.student?.department || 'N/A',
-          year: submission.student?.year || 'N/A',
-          section: submission.student?.section || 'N/A'
-        },
-        hasSubmitted: submission.status === 'evaluated',
-        submissionStatus: submission.status || 'not-submitted',
-        totalMarks: submission.totalMarks || 0,
-        duration: submission.duration || null,
-        startTime: submission.startTime || null,
-        submitTime: submission.submitTime || null,
-        answers: submission.answers || []
-      }));
+      // Log each student for debugging
+      studentsResponse.students.forEach((studentData, index) => {
+        console.log(`📊 Student ${index + 1}:`, {
+          studentId: studentData.student?._id,
+          studentName: studentData.student?.name,
+          hasSubmitted: studentData.hasSubmitted,
+          submissionStatus: studentData.submissionStatus,
+          totalMarks: studentData.totalMarks
+        });
+      });
+
+      // The data is already in the correct format from the backend
+      const transformedStudents = studentsResponse.students.map((studentData, index) => {
+        console.log(`🔄 Processing student ${index + 1}:`, studentData);
+
+        // The data is already in the correct format from the backend
+        const transformed = {
+          student: {
+            _id: studentData.student?._id,
+            name: studentData.student?.name || 'N/A',
+            admissionNumber: studentData.student?.admissionNumber || 'N/A',
+            department: studentData.student?.department || 'N/A',
+            year: studentData.student?.year || 'N/A',
+            section: studentData.student?.section || 'N/A'
+          },
+          hasSubmitted: studentData.hasSubmitted,
+          submissionStatus: studentData.submissionStatus || 'not attempted',
+          totalMarks: studentData.totalMarks || 0,
+          duration: studentData.duration || null,
+          startTime: studentData.startTime || null,
+          submitTime: studentData.submitTime || null,
+          answers: [] // Not needed for the submissions view
+        };
+
+        console.log(`✅ Processed student ${index + 1}:`, {
+          studentName: transformed.student.name,
+          hasSubmitted: transformed.hasSubmitted,
+          status: transformed.submissionStatus,
+          totalMarks: transformed.totalMarks
+        });
+
+        return transformed;
+      });
+
+      console.log('📊 Final transformed students:', transformedStudents);
+      console.log('📊 Students with submissions:', transformedStudents.filter(s => s.hasSubmitted));
+      console.log('📊 Students without submissions:', transformedStudents.filter(s => !s.hasSubmitted));
+      console.log('📊 Total authorized students:', transformedStudents.length);
 
       setStudents(transformedStudents);
       setLoading(false);
@@ -165,19 +206,43 @@ const QuizAuthorizedStudents = () => {
   };
 
   const handleDeleteSubmission = (studentData) => {
+    // Double-check that student has submitted before opening delete dialog
+    if (!studentData.hasSubmitted) {
+      console.warn('⚠️ Cannot delete - student has not submitted');
+      toast.error('Cannot delete - student has not submitted the quiz');
+      return;
+    }
     setDeleteDialog({ open: true, student: studentData });
   };
 
   const handleConfirmDelete = async () => {
     const studentData = deleteDialog.student;
+    console.log('🗑️ Deleting submission for student:', studentData);
+
+    // Check if student has actually submitted
+    if (!studentData.hasSubmitted) {
+      console.warn('⚠️ Cannot delete - student has not submitted');
+      toast.error('Cannot delete - student has not submitted the quiz');
+      setDeleteDialog({ open: false, student: null });
+      return;
+    }
+
     try {
-      await api.delete(`/api/quiz/${id}/submissions/${studentData.student._id}`);
+      const response = await api.delete(`/api/quiz/${id}/submissions/${studentData.student._id}`);
+      console.log('🗑️ Delete response:', response);
       toast.success('Submission deleted successfully!');
       setDeleteDialog({ open: false, student: null });
       fetchData(); // Refresh the data
     } catch (error) {
-      console.error('Error deleting submission:', error);
-      toast.error('Failed to delete submission: ' + (error.response?.data?.message || error.message));
+      console.error('❌ Error deleting submission:', error);
+      console.error('❌ Error response:', error.response);
+
+      if (error.response?.status === 404) {
+        toast.error('Submission not found - student may not have submitted yet');
+      } else {
+        toast.error('Failed to delete submission: ' + (error.response?.data?.message || error.message));
+      }
+
       setDeleteDialog({ open: false, student: null });
     }
   };
@@ -275,9 +340,10 @@ const QuizAuthorizedStudents = () => {
     setLoadingDeletedUsers(true);
     try {
       const response = await api.get(`/api/quiz/${id}/deleted-submissions`);
+      console.log('🗑️ Deleted submissions response:', response);
       setDeletedUsersDialog({
         open: true,
-        deletedUsers: response.data.deletedSubmissions || []
+        deletedUsers: response.deletedSubmissions || []
       });
     } catch (error) {
       console.error('Error fetching deleted users:', error);
@@ -296,7 +362,7 @@ const QuizAuthorizedStudents = () => {
       const response = await api.get(`/api/quiz/${id}/deleted-submissions`);
       setDeletedUsersDialog({
         open: true,
-        deletedUsers: response.data.deletedSubmissions || []
+        deletedUsers: response.deletedSubmissions || []
       });
 
       // Refresh main data
@@ -695,6 +761,7 @@ const QuizAuthorizedStudents = () => {
                       color="error"
                       startIcon={<DeleteIcon />}
                       onClick={() => handleDeleteSubmission(studentData)}
+                      disabled={!studentData.hasSubmitted}
                     >
                       Delete
                     </Button>

@@ -34,7 +34,10 @@ import {
   Tooltip,
   Divider,
   LinearProgress,
-  Snackbar
+  Snackbar,
+  Stack,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -64,6 +67,9 @@ const SEMESTERS = ['1', '2', '3', '4', '5', '6', '7', '8'];
 const SECTIONS = ['A', 'B', 'C', 'D'];
 
 const FacultyAccounts = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
   const [faculty, setFaculty] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [sections, setSections] = useState([]);
@@ -1599,51 +1605,87 @@ const FacultyAccounts = () => {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Paper sx={{ p: 3 }}>
-        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h4">Faculty Accounts</Typography>
-          <Box sx={{ display: 'flex', gap: 2 }}>
+    <Container maxWidth="lg" sx={{ mt: { xs: 2, md: 4 }, mb: 4, px: { xs: 1, sm: 2 } }}>
+      <Paper sx={{ p: { xs: 2, md: 3 } }}>
+        <Box sx={{
+          mb: 3,
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          justifyContent: 'space-between',
+          alignItems: { xs: 'stretch', sm: 'center' },
+          gap: { xs: 2, sm: 0 }
+        }}>
+          <Typography
+            variant={isMobile ? "h5" : "h4"}
+            sx={{ fontSize: { xs: '1.5rem', md: '2.125rem' } }}
+          >
+            Faculty Accounts
+          </Typography>
+          <Box sx={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: { xs: 0.5, sm: 1 },
+            width: { xs: '100%', sm: 'auto' },
+            justifyContent: { xs: 'flex-start', sm: 'flex-end' }
+          }}>
             <Button
               variant="outlined"
               startIcon={<DownloadIcon className="download-icon" />}
               onClick={handleDownloadPDF}
+              size="small"
               sx={{
                 color: 'purple.main',
                 borderColor: 'purple.main',
+                fontSize: '0.75rem',
+                minWidth: 'auto',
+                px: { xs: 1, sm: 1.5 },
+                py: 0.5,
+                height: '32px',
                 '&:hover': {
                   borderColor: 'purple.dark',
                   backgroundColor: 'purple.50'
                 }
               }}
             >
-              Download PDF
+              PDF
             </Button>
             <Button
               variant="outlined"
               startIcon={<CloudUploadIcon className="upload-icon" />}
               onClick={() => setOpenUploadDialog(true)}
+              size="small"
               sx={{
                 color: 'orange.main',
                 borderColor: 'orange.main',
+                fontSize: '0.75rem',
+                minWidth: 'auto',
+                px: { xs: 1, sm: 1.5 },
+                py: 0.5,
+                height: '32px',
                 '&:hover': {
                   borderColor: 'orange.dark',
                   backgroundColor: 'orange.50'
                 }
               }}
             >
-              Upload Excel
+              Upload
             </Button>
             <Button
               variant="contained"
               startIcon={<AddIcon className="add-icon" />}
               onClick={() => handleOpenDialog()}
+              size="small"
               sx={{
                 backgroundColor: 'success.main',
+                fontSize: '0.75rem',
+                minWidth: 'auto',
+                px: { xs: 1, sm: 1.5 },
+                py: 0.5,
+                height: '32px',
                 '&:hover': { backgroundColor: 'success.dark' }
               }}
             >
-              Add Faculty
+              Add
             </Button>
           </Box>
         </Box>
@@ -1721,40 +1763,62 @@ const FacultyAccounts = () => {
             </CountDisplayPaper>
 
             {/* Table Section */}
-            <TableContainer>
-              <Table>
+            <TableContainer sx={{ overflowX: 'auto' }}>
+              <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell><strong>Name</strong></TableCell>
-                    <TableCell><strong>Email</strong></TableCell>
-                    <TableCell><strong>Password</strong></TableCell>
-                    <TableCell><strong>Department</strong></TableCell>
-                    <TableCell><strong>Assignments</strong></TableCell>
-                    <TableCell><strong>Actions</strong></TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>
+                      <strong>Name</strong>
+                    </TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>
+                      <strong>Email</strong>
+                    </TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>
+                      <strong>Password</strong>
+                    </TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>
+                      <strong>Dept</strong>
+                    </TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>
+                      <strong>Assignments</strong>
+                    </TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>
+                      <strong>Actions</strong>
+                    </TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {getFilteredFaculty().map((member) => (
                     <TableRow key={member._id}>
-                      <TableCell>{member.name}</TableCell>
-                      <TableCell>{member.email}</TableCell>
-                      
+                      <TableCell sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, py: 0.5 }}>
+                        {member.name}
+                      </TableCell>
+                      <TableCell sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, py: 0.5 }}>
+                        {member.email}
+                      </TableCell>
+
                       {/* Password Cell */}
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                            {visiblePasswords[member._id] ? 
-                              visiblePasswords[member._id] : 
+                      <TableCell sx={{ py: 0.5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontFamily: 'monospace',
+                              fontSize: { xs: '0.7rem', md: '0.875rem' }
+                            }}
+                          >
+                            {visiblePasswords[member._id] ?
+                              visiblePasswords[member._id] :
                               '••••••••'
                             }
                           </Typography>
                           <IconButton
                             size="small"
                             onClick={() => togglePasswordVisibility(member._id)}
-                            sx={{ ml: 1 }}
+                            sx={{ p: 0.25 }}
                           >
-                            {visiblePasswords[member._id] ? 
-                              <VisibilityOffIcon fontSize="small" /> : 
+                            {visiblePasswords[member._id] ?
+                              <VisibilityOffIcon fontSize="small" /> :
                               <VisibilityIcon fontSize="small" />
                             }
                           </IconButton>

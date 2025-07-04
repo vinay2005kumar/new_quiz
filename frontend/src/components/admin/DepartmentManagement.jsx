@@ -23,14 +23,24 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Chip
+  Chip,
+  useTheme,
+  useMediaQuery,
+  Stack
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
+import {
+  School as SchoolIcon,
+  Code as CodeIcon
+} from '@mui/icons-material';
 import api from '../../config/axios';
 
 const DepartmentManagement = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -162,8 +172,12 @@ const DepartmentManagement = () => {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Typography variant="h4" gutterBottom sx={{ mb: 4 }}>
+    <Container maxWidth="lg" sx={{ mt: { xs: 2, md: 4 }, mb: 4, px: { xs: 1, sm: 2 } }}>
+      <Typography
+        variant={isMobile ? "h5" : "h4"}
+        gutterBottom
+        sx={{ mb: 4, fontSize: { xs: '1.5rem', md: '2.125rem' } }}
+      >
         Department Management
       </Typography>
 
@@ -177,66 +191,131 @@ const DepartmentManagement = () => {
         variant="contained"
         color="primary"
         onClick={() => handleOpenDialog()}
-        sx={{ mb: 3 }}
+        fullWidth={isMobile}
+        size={isMobile ? "medium" : "medium"}
+        sx={{
+          mb: 3,
+          fontSize: { xs: '0.875rem', md: '0.875rem' }
+        }}
       >
         Add New Department
       </Button>
 
-      <Grid container spacing={3}>
+      <Grid container spacing={isMobile ? 2 : 3}>
         {departments.map((department) => (
           <Grid item xs={12} md={6} key={department._id}>
-            <Paper sx={{ p: 3 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                <Typography variant="h6">
-                  {department.name} ({department.code})
-                </Typography>
-                <Box>
+            <Paper
+              sx={{
+                p: { xs: 2, md: 3 },
+                '&:hover': {
+                  boxShadow: 4,
+                  transform: 'translateY(-2px)',
+                  transition: 'all 0.2s ease-in-out'
+                }
+              }}
+            >
+              <Box sx={{
+                display: 'flex',
+                flexDirection: { xs: 'column', sm: 'row' },
+                justifyContent: 'space-between',
+                alignItems: { xs: 'flex-start', sm: 'center' },
+                mb: 2,
+                gap: { xs: 1, sm: 0 }
+              }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: { xs: 1, sm: 0 } }}>
+                  <SchoolIcon sx={{ mr: 1, color: 'primary.main', fontSize: '1.2rem' }} />
+                  <Typography
+                    variant="h6"
+                    sx={{ fontSize: { xs: '1rem', md: '1.25rem' }, fontWeight: 600 }}
+                  >
+                    {department.name}
+                  </Typography>
+                  <Chip
+                    icon={<CodeIcon sx={{ fontSize: '0.8rem' }} />}
+                    label={department.code}
+                    size="small"
+                    variant="outlined"
+                    sx={{ ml: 1, fontSize: '0.75rem', height: '24px' }}
+                  />
+                </Box>
+
+                <Box sx={{ display: 'flex', gap: 0.5 }}>
                   <IconButton
                     size="small"
                     onClick={() => handleOpenDialog(department)}
-                    sx={{ mr: 1 }}
+                    sx={{ fontSize: '0.8rem' }}
                   >
-                    <EditIcon />
+                    <EditIcon fontSize="small" />
                   </IconButton>
                   <IconButton
                     size="small"
                     color="error"
                     onClick={() => handleDelete(department._id)}
+                    sx={{ fontSize: '0.8rem' }}
                   >
-                    <DeleteIcon />
+                    <DeleteIcon fontSize="small" />
                   </IconButton>
                 </Box>
               </Box>
 
-              <Typography variant="body2" color="text.secondary" paragraph>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                paragraph
+                sx={{ fontSize: { xs: '0.85rem', md: '0.875rem' } }}
+              >
                 {department.description || 'No description provided'}
               </Typography>
 
               <Divider sx={{ my: 2 }} />
 
               <Box sx={{ mb: 2 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                  <Typography variant="subtitle2">Coordinators</Typography>
-                  <IconButton
-                    size="small"
-                    color="primary"
-                    onClick={() => handleOpenCoordinatorDialog(department)}
+                <Box sx={{
+                  display: 'flex',
+                  flexDirection: { xs: 'column', sm: 'row' },
+                  justifyContent: 'space-between',
+                  alignItems: { xs: 'flex-start', sm: 'center' },
+                  mb: 1,
+                  gap: { xs: 1, sm: 0 }
+                }}>
+                  <Typography
+                    variant="subtitle2"
+                    sx={{ fontSize: { xs: '0.875rem', md: '0.875rem' }, fontWeight: 600 }}
                   >
-                    <PersonAddIcon />
-                  </IconButton>
+                    Coordinators
+                  </Typography>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<PersonAddIcon />}
+                    onClick={() => handleOpenCoordinatorDialog(department)}
+                    sx={{
+                      fontSize: { xs: '0.75rem', md: '0.8rem' },
+                      minWidth: 'auto',
+                      px: { xs: 2, sm: 1.5 }
+                    }}
+                  >
+                    {isMobile ? 'Add' : 'Add Coordinator'}
+                  </Button>
                 </Box>
                 {department.coordinators?.length > 0 ? (
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                  <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
                     {department.coordinators.map((coordinator) => (
                       <Chip
                         key={coordinator._id}
                         label={coordinator.name}
                         onDelete={() => handleRemoveCoordinator(department._id, coordinator._id)}
+                        size="small"
+                        sx={{ fontSize: '0.75rem', height: '24px' }}
                       />
                     ))}
-                  </Box>
+                  </Stack>
                 ) : (
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ fontSize: { xs: '0.8rem', md: '0.875rem' } }}
+                  >
                     No coordinators assigned
                   </Typography>
                 )}

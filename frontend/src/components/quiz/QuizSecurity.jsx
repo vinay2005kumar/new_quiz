@@ -26,6 +26,8 @@ const QuizSecurity = ({
   const [currentViolation, setCurrentViolation] = useState('');
   const [showFullscreenPrompt, setShowFullscreenPrompt] = useState(false);
   const [personalOverrideActive, setPersonalOverrideActive] = useState(false);
+
+
   const [showPersonalDialog, setShowPersonalDialog] = useState(false);
   const [personalPassword, setPersonalPassword] = useState('');
   const [personalKeys, setPersonalKeys] = useState(new Set());
@@ -94,8 +96,8 @@ const QuizSecurity = ({
 
       // Only check for overrides if none are active
       if (!adminOverrideActive && !personalOverrideActive) {
-
-        // Check admin override with modifier key support
+        // Check admin override first
+        const adminConfig = settings?.adminOverride;
         if (adminConfig?.enabled) {
           const { button1, button2 } = adminConfig.triggerButtons || {};
 
@@ -143,17 +145,20 @@ const QuizSecurity = ({
           }
           // Check for number key combinations (button1="1", button2="2")
           else if (/^[0-9]$/.test(button1) && /^[0-9]$/.test(button2)) {
-            // Track number keys in a simple way
-            setPressedKeys(prev => {
-              const newSet = new Set(prev);
-              newSet.add(key);
+            // Improved number key tracking - check current state immediately
+            const currentKeys = new Set(pressedKeys);
+            currentKeys.add(key);
 
-              if (newSet.has(button1) && newSet.has(button2)) {
-                isAdminOverride = true;
-              }
+            console.log('🔧 Admin number key pressed:', key, 'Current keys:', Array.from(currentKeys));
+            console.log('🔧 Looking for admin combination:', button1, '+', button2);
 
-              return newSet;
-            });
+            if (currentKeys.has(button1) && currentKeys.has(button2)) {
+              isAdminOverride = true;
+              console.log('🔧 Admin number combination override triggered!');
+            } else {
+              // Update pressed keys state for next keypress
+              setPressedKeys(currentKeys);
+            }
           }
           // Check for other modifier combinations
           else if ((button1 === 'Ctrl' || button2 === 'Ctrl') && e.ctrlKey) {
@@ -170,10 +175,18 @@ const QuizSecurity = ({
           }
 
           if (isAdminOverride) {
-            console.log('🔧 Admin override detected!');
+            console.log('🔧 Admin override detected! Opening dialog...');
             e.preventDefault();
             e.stopPropagation();
-            setShowAdminDialog(true);
+            e.stopImmediatePropagation();
+
+            // Force dialog to show with a slight delay to ensure state updates
+            setTimeout(() => {
+              console.log('🔧 Setting showAdminDialog to true');
+              setShowAdminDialog(true);
+            }, 10);
+
+            setPressedKeys(new Set()); // Clear keys after successful detection
             return;
           }
         }
@@ -183,19 +196,30 @@ const QuizSecurity = ({
         const { button1: pButton1, button2: pButton2 } = personalConfig.buttons;
 
         if (/^[0-9]$/.test(pButton1) && /^[0-9]$/.test(pButton2)) {
-          setPressedKeys(prev => {
-            const newSet = new Set(prev);
-            newSet.add(key);
+          // Improved personal key tracking - check current state immediately
+          const currentKeys = new Set(pressedKeys);
+          currentKeys.add(key);
 
-            if (newSet.has(pButton1) && newSet.has(pButton2)) {
-              console.log('🔑 Personal override detected! Keys:', Array.from(newSet));
-              e.preventDefault();
-              e.stopPropagation();
+          console.log('🔑 Personal key pressed:', key, 'Current keys:', Array.from(currentKeys));
+          console.log('🔑 Looking for personal combination:', pButton1, '+', pButton2);
+
+          if (currentKeys.has(pButton1) && currentKeys.has(pButton2)) {
+            console.log('🔑 Personal override detected! Keys:', Array.from(currentKeys), 'Opening dialog...');
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+
+            // Force dialog to show with a slight delay to ensure state updates
+            setTimeout(() => {
+              console.log('🔑 Setting showPersonalDialog to true');
               setShowPersonalDialog(true);
-            }
+            }, 10);
 
-            return newSet;
-          });
+            setPressedKeys(new Set()); // Clear keys after successful detection
+          } else {
+            // Update pressed keys state for next keypress
+            setPressedKeys(currentKeys);
+          }
         }
       }
     };
@@ -203,16 +227,22 @@ const QuizSecurity = ({
     const handleGlobalKeyUp = (e) => {
       const key = e.key;
 
-      // Clear pressed keys for F-key combinations
+      // Improved key clearing logic
       setPressedKeys(prev => {
         const newSet = new Set(prev);
         newSet.delete(key);
 
-        // Clear all keys if no modifier keys are pressed
-        if (!e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
-          // If no modifiers are held, clear all tracked keys
-          return new Set();
-        }
+        // Clear all keys after a short delay if no keys are being held
+        setTimeout(() => {
+          setPressedKeys(current => {
+            // Only clear if no modifier keys are currently pressed
+            if (!document.querySelector(':focus') ||
+                (!e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey)) {
+              return new Set();
+            }
+            return current;
+          });
+        }, 1000); // Clear after 1 second of inactivity
 
         return newSet;
       });
@@ -263,9 +293,262 @@ const QuizSecurity = ({
       securityListeners.push(() => document.removeEventListener('contextmenu', handleContextMenu, true));
     }
 
+    // Comprehensive new tab and link blocking (always enabled in fullscreen for security)
+    if (securitySettings.enableFullscreen || securitySettings.enableProctoringMode) {
+      // Block all link clicks that could open new tabs/windows
+      const handleLinkClick = (e) => {
+        const target = e.target.closest('a');
+        if (target) {
+          // Block all external links and new tab attempts
+          if (target.target === '_blank' ||
+              target.href.startsWith('http') ||
+              e.ctrlKey || e.metaKey || e.shiftKey ||
+              e.button === 1) { // Middle click
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            handleViolation('⚠️ External Link Blocked!\n\nOpening external links or new tabs is not allowed during the quiz for security reasons.');
+            return false;
+          }
+        }
+      };
+
+      // Block middle mouse button (opens links in new tab)
+      const handleMouseDown = (e) => {
+        if (e.button === 1) { // Middle mouse button
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          handleViolation('⚠️ Middle Click Blocked!\n\nMiddle mouse button clicks are disabled during the quiz to prevent opening new tabs.');
+          return false;
+        }
+      };
+
+      // Override window.open to prevent new windows/tabs
+      const originalWindowOpen = window.open;
+      window.open = function(...args) {
+        handleViolation('⚠️ New Window Blocked!\n\nAttempt to open a new window or tab was blocked for security reasons.');
+        return null;
+      };
+
+      // Block navigation attempts (address bar, bookmarks, etc.)
+      const handleBeforeUnload = (e) => {
+        e.preventDefault();
+        e.returnValue = '⚠️ Quiz in Progress!\n\nLeaving this page will terminate your quiz session. Are you sure you want to continue?';
+        handleViolation('⚠️ Navigation Attempt Blocked!\n\nYou attempted to navigate away from the quiz page. This action is not allowed during the quiz.');
+        return e.returnValue;
+      };
+
+      // Block all form submissions that could navigate away
+      const handleFormSubmit = (e) => {
+        const form = e.target;
+        if (form.tagName === 'FORM' && form.target === '_blank') {
+          e.preventDefault();
+          e.stopPropagation();
+          handleViolation('⚠️ Form Submission Blocked!\n\nForm submissions to new tabs/windows are not allowed during the quiz.');
+          return false;
+        }
+      };
+
+      // Block drag and drop that could open files/links
+      const handleDragStart = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        handleViolation('⚠️ Drag & Drop Blocked!\n\nDrag and drop operations are disabled during the quiz for security reasons.');
+        return false;
+      };
+
+      // Additional keyboard shortcuts blocking
+      const handleAdditionalKeys = (e) => {
+        // PRIORITY 1: Check for admin override FIRST before blocking anything
+        const adminConfig = settings?.adminOverride;
+        if (adminConfig?.enabled && !adminOverrideActive && !personalOverrideActive) {
+          const { button1, button2 } = adminConfig.triggerButtons || {};
+
+          // Check for Ctrl+number combination (like Ctrl+5)
+          if (button1 === 'Ctrl' && /^[0-9]$/.test(button2)) {
+            if (e.ctrlKey && e.key === button2) {
+              console.log('🔧 Admin override detected in additional keys handler: Ctrl+' + button2);
+              e.preventDefault();
+              e.stopPropagation();
+              e.stopImmediatePropagation();
+              setShowAdminDialog(true);
+              return; // Exit early, don't block this key combination
+            }
+          }
+        }
+
+        // If any override is active, don't block any keys
+        if (personalOverrideActive || adminOverrideActive) {
+          return;
+        }
+
+        // DYNAMIC ADMIN OVERRIDE CHECK: Don't block the current admin override key combination
+        const currentAdminConfig = settings?.adminOverride;
+        if (currentAdminConfig?.enabled) {
+          const { button1, button2 } = currentAdminConfig.triggerButtons || {};
+
+          // Check if current key combination matches admin override - DON'T block it!
+          const isAdminOverrideCombo = (
+            (button1 === 'Ctrl' && e.ctrlKey && e.key === button2) ||
+            (button1 === 'Alt' && e.altKey && e.key === button2) ||
+            (button1 === 'Shift' && e.shiftKey && e.key === button2) ||
+            (button2 === 'Ctrl' && e.ctrlKey && e.key === button1) ||
+            (button2 === 'Alt' && e.altKey && e.key === button1) ||
+            (button2 === 'Shift' && e.shiftKey && e.key === button1)
+          );
+
+          if (isAdminOverrideCombo) {
+            console.log('🔧 DYNAMIC: Admin override key detected - allowing through security:', button1 + '+' + button2);
+            return; // Don't block admin override keys - let them pass through
+          }
+        }
+
+        // Block Ctrl+L (address bar focus)
+        if (e.ctrlKey && e.key === 'l') {
+          e.preventDefault();
+          e.stopPropagation();
+          handleViolation('⚠️ Address Bar Access Blocked!\n\nAccessing the address bar is not allowed during the quiz.');
+          return false;
+        }
+
+        // Block Ctrl+D (bookmark)
+        if (e.ctrlKey && e.key === 'd') {
+          e.preventDefault();
+          e.stopPropagation();
+          handleViolation('⚠️ Bookmark Action Blocked!\n\nBookmark operations are not allowed during the quiz.');
+          return false;
+        }
+
+        // Block Ctrl+H (history)
+        if (e.ctrlKey && e.key === 'h') {
+          e.preventDefault();
+          e.stopPropagation();
+          handleViolation('⚠️ History Access Blocked!\n\nAccessing browser history is not allowed during the quiz.');
+          return false;
+        }
+
+        // Block Ctrl+J (downloads)
+        if (e.ctrlKey && e.key === 'j') {
+          e.preventDefault();
+          e.stopPropagation();
+          handleViolation('⚠️ Downloads Access Blocked!\n\nAccessing downloads is not allowed during the quiz.');
+          return false;
+        }
+
+        // Block Ctrl+Shift+Delete (clear browsing data)
+        if (e.ctrlKey && e.shiftKey && e.key === 'Delete') {
+          e.preventDefault();
+          e.stopPropagation();
+          handleViolation('⚠️ Browser Settings Blocked!\n\nAccessing browser settings is not allowed during the quiz.');
+          return false;
+        }
+
+        // Block F6 (address bar focus)
+        if (e.key === 'F6') {
+          e.preventDefault();
+          e.stopPropagation();
+          handleViolation('⚠️ Address Bar Focus Blocked!\n\nAccessing the address bar is not allowed during the quiz.');
+          return false;
+        }
+
+        // Block Ctrl+Shift+N (incognito window)
+        if (e.ctrlKey && e.shiftKey && e.key === 'N') {
+          e.preventDefault();
+          e.stopPropagation();
+          handleViolation('⚠️ Incognito Window Blocked!\n\nOpening incognito windows is not allowed during the quiz.');
+          return false;
+        }
+
+        // Block Ctrl+Shift+T (reopen closed tab)
+        if (e.ctrlKey && e.shiftKey && e.key === 'T') {
+          e.preventDefault();
+          e.stopPropagation();
+          handleViolation('⚠️ Reopen Tab Blocked!\n\nReopening closed tabs is not allowed during the quiz.');
+          return false;
+        }
+
+        // Block Ctrl+K (search bar)
+        if (e.ctrlKey && e.key === 'k') {
+          e.preventDefault();
+          e.stopPropagation();
+          handleViolation('⚠️ Search Bar Blocked!\n\nAccessing the search bar is not allowed during the quiz.');
+          return false;
+        }
+
+        // Block Ctrl+E (search bar in some browsers)
+        if (e.ctrlKey && e.key === 'e') {
+          e.preventDefault();
+          e.stopPropagation();
+          handleViolation('⚠️ Search Access Blocked!\n\nAccessing search functionality is not allowed during the quiz.');
+          return false;
+        }
+      };
+
+      document.addEventListener('click', handleLinkClick, true);
+      document.addEventListener('mousedown', handleMouseDown, true);
+      window.addEventListener('beforeunload', handleBeforeUnload);
+      document.addEventListener('submit', handleFormSubmit, true);
+      document.addEventListener('dragstart', handleDragStart, true);
+      document.addEventListener('keydown', handleAdditionalKeys, true);
+
+      // Additional escape key blocker at document level (highest priority)
+      const handleEscapeBlock = (e) => {
+        if (e.key === 'Escape') {
+          console.log('🚫 Escape key intercepted at document level');
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+
+          // Force fullscreen immediately
+          setTimeout(() => {
+            enterFullscreen();
+          }, 1);
+
+          return false;
+        }
+      };
+
+      document.addEventListener('keydown', handleEscapeBlock, true);
+
+      securityListeners.push(() => {
+        document.removeEventListener('click', handleLinkClick, true);
+        document.removeEventListener('mousedown', handleMouseDown, true);
+        document.removeEventListener('keydown', handleEscapeBlock, true);
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+        document.removeEventListener('submit', handleFormSubmit, true);
+        document.removeEventListener('dragstart', handleDragStart, true);
+        document.removeEventListener('keydown', handleAdditionalKeys, true);
+        window.open = originalWindowOpen; // Restore original function
+      });
+    }
+
     // Disable copy/paste (only if explicitly enabled)
     if (securitySettings.disableCopyPaste === true || securitySettings.enableProctoringMode === true) {
       const handleKeyDown = (e) => {
+        // DYNAMIC ADMIN OVERRIDE CHECK: Don't block the current admin override key combination
+        const adminConfig = settings?.adminOverride;
+        if (adminConfig?.enabled && !adminOverrideActive && !personalOverrideActive) {
+          const { button1, button2 } = adminConfig.triggerButtons || {};
+
+          // Check if current key combination matches admin override - DON'T block it!
+          const isAdminOverrideCombo = (
+            (button1 === 'Ctrl' && e.ctrlKey && e.key === button2) ||
+            (button1 === 'Alt' && e.altKey && e.key === button2) ||
+            (button1 === 'Shift' && e.shiftKey && e.key === button2)
+          );
+
+          if (isAdminOverrideCombo) {
+            console.log('🔧 DYNAMIC: Admin override key detected in copy/paste handler - allowing through:', button1 + '+' + button2);
+            return; // Don't block admin override keys
+          }
+        }
+
+        // If any override is active, don't block any keys
+        if (personalOverrideActive || adminOverrideActive) {
+          return;
+        }
+
         if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'v' || e.key === 'x' || e.key === 'a')) {
           e.preventDefault();
           handleViolation('Copy/Paste operations are disabled during the quiz');
@@ -275,24 +558,62 @@ const QuizSecurity = ({
       securityListeners.push(() => document.removeEventListener('keydown', handleKeyDown));
     }
 
-    // Monitor tab switching (only if explicitly enabled)
-    if (securitySettings.disableTabSwitch === true || securitySettings.enableProctoringMode === true) {
+    // Enhanced tab switching monitoring (always enabled in fullscreen/proctoring mode)
+    if (securitySettings.disableTabSwitch === true || securitySettings.enableProctoringMode === true || securitySettings.enableFullscreen === true) {
       const handleVisibilityChange = () => {
         if (document.hidden) {
-          handleViolation('Tab switching detected! Please stay on the quiz page');
+          console.log('🚨 Page became hidden - possible tab switch or new tab opened!');
+          handleViolation('⚠️ Tab Switch Detected!\n\nThe quiz page became hidden. This typically happens when:\n• You opened a new tab\n• You switched to another tab\n• You minimized the browser\n\nPlease return to the quiz immediately.');
+
+          // Try to regain focus after a short delay
+          setTimeout(() => {
+            window.focus();
+            if (document.hidden) {
+              console.log('🚨 Page still hidden after focus attempt');
+              handleViolation('⚠️ Page Still Hidden!\n\nThe quiz page is still not visible. Please close any other tabs and return to the quiz.');
+            }
+          }, 1000);
+        } else {
+          console.log('✅ Page became visible again');
         }
       };
 
       const handleBlur = () => {
-        handleViolation('Window focus lost! Please stay focused on the quiz');
+        console.log('🚨 Window lost focus');
+        handleViolation('⚠️ Window Focus Lost!\n\nThe quiz window lost focus. Please stay focused on the quiz at all times.');
+
+        // Try to regain focus
+        setTimeout(() => {
+          window.focus();
+        }, 100);
+      };
+
+      const handleFocus = () => {
+        console.log('✅ Window regained focus');
+      };
+
+      // Monitor page visibility more aggressively
+      const handlePageShow = () => {
+        console.log('✅ Page shown (back from background)');
+      };
+
+      const handlePageHide = () => {
+        console.log('🚨 Page hidden (moved to background)');
+        handleViolation('⚠️ Page Hidden!\n\nThe quiz page was moved to the background. This may indicate tab switching or opening new windows.');
       };
 
       document.addEventListener('visibilitychange', handleVisibilityChange);
       window.addEventListener('blur', handleBlur);
-      
+      window.addEventListener('focus', handleFocus);
+      window.addEventListener('pageshow', handlePageShow);
+      window.addEventListener('pagehide', handlePageHide);
+
       securityListeners.push(() => {
         document.removeEventListener('visibilitychange', handleVisibilityChange);
         window.removeEventListener('blur', handleBlur);
+        window.removeEventListener('focus', handleFocus);
+        window.removeEventListener('pageshow', handlePageShow);
+        window.removeEventListener('pagehide', handlePageHide);
       });
     }
 
@@ -355,13 +676,61 @@ const QuizSecurity = ({
     // Monitor fullscreen exit attempts and disable developer tools
     if (securitySettings.enableFullscreen || securitySettings.enableProctoringMode) {
       const handleKeyDown = (e) => {
-        // Override detection is now handled by global key listeners above
-        // This section only handles security violations
+        // PRIORITY 1: Check for admin override FIRST before blocking anything
+        const adminConfig = settings?.adminOverride;
+        if (adminConfig?.enabled && !adminOverrideActive && !personalOverrideActive) {
+          const { button1, button2 } = adminConfig.triggerButtons || {};
+
+          // Check for Ctrl+number combination (like Ctrl+5)
+          if (button1 === 'Ctrl' && /^[0-9]$/.test(button2)) {
+            if (e.ctrlKey && e.key === button2) {
+              console.log('🔧 Admin override detected in security handler: Ctrl+' + button2);
+              e.preventDefault();
+              e.stopPropagation();
+              e.stopImmediatePropagation();
+              setShowAdminDialog(true);
+              return; // Exit early, don't block this key combination
+            }
+          }
+
+          // Check other admin override combinations
+          if ((button1 === 'Alt' && /^[0-9]$/.test(button2) && e.altKey && e.key === button2) ||
+              (button1 === 'Shift' && /^[0-9]$/.test(button2) && e.shiftKey && e.key === button2)) {
+            console.log('🔧 Admin override detected in security handler:', button1 + '+' + button2);
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            setShowAdminDialog(true);
+            return; // Exit early, don't block this key combination
+          }
+        }
 
         // If any override is active, don't block any keys
         if (personalOverrideActive || adminOverrideActive) {
           return;
         }
+
+        // DYNAMIC ADMIN OVERRIDE CHECK: Don't block the current admin override key combination
+        const mainAdminConfig = settings?.adminOverride;
+        if (mainAdminConfig?.enabled) {
+          const { button1, button2 } = mainAdminConfig.triggerButtons || {};
+
+          // Check if current key combination matches admin override - DON'T block it!
+          const isAdminOverrideCombo = (
+            (button1 === 'Ctrl' && e.ctrlKey && e.key === button2) ||
+            (button1 === 'Alt' && e.altKey && e.key === button2) ||
+            (button1 === 'Shift' && e.shiftKey && e.key === button2) ||
+            (button2 === 'Ctrl' && e.ctrlKey && e.key === button1) ||
+            (button2 === 'Alt' && e.altKey && e.key === button1) ||
+            (button2 === 'Shift' && e.shiftKey && e.key === button1)
+          );
+
+          if (isAdminOverrideCombo) {
+            console.log('🔧 DYNAMIC: Admin override key detected in main handler - allowing through:', button1 + '+' + button2);
+            return; // Don't block admin override keys - let them pass through
+          }
+        }
+
         // Monitor F1 and F2 (can trigger browser help)
         if (e.key === 'F1' || e.key === 'F2') {
           e.preventDefault();
@@ -383,7 +752,23 @@ const QuizSecurity = ({
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
-          handleViolation('⚠️ Escape Key Blocked!\n\nYou attempted to use the Escape key to exit fullscreen mode. This action is not allowed during the quiz for security reasons.');
+
+          // Immediately try to re-enter fullscreen if we're not in it
+          setTimeout(() => {
+            const isCurrentlyFullscreen = !!(
+              document.fullscreenElement ||
+              document.webkitFullscreenElement ||
+              document.mozFullScreenElement ||
+              document.msFullscreenElement
+            );
+
+            if (!isCurrentlyFullscreen) {
+              console.log('🖥️ Escape detected - forcing fullscreen re-entry');
+              enterFullscreen();
+            }
+          }, 10);
+
+          handleViolation('⚠️ Escape Key Blocked!\n\nYou attempted to use the Escape key to exit fullscreen mode. This action is not allowed during the quiz for security reasons.\n\nThe system will automatically return to fullscreen mode.');
           return false;
         }
 
@@ -520,28 +905,73 @@ const QuizSecurity = ({
     console.log('🖥️ Entering fullscreen mode for entire browser...');
 
     try {
-      if (document.fullscreenEnabled || document.webkitFullscreenEnabled) {
-        if (element.requestFullscreen) {
-          console.log('🖥️ Using requestFullscreen');
-          await element.requestFullscreen();
-        } else if (element.webkitRequestFullscreen) {
-          console.log('🖥️ Using webkitRequestFullscreen');
-          await element.webkitRequestFullscreen();
-        } else if (element.mozRequestFullScreen) {
-          console.log('🖥️ Using mozRequestFullScreen');
-          await element.mozRequestFullScreen();
-        } else if (element.msRequestFullscreen) {
-          console.log('🖥️ Using msRequestFullscreen');
-          await element.msRequestFullscreen();
-        }
+      // Check if fullscreen is supported
+      const isFullscreenSupported = !!(
+        element.requestFullscreen ||
+        element.webkitRequestFullscreen ||
+        element.mozRequestFullScreen ||
+        element.msRequestFullscreen
+      );
+
+      if (!isFullscreenSupported) {
+        console.warn('🖥️ Fullscreen API not supported');
+        handleViolation('⚠️ Fullscreen Not Supported!\n\nYour browser does not support fullscreen mode. Please use a modern browser (Chrome, Firefox, Edge) to take this quiz.');
+        return;
+      }
+
+      // Check if fullscreen is allowed
+      if (document.fullscreenEnabled === false) {
+        console.warn('🖥️ Fullscreen is disabled');
+        handleViolation('⚠️ Fullscreen Disabled!\n\nFullscreen mode is disabled in your browser. Please enable it in browser settings to continue.');
+        return;
+      }
+
+      // Try different fullscreen methods
+      let fullscreenPromise;
+      if (element.requestFullscreen) {
+        console.log('🖥️ Using requestFullscreen');
+        fullscreenPromise = element.requestFullscreen({ navigationUI: "hide" });
+      } else if (element.webkitRequestFullscreen) {
+        console.log('🖥️ Using webkitRequestFullscreen');
+        fullscreenPromise = element.webkitRequestFullscreen();
+      } else if (element.mozRequestFullScreen) {
+        console.log('🖥️ Using mozRequestFullScreen');
+        fullscreenPromise = element.mozRequestFullScreen();
+      } else if (element.msRequestFullscreen) {
+        console.log('🖥️ Using msRequestFullscreen');
+        fullscreenPromise = element.msRequestFullscreen();
+      }
+
+      if (fullscreenPromise) {
+        await fullscreenPromise;
         console.log('🖥️ Fullscreen request completed successfully');
-      } else {
-        console.warn('🖥️ Fullscreen API not supported or disabled');
-        handleViolation('Fullscreen mode is not supported or disabled in this browser');
+
+        // Verify we actually entered fullscreen
+        setTimeout(() => {
+          const isActuallyFullscreen = !!(
+            document.fullscreenElement ||
+            document.webkitFullscreenElement ||
+            document.mozFullScreenElement ||
+            document.msFullscreenElement
+          );
+
+          if (!isActuallyFullscreen) {
+            console.warn('🖥️ Fullscreen request succeeded but not actually in fullscreen');
+            handleViolation('⚠️ Fullscreen Failed!\n\nUnable to enter fullscreen mode. This may be due to browser security restrictions. Please try again or contact support.');
+          }
+        }, 500);
       }
     } catch (error) {
       console.error('🖥️ Fullscreen request failed:', error);
-      handleViolation(`Failed to enter fullscreen: ${error.message}`);
+
+      // Provide specific error messages
+      if (error.name === 'NotAllowedError') {
+        handleViolation('⚠️ Fullscreen Permission Denied!\n\nFullscreen access was denied. Please allow fullscreen mode when prompted by your browser, or check your browser settings.');
+      } else if (error.name === 'TypeError') {
+        handleViolation('⚠️ Fullscreen Not Available!\n\nFullscreen mode is not available. This may be due to browser restrictions or security policies.');
+      } else {
+        handleViolation(`⚠️ Fullscreen Error!\n\nFailed to enter fullscreen mode: ${error.message}\n\nPlease try refreshing the page or use a different browser.`);
+      }
     }
   };
 
@@ -869,6 +1299,8 @@ const QuizSecurity = ({
           }}
         />
       )}
+
+
 
       {/* Security Violation Dialog */}
       <Dialog

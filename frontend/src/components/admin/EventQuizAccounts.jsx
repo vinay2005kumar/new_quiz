@@ -28,7 +28,9 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  LinearProgress
+  LinearProgress,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import {
   Delete as DeleteIcon,
@@ -52,6 +54,9 @@ import { useAuth } from '../../context/AuthContext';
 import CountDisplayPaper from '../common/CountDisplayPaper';
 
 const EventQuizAccounts = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
   const { user } = useAuth();
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -490,52 +495,86 @@ const EventQuizAccounts = () => {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4">
+    <Container maxWidth="lg" sx={{ mt: { xs: 2, md: 4 }, mb: 4, px: { xs: 1, sm: 2 } }}>
+      <Box sx={{
+        display: 'flex',
+        flexDirection: { xs: 'column', sm: 'row' },
+        justifyContent: 'space-between',
+        alignItems: { xs: 'stretch', sm: 'center' },
+        mb: 3,
+        gap: { xs: 2, sm: 0 }
+      }}>
+        <Typography
+          variant={isMobile ? "h5" : "h4"}
+          sx={{ fontSize: { xs: '1.5rem', md: '2.125rem' } }}
+        >
           Event Quiz Accounts
         </Typography>
-        <Box sx={{ display: 'flex', gap: 2 }}>
+        <Box sx={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: { xs: 0.5, sm: 1 },
+          width: { xs: '100%', sm: 'auto' },
+          justifyContent: { xs: 'flex-start', sm: 'flex-end' }
+        }}>
           <Button
             variant="outlined"
             startIcon={<DownloadIcon className="download-icon" />}
             onClick={handleDownloadPDF}
+            size="small"
             sx={{
               color: 'purple.main',
               borderColor: 'purple.main',
+              fontSize: '0.75rem',
+              minWidth: 'auto',
+              px: { xs: 1, sm: 1.5 },
+              py: 0.5,
+              height: '32px',
               '&:hover': {
                 borderColor: 'purple.dark',
                 backgroundColor: 'purple.50'
               }
             }}
           >
-            Download PDF
+            PDF
           </Button>
           <Button
             variant="outlined"
             startIcon={<CloudUploadIcon className="upload-icon" />}
             onClick={() => setOpenUploadDialog(true)}
+            size="small"
             sx={{
               color: 'orange.main',
               borderColor: 'orange.main',
+              fontSize: '0.75rem',
+              minWidth: 'auto',
+              px: { xs: 1, sm: 1.5 },
+              py: 0.5,
+              height: '32px',
               '&:hover': {
                 borderColor: 'orange.dark',
                 backgroundColor: 'orange.50'
               }
             }}
           >
-            Upload Excel
+            Upload
           </Button>
           <Button
             variant="contained"
             startIcon={<AddIcon className="add-icon" />}
             onClick={() => setOpenDialog(true)}
+            size="small"
             sx={{
               backgroundColor: 'success.main',
+              fontSize: '0.75rem',
+              minWidth: 'auto',
+              px: { xs: 1, sm: 1.5 },
+              py: 0.5,
+              height: '32px',
               '&:hover': { backgroundColor: 'success.dark' }
             }}
           >
-            Create New Account
+            Create
           </Button>
         </Box>
       </Box>

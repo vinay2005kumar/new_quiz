@@ -309,36 +309,87 @@ const Navigation = () => {
             anchor="left"
             open={drawerOpen}
             onClose={() => setDrawerOpen(false)}
+            PaperProps={{
+              sx: {
+                bgcolor: 'background.paper',
+                color: 'text.primary',
+                borderRight: '1px solid',
+                borderColor: 'divider'
+              }
+            }}
           >
             <Box
-              sx={{ width: 250 }}
+              sx={{
+                width: 250,
+                bgcolor: 'background.paper',
+                height: '100%'
+              }}
               role="presentation"
             >
-              <List>
+              <List sx={{ bgcolor: 'background.paper' }}>
                 {menuItems.map((item) => (
                   <ListItem
                     button
                     key={item.path}
                     onClick={() => handleNavigation(item.path)}
                     selected={location.pathname === item.path}
+                    sx={{
+                      color: 'text.primary',
+                      '&:hover': {
+                        bgcolor: 'action.hover',
+                        color: 'text.primary'
+                      },
+                      '&.Mui-selected': {
+                        bgcolor: 'action.selected',
+                        color: 'primary.main',
+                        '&:hover': {
+                          bgcolor: 'action.selected'
+                        }
+                      }
+                    }}
                   >
-                    <ListItemIcon>
+                    <ListItemIcon
+                      sx={{
+                        color: location.pathname === item.path ? 'primary.main' : 'text.secondary',
+                        minWidth: 40
+                      }}
+                    >
                       {item.icon}
                     </ListItemIcon>
-                    <ListItemText primary={item.title} />
+                    <ListItemText
+                      primary={item.title}
+                      sx={{
+                        '& .MuiListItemText-primary': {
+                          fontSize: '0.875rem',
+                          fontWeight: location.pathname === item.path ? 600 : 400
+                        }
+                      }}
+                    />
                   </ListItem>
                 ))}
               </List>
-              <Divider />
-              <List>
+              <Divider sx={{ borderColor: 'divider' }} />
+              <List sx={{ bgcolor: 'background.paper' }}>
                 <ListItem
                   button
                   onClick={() => {
                     toggleTheme();
                     setDrawerOpen(false);
                   }}
+                  sx={{
+                    color: 'text.primary',
+                    '&:hover': {
+                      bgcolor: 'action.hover',
+                      color: 'text.primary'
+                    }
+                  }}
                 >
-                  <ListItemIcon>
+                  <ListItemIcon
+                    sx={{
+                      color: 'text.secondary',
+                      minWidth: 40
+                    }}
+                  >
                     {mode === 'light' ? (
                       <DarkModeIcon />
                     ) : (
@@ -347,6 +398,11 @@ const Navigation = () => {
                   </ListItemIcon>
                   <ListItemText
                     primary={mode === 'light' ? 'Dark Mode' : 'Light Mode'}
+                    sx={{
+                      '& .MuiListItemText-primary': {
+                        fontSize: '0.875rem'
+                      }
+                    }}
                   />
                 </ListItem>
               </List>

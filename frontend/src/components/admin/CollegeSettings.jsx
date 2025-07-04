@@ -40,7 +40,9 @@ import {
   Divider,
   Card,
   CardContent,
-  CardHeader
+  CardHeader,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -48,13 +50,18 @@ import {
   Delete as DeleteIcon,
   Upload as UploadIcon,
   Download as DownloadIcon,
-  CloudUpload as CloudUploadIcon
+  CloudUpload as CloudUploadIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon
 } from '@mui/icons-material';
 import api from '../../config/axios';
 import * as XLSX from 'xlsx';
 import CollegeInformation from './CollegeInformation';
 
 const CollegeSettings = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
   const [departments, setDepartments] = useState([]);
   const [sections, setSections] = useState([]);
   const [openDeptDialog, setOpenDeptDialog] = useState(false);
@@ -144,6 +151,7 @@ const CollegeSettings = () => {
     }
   });
   const [openQuizSettingsDialog, setOpenQuizSettingsDialog] = useState(false);
+  const [showEmergencyPassword, setShowEmergencyPassword] = useState(false);
 
   useEffect(() => {
     fetchAcademicDetails();
@@ -919,6 +927,11 @@ const CollegeSettings = () => {
             triggerButtons: { button1: 'Ctrl', button2: '6' },
             sessionTimeout: 300
           },
+          emergencyAccess: cleanedSettings.emergencyAccess || {
+            enabled: true,
+            password: 'Quiz@123',
+            description: 'Emergency password allows admin access to any quiz even without registered credentials'
+          },
           violationSettings: cleanedSettings.violationSettings || {
             maxViolations: 5,
             autoTerminate: true,
@@ -996,18 +1009,27 @@ const CollegeSettings = () => {
 
   // Simpler handler for direct field updates
   const handleDirectQuizSettingsChange = (section, field, value) => {
-    setQuizSettings(prev => ({
-      ...prev,
-      [section]: {
-        ...prev[section],
-        [field]: value
-      }
-    }));
+    console.log(`🔧 Quiz Settings Change: ${section}.${field} = ${value}`);
+    setQuizSettings(prev => {
+      const newSettings = {
+        ...prev,
+        [section]: {
+          ...prev[section],
+          [field]: value
+        }
+      };
+      console.log('🔧 Updated quiz settings:', newSettings);
+      return newSettings;
+    });
   };
 
   return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-      <Typography variant="h4" gutterBottom>
+    <Container maxWidth="xl" sx={{ mt: { xs: 2, md: 4 }, mb: 4, px: { xs: 1, sm: 2 } }}>
+      <Typography
+        variant={isMobile ? "h5" : "h4"}
+        gutterBottom
+        sx={{ fontSize: { xs: '1.5rem', md: '2.125rem' } }}
+      >
         College Settings
       </Typography>
 
@@ -1015,11 +1037,21 @@ const CollegeSettings = () => {
         <Tabs
           value={tabValue}
           onChange={(e, newValue) => setTabValue(newValue)}
-          sx={{ borderBottom: 1, borderColor: 'divider' }}
+          sx={{
+            borderBottom: 1,
+            borderColor: 'divider',
+            '& .MuiTab-root': {
+              fontSize: { xs: '0.8rem', md: '0.875rem' },
+              minWidth: { xs: 'auto', md: 160 },
+              px: { xs: 1, md: 3 }
+            }
+          }}
+          variant={isMobile ? "scrollable" : "standard"}
+          scrollButtons={isMobile ? "auto" : false}
         >
-          <Tab label="Academic Configuration" />
-          <Tab label="College Information" />
-          <Tab label="Quiz Settings" />
+          <Tab label={isMobile ? "Academic" : "Academic Configuration"} />
+          <Tab label={isMobile ? "College" : "College Information"} />
+          <Tab label={isMobile ? "Quiz" : "Quiz Settings"} />
         </Tabs>
       </Paper>
 
@@ -1028,11 +1060,24 @@ const CollegeSettings = () => {
         {/* Top Row with Years/Semesters and Departments */}
         <Grid item xs={12} md={7}>
           <Paper sx={{ p: 2, height: '100%' }}>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-              <Typography variant="h6">Years and Semesters Configuration</Typography>
+            <Box
+              display="flex"
+              flexDirection={{ xs: 'column', sm: 'row' }}
+              justifyContent="space-between"
+              alignItems={{ xs: 'stretch', sm: 'center' }}
+              mb={2}
+              gap={{ xs: 1, sm: 0 }}
+            >
+              <Typography
+                variant="h6"
+                sx={{ fontSize: { xs: '1.1rem', md: '1.25rem' } }}
+              >
+                Years and Semesters Configuration
+              </Typography>
               <Button
                 variant="contained"
                 startIcon={<AddIcon />}
+                size="small"
                 onClick={() => {
                   setYearSemFormData({
                     year: 1,
@@ -1041,18 +1086,31 @@ const CollegeSettings = () => {
                   setEditingYearSem(false);
                   setOpenYearSemDialog(true);
                 }}
+                sx={{
+                  fontSize: '0.75rem',
+                  minWidth: 'auto',
+                  px: { xs: 1.5, sm: 2 },
+                  py: 0.5,
+                  height: '32px'
+                }}
               >
-                Add Year Configuration
+                {isMobile ? 'Add Year' : 'Add Year Configuration'}
               </Button>
             </Box>
 
-            <TableContainer>
-              <Table>
+            <TableContainer sx={{ overflowX: 'auto' }}>
+              <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell><strong>Year</strong></TableCell>
-                    <TableCell><strong>Semesters</strong></TableCell>
-                    <TableCell><strong>Actions</strong></TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>
+                      <strong>Year</strong>
+                    </TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>
+                      <strong>Semesters</strong>
+                    </TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>
+                      <strong>Actions</strong>
+                    </TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -1073,22 +1131,29 @@ const CollegeSettings = () => {
                     return yearEntries.length > 0 ? (
                       yearEntries.map(([year, semesters]) => (
                         <TableRow key={year}>
-                          <TableCell>Year {year}</TableCell>
-                          <TableCell>
-                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                          <TableCell sx={{ fontSize: { xs: '0.7rem', md: '0.875rem' }, py: 0.5 }}>
+                            Year {year}
+                          </TableCell>
+                          <TableCell sx={{ py: 0.5 }}>
+                            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.25 }}>
                               {Array.from(semesters).sort((a, b) => a - b).map((sem) => (
                                 <Box key={sem} sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
                                   <Chip
-                                    label={`Semester ${sem}`}
+                                    label={isMobile ? `S${sem}` : `Semester ${sem}`}
                                     size="small"
                                     color="secondary"
                                     variant="outlined"
+                                    sx={{
+                                      fontSize: '0.7rem',
+                                      height: '20px',
+                                      '& .MuiChip-label': { px: 0.5 }
+                                    }}
                                   />
                                   <IconButton
                                     size="small"
                                     onClick={() => handleDeleteSemester(Number(year), sem)}
                                     sx={{
-                                      p: 0.25,
+                                      p: 0.125,
                                       '&:hover': {
                                         backgroundColor: 'error.light',
                                         color: 'error.contrastText'
@@ -1148,16 +1213,40 @@ const CollegeSettings = () => {
         {/* Departments */}
         <Grid item xs={12} md={5}>
           <Paper sx={{ p: 2, height: '100%' }}>
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-              <Typography variant="h6">Departments</Typography>
-              <Box>
+            <Box
+              display="flex"
+              flexDirection={{ xs: 'column', sm: 'row' }}
+              justifyContent="space-between"
+              alignItems={{ xs: 'stretch', sm: 'center' }}
+              mb={2}
+              gap={{ xs: 1, sm: 0 }}
+            >
+              <Typography
+                variant="h6"
+                sx={{ fontSize: { xs: '1.1rem', md: '1.25rem' } }}
+              >
+                Departments
+              </Typography>
+              <Box sx={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: { xs: 0.5, sm: 1 },
+                width: { xs: '100%', sm: 'auto' }
+              }}>
                 <Button
                   variant="outlined"
                   startIcon={<CloudUploadIcon />}
                   onClick={() => setOpenUploadDialog(true)}
-                  sx={{ mr: 1 }}
+                  size="small"
+                  sx={{
+                    fontSize: '0.75rem',
+                    minWidth: 'auto',
+                    px: { xs: 1, sm: 1.5 },
+                    py: 0.5,
+                    height: '32px'
+                  }}
                 >
-                  Upload Excel
+                  {isMobile ? 'Upload' : 'Upload Excel'}
                 </Button>
                 <Button
                   variant="contained"
@@ -1167,19 +1256,33 @@ const CollegeSettings = () => {
                     setDeptFormData({ name: '', code: '', description: '' });
                     setOpenDeptDialog(true);
                   }}
+                  size="small"
+                  sx={{
+                    fontSize: '0.75rem',
+                    minWidth: 'auto',
+                    px: { xs: 1, sm: 1.5 },
+                    py: 0.5,
+                    height: '32px'
+                  }}
                 >
-                  Add Department
+                  {isMobile ? 'Add' : 'Add Department'}
                 </Button>
               </Box>
             </Box>
 
-            <TableContainer>
+            <TableContainer sx={{ overflowX: 'auto' }}>
               <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell><strong>Name</strong></TableCell>
-                    <TableCell><strong>Code</strong></TableCell>
-                    <TableCell><strong>Actions</strong></TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>
+                      <strong>Name</strong>
+                    </TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>
+                      <strong>Code</strong>
+                    </TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>
+                      <strong>Actions</strong>
+                    </TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -1284,13 +1387,22 @@ const CollegeSettings = () => {
             </Box>
 
             {/* Filters */}
-            <Stack direction="row" spacing={2} mb={2}>
-              <FormControl sx={{ minWidth: 200 }}>
-                <InputLabel>Filter by Department</InputLabel>
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={{ xs: 1, sm: 2 }}
+              mb={2}
+              sx={{ flexWrap: 'wrap' }}
+            >
+              <FormControl sx={{ minWidth: { xs: '100%', sm: 200 } }}>
+                <InputLabel sx={{ fontSize: { xs: '0.875rem', md: '1rem' } }}>
+                  Filter by Department
+                </InputLabel>
                 <Select
                   value={filterDepartment || ''}
                   onChange={(e) => setFilterDepartment(e.target.value)}
                   label="Filter by Department"
+                  size={isMobile ? "small" : "medium"}
+                  sx={{ fontSize: { xs: '0.875rem', md: '1rem' } }}
                 >
                   <MenuItem value="">All Departments</MenuItem>
                   {departments.map((dept) => (
@@ -1301,12 +1413,16 @@ const CollegeSettings = () => {
                 </Select>
               </FormControl>
 
-              <FormControl sx={{ minWidth: 120 }}>
-                <InputLabel>Filter by Year</InputLabel>
+              <FormControl sx={{ minWidth: { xs: '100%', sm: 120 } }}>
+                <InputLabel sx={{ fontSize: { xs: '0.875rem', md: '1rem' } }}>
+                  Filter by Year
+                </InputLabel>
                 <Select
                   value={filterYear || ''}
                   onChange={(e) => setFilterYear(e.target.value)}
                   label="Filter by Year"
+                  size={isMobile ? "small" : "medium"}
+                  sx={{ fontSize: { xs: '0.875rem', md: '1rem' } }}
                 >
                   <MenuItem value="">All Years</MenuItem>
                   {Array.from(new Set(academicDetails.map(detail => detail.year))).sort((a, b) => a - b).map((year) => (
@@ -1317,12 +1433,16 @@ const CollegeSettings = () => {
                 </Select>
               </FormControl>
 
-              <FormControl sx={{ minWidth: 120 }}>
-                <InputLabel>Filter by Semester</InputLabel>
+              <FormControl sx={{ minWidth: { xs: '100%', sm: 120 } }}>
+                <InputLabel sx={{ fontSize: { xs: '0.875rem', md: '1rem' } }}>
+                  Filter by Semester
+                </InputLabel>
                 <Select
                   value={filterSemester || ''}
                   onChange={(e) => setFilterSemester(e.target.value)}
                   label="Filter by Semester"
+                  size={isMobile ? "small" : "medium"}
+                  sx={{ fontSize: { xs: '0.875rem', md: '1rem' } }}
                 >
                   <MenuItem value="">All Semesters</MenuItem>
                   {Array.from(new Set(academicDetails.map(detail => detail.semester))).sort((a, b) => a - b).map((semester) => (
@@ -1335,16 +1455,28 @@ const CollegeSettings = () => {
             </Stack>
 
             {/* Academic Details Table */}
-            <TableContainer>
-              <Table>
+            <TableContainer sx={{ overflowX: 'auto' }}>
+              <Table size="small">
                 <TableHead>
                   <TableRow>
-                    <TableCell><strong>Department</strong></TableCell>
-                    <TableCell><strong>Year</strong></TableCell>
-                    <TableCell><strong>Semester</strong></TableCell>
-                    <TableCell><strong>Subjects</strong></TableCell>
-                    <TableCell><strong>Sections</strong></TableCell>
-                    <TableCell><strong>Actions</strong></TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>
+                      <strong>Dept</strong>
+                    </TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>
+                      <strong>Yr</strong>
+                    </TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>
+                      <strong>Sem</strong>
+                    </TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>
+                      <strong>Subjects</strong>
+                    </TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>
+                      <strong>Sections</strong>
+                    </TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>
+                      <strong>Actions</strong>
+                    </TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -2414,14 +2546,34 @@ const CollegeSettings = () => {
         <Grid container spacing={3}>
           <Grid item xs={12}>
             <Paper sx={{ p: 3 }}>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                <Typography variant="h6">Quiz Security Settings</Typography>
+              <Box
+                display="flex"
+                flexDirection={{ xs: 'column', sm: 'row' }}
+                justifyContent="space-between"
+                alignItems={{ xs: 'stretch', sm: 'center' }}
+                mb={3}
+                gap={{ xs: 1, sm: 0 }}
+              >
+                <Typography
+                  variant="h6"
+                  sx={{ fontSize: { xs: '1.1rem', md: '1.25rem' } }}
+                >
+                  Quiz Security Settings
+                </Typography>
                 <Button
                   variant="contained"
                   startIcon={<EditIcon />}
                   onClick={() => setOpenQuizSettingsDialog(true)}
+                  size="small"
+                  sx={{
+                    fontSize: '0.75rem',
+                    minWidth: 'auto',
+                    px: { xs: 1.5, sm: 2 },
+                    py: 0.5,
+                    height: '32px'
+                  }}
                 >
-                  Edit Settings
+                  {isMobile ? 'Edit' : 'Edit Settings'}
                 </Button>
               </Box>
 
@@ -2470,12 +2622,53 @@ const CollegeSettings = () => {
                       </Typography>
                       {quizSettings.emergencyAccess?.enabled && (
                         <>
-                          <Typography variant="body2" sx={{ mt: 1 }}>
-                            <strong>Password:</strong> {quizSettings.emergencyAccess?.password ? '••••••••' : 'Not set'}
-                          </Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'center', mt: 1, gap: 1 }}>
+                            <Typography variant="body2">
+                              <strong>Password:</strong> {
+                                quizSettings.emergencyAccess?.password ?
+                                  (showEmergencyPassword ? quizSettings.emergencyAccess.password : '••••••••') :
+                                  'Not set'
+                              }
+                            </Typography>
+                            {quizSettings.emergencyAccess?.password && (
+                              <Button
+                                size="small"
+                                variant="text"
+                                onClick={() => setShowEmergencyPassword(!showEmergencyPassword)}
+                                sx={{
+                                  minWidth: 'auto',
+                                  p: 0.5,
+                                  fontSize: '0.7rem',
+                                  textTransform: 'none'
+                                }}
+                              >
+                                {showEmergencyPassword ? 'Hide' : 'Show'}
+                              </Button>
+                            )}
+                          </Box>
                           <Typography variant="body2" sx={{ mt: 1, fontSize: '0.8rem', fontStyle: 'italic' }}>
                             {quizSettings.emergencyAccess?.description}
                           </Typography>
+                          {showEmergencyPassword && quizSettings.emergencyAccess?.password && (
+                            <Alert severity="info" sx={{ mt: 1, fontSize: '0.75rem' }}>
+                              <Typography variant="caption">
+                                <strong>Note:</strong> Students can use this password to access quizzes when they don't have individual credentials.
+                              </Typography>
+                            </Alert>
+                          )}
+                          <Box sx={{ mt: 1 }}>
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => {
+                                console.log('🔍 Current Emergency Access Settings:', quizSettings.emergencyAccess);
+                                console.log('🔍 Full Quiz Settings:', quizSettings);
+                              }}
+                              sx={{ fontSize: '0.7rem', px: 1, py: 0.25 }}
+                            >
+                              Debug Settings
+                            </Button>
+                          </Box>
                         </>
                       )}
                     </CardContent>
@@ -2640,6 +2833,14 @@ const CollegeSettings = () => {
                       value={quizSettings.emergencyAccess?.password || ''}
                       onChange={(e) => handleDirectQuizSettingsChange('emergencyAccess', 'password', e.target.value)}
                       helperText="Password for emergency quiz access without credentials"
+                      autoComplete="new-password"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck="false"
+                      inputProps={{
+                        'data-lpignore': 'true',
+                        'data-form-type': 'other'
+                      }}
                     />
                   </Grid>
                   <Grid item xs={12}>
@@ -2651,6 +2852,13 @@ const CollegeSettings = () => {
                       value={quizSettings.emergencyAccess?.description || ''}
                       onChange={(e) => handleDirectQuizSettingsChange('emergencyAccess', 'description', e.target.value)}
                       helperText="Description of what this emergency access allows"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck="true"
+                      inputProps={{
+                        'data-lpignore': 'true'
+                      }}
                     />
                   </Grid>
                 </Grid>

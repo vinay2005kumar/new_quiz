@@ -608,7 +608,8 @@ router.get('/my-submissions', auth, async (req, res) => {
     }
 
     const submissions = await QuizSubmission.find({
-      student: req.user._id
+      student: req.user._id,
+      isDeleted: false  // Only fetch non-deleted submissions
     }).populate('quiz', 'title totalMarks duration questions allowedGroups subject startTime endTime');
 
     // Filter out submissions where quiz was deleted (quiz is null)
@@ -680,7 +681,8 @@ router.get('/:id', auth, async (req, res) => {
     if (req.user.role === 'student') {
       const hasAttempted = await QuizSubmission.findOne({
         quiz: quiz._id,
-        student: req.user._id
+        student: req.user._id,
+        isDeleted: false  // Only check non-deleted submissions
       });
 
       const isAvailable = quiz.isActive &&
@@ -768,10 +770,11 @@ router.post('/:id/start', auth, authorize('student'), async (req, res) => {
       });
     }
 
-    // Check if student has already attempted the quiz (including deleted submissions)
+    // Check if student has already attempted the quiz (only non-deleted submissions)
     const existingAttempt = await QuizSubmission.findOne({
       quiz: quiz._id,
-      student: req.user._id
+      student: req.user._id,
+      isDeleted: false  // Only check non-deleted submissions
     });
 
     if (existingAttempt) {
@@ -830,7 +833,8 @@ router.post('/:id/submit', auth, authorize('student'), async (req, res) => {
     const submission = await QuizSubmission.findOne({
       quiz: req.params.id,
       student: req.user._id,
-      status: 'started'
+      status: 'started',
+      isDeleted: false  // Only look for non-deleted submissions
     });
 
     if (!submission) {
@@ -1184,7 +1188,8 @@ router.get('/:id/submission', auth, async (req, res) => {
   try {
     const submission = await QuizSubmission.findOne({
       quiz: req.params.id,
-      student: req.user._id
+      student: req.user._id,
+      isDeleted: false  // Only fetch non-deleted submissions
     }).populate('quiz');
 
     if (!submission) {
