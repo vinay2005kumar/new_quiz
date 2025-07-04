@@ -244,6 +244,20 @@ const eventQuizSchema = new mongoose.Schema({
     isSpotRegistration: {
       type: Boolean,
       default: false
+    },
+
+    // Soft delete functionality
+    isDeleted: {
+      type: Boolean,
+      default: false
+    },
+    deletedAt: {
+      type: Date,
+      default: null
+    },
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
     }
   }],
   questions: [questionSchema],

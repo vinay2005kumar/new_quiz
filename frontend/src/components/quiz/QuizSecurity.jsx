@@ -39,7 +39,30 @@ const QuizSecurity = ({
   const personalTimeoutRef = useRef(null);
   const adminTimeoutRef = useRef(null);
 
+  // Fetch admin config only once on mount
   useEffect(() => {
+    fetchAdminConfig();
+  }, []);
+
+  useEffect(() => {
+    // Only run if securitySettings is properly loaded
+    if (!securitySettings) {
+      console.log('🔒 QuizSecurity: No security settings provided, skipping security setup');
+      return;
+    }
+
+    // Check if any security features are actually enabled
+    const hasAnySecurityEnabled = securitySettings.enableFullscreen ||
+                                  securitySettings.disableRightClick ||
+                                  securitySettings.disableCopyPaste ||
+                                  securitySettings.disableTabSwitch ||
+                                  securitySettings.enableProctoringMode;
+
+    if (!hasAnySecurityEnabled) {
+      console.log('🔒 QuizSecurity: No security features enabled, skipping security setup');
+      return;
+    }
+
     console.log('🔒 QuizSecurity mounted with settings:', securitySettings);
     console.log('🔒 Security settings breakdown:', {
       enableFullscreen: securitySettings.enableFullscreen,
@@ -48,16 +71,6 @@ const QuizSecurity = ({
       disableTabSwitch: securitySettings.disableTabSwitch,
       enableProctoringMode: securitySettings.enableProctoringMode
     });
-
-    // Fetch admin override configuration
-    fetchAdminConfig();
-
-    // Only apply security if explicitly enabled in quiz settings
-    const hasAnySecurityEnabled = securitySettings.enableFullscreen ||
-                                  securitySettings.disableRightClick ||
-                                  securitySettings.disableCopyPaste ||
-                                  securitySettings.disableTabSwitch ||
-                                  securitySettings.enableProctoringMode;
 
     console.log('🔒 Security check:', {
       hasAnySecurityEnabled,
@@ -486,7 +499,17 @@ const QuizSecurity = ({
     // Cleanup function
     return () => {
       securityListeners.forEach(cleanup => cleanup());
-      exitFullscreen();
+
+      // Add a small delay to allow navigation to complete before attempting fullscreen exit
+      setTimeout(() => {
+        // Only exit fullscreen if document is still active and we're actually in fullscreen
+        if (document.fullscreenElement || document.webkitFullscreenElement ||
+            document.mozFullScreenElement || document.msFullscreenElement) {
+          exitFullscreen().catch(error => {
+            console.log('🖥️ Fullscreen exit during cleanup failed (expected during navigation):', error.message);
+          });
+        }
+      }, 100);
     };
   }, [securitySettings]);
 
@@ -525,6 +548,19 @@ const QuizSecurity = ({
   const exitFullscreen = async () => {
     console.log('🖥️ Exiting fullscreen mode...');
 
+    // Check if we're actually in fullscreen mode
+    const isInFullscreen = !!(
+      document.fullscreenElement ||
+      document.webkitFullscreenElement ||
+      document.mozFullScreenElement ||
+      document.msFullscreenElement
+    );
+
+    if (!isInFullscreen) {
+      console.log('🖥️ Not in fullscreen mode, skipping exit');
+      return;
+    }
+
     try {
       if (document.exitFullscreen) {
         console.log('🖥️ Using exitFullscreen');
@@ -541,7 +577,12 @@ const QuizSecurity = ({
       }
       console.log('🖥️ Fullscreen exit completed');
     } catch (error) {
-      console.error('🖥️ Fullscreen exit failed:', error);
+      // More specific error handling
+      if (error.message.includes('not active') || error.message.includes('Document not active')) {
+        console.log('🖥️ Fullscreen exit failed: Document not active (expected during navigation)');
+      } else {
+        console.error('🖥️ Fullscreen exit failed:', error);
+      }
     }
   };
 
@@ -756,7 +797,7 @@ const QuizSecurity = ({
     if (securitySettings.disableCopyPaste) activeFeatures.push('Copy/Paste disabled');
     if (securitySettings.disableTabSwitch) activeFeatures.push('Tab switching monitored');
     if (securitySettings.enableProctoringMode) activeFeatures.push('Proctoring mode');
-    
+
     return activeFeatures;
   };
 
@@ -772,7 +813,7 @@ const QuizSecurity = ({
       }}
     >
       {/* Security Status Bar */}
-      {(securitySettings.enableFullscreen || securitySettings.enableProctoringMode || 
+      {(securitySettings.enableFullscreen || securitySettings.enableProctoringMode ||
         Object.values(securitySettings).some(Boolean)) && (
         <Box sx={{ 
           bgcolor: 'error.main', 

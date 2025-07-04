@@ -50,7 +50,8 @@ import {
   Email as EmailIcon,
   Quiz as QuizIcon,
   PictureAsPdf as PdfIcon,
-  TableChart as ExcelIcon
+  TableChart as ExcelIcon,
+  Delete as DeleteIcon
 } from '@mui/icons-material';
 import api from '../../config/axios';
 import { toast } from 'react-toastify';
@@ -108,10 +109,17 @@ const EventQuizSubmissions = () => {
     sending: false
   });
   const [reattemptDialog, setReattemptDialog] = useState({ open: false, student: null });
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, student: null });
 
   // Bulk reattempt functionality
   const [selectedStudents, setSelectedStudents] = useState(new Set());
   const [bulkReattemptDialog, setBulkReattemptDialog] = useState({ open: false, students: [] });
+
+  // Deleted users functionality
+  const [deletedUsersDialog, setDeletedUsersDialog] = useState({ open: false, deletedUsers: [] });
+  const [loadingDeletedUsers, setLoadingDeletedUsers] = useState(false);
+
+
 
   // Function to determine the correct submission view path
   const getSubmissionViewPath = (studentId) => {
@@ -167,6 +175,13 @@ const EventQuizSubmissions = () => {
         const registrations = Array.isArray(registrationsResponse) ? registrationsResponse : [];
         const submissions = Array.isArray(submissionsResponse) ? submissionsResponse : [];
 
+        console.log('📊 SUBMISSIONS DEBUG:', {
+          registrationsCount: registrations.length,
+          submissionsCount: submissions.length,
+          submissions: submissions,
+          registrations: registrations
+        });
+
         // Create a map of submissions by email for quick lookup
         const submissionMap = new Map();
         submissions.forEach(submission => {
@@ -175,28 +190,65 @@ const EventQuizSubmissions = () => {
           }
         });
 
-        // Transform registrations data and merge with submissions
-        const transformedStudents = registrations.map(registration => {
-          const submission = submissionMap.get(registration.email);
+        // Create a map of registrations by email
+        const registrationMap = new Map();
+        registrations.forEach(registration => {
+          if (registration.email) {
+            registrationMap.set(registration.email, registration);
+          }
+        });
+
+        // Get all unique emails from both registrations and submissions
+        const allEmails = new Set([
+          ...registrations.map(r => r.email),
+          ...submissions.map(s => s.student?.email).filter(Boolean)
+        ]);
+
+        // Transform data by merging registrations and submissions
+        const transformedStudents = Array.from(allEmails).map(email => {
+          const registration = registrationMap.get(email);
+          const submission = submissionMap.get(email);
+
+          // Use registration data if available, otherwise use submission data
+          const studentData = registration || (submission ? {
+            _id: submission.student._id,
+            name: submission.student.name,
+            email: submission.student.email,
+            college: submission.student.college,
+            department: submission.student.department,
+            year: submission.student.year,
+            phoneNumber: 'N/A',
+            admissionNumber: submission.student.rollNumber || 'N/A',
+            participantType: 'external',
+            isTeamRegistration: submission.student.isTeam || false,
+            teamName: submission.student.teamName || null,
+            teamLeader: null,
+            teamMembers: submission.student.teamMembers || [],
+            teamMemberNames: null,
+            totalTeamSize: submission.student.teamMembers?.length || 1,
+            registeredAt: submission.submitTime
+          } : null);
+
+          if (!studentData) return null;
 
           return {
             student: {
-              _id: registration._id,
-              name: registration.name || 'N/A',
-              email: registration.email || 'N/A',
-              college: registration.college || 'N/A',
-              department: registration.department || 'N/A',
-              year: registration.year || 'N/A',
-              phoneNumber: registration.phoneNumber || 'N/A',
-              admissionNumber: registration.admissionNumber || 'N/A',
-              participantType: registration.participantType || 'N/A',
-              isTeamRegistration: registration.isTeamRegistration || false,
-              teamName: registration.teamName || null,
-              teamLeader: registration.teamLeader || null,
-              teamMembers: registration.teamMembers || [],
-              teamMemberNames: registration.teamMemberNames || null,
-              totalTeamSize: registration.totalTeamSize || 1,
-              registeredAt: registration.registeredAt
+              _id: studentData._id,
+              name: studentData.name || 'N/A',
+              email: studentData.email || 'N/A',
+              college: studentData.college || 'N/A',
+              department: studentData.department || 'N/A',
+              year: studentData.year || 'N/A',
+              phoneNumber: studentData.phoneNumber || 'N/A',
+              admissionNumber: studentData.admissionNumber || 'N/A',
+              participantType: studentData.participantType || 'N/A',
+              isTeamRegistration: studentData.isTeamRegistration || false,
+              teamName: studentData.teamName || null,
+              teamLeader: studentData.teamLeader || null,
+              teamMembers: studentData.teamMembers || [],
+              teamMemberNames: studentData.teamMemberNames || null,
+              totalTeamSize: studentData.totalTeamSize || 1,
+              registeredAt: studentData.registeredAt
             },
             hasSubmitted: submission ? submission.status === 'submitted' : false,
             submissionStatus: submission ? submission.status : 'not-submitted',
@@ -206,7 +258,7 @@ const EventQuizSubmissions = () => {
             submitTime: submission ? submission.submitTime : null,
             answers: submission ? submission.answers || [] : []
           };
-        });
+        }).filter(Boolean);
 
         console.log('Transformed students data:', transformedStudents);
         setStudents(transformedStudents);
@@ -341,16 +393,29 @@ const EventQuizSubmissions = () => {
     }
   };
 
-  const handleDeleteRegistration = async (registrationId, registrationName) => {
-    if (window.confirm(`Are you sure you want to delete the registration for "${registrationName}"? This action cannot be undone.`)) {
-      try {
-        await api.delete(`/api/event-quiz/${id}/registrations/${registrationId}`);
-        toast.success('Registration deleted successfully!');
-        fetchData(); // Refresh the data
-      } catch (error) {
-        toast.error('Failed to delete registration: ' + (error.response?.data?.message || error.message));
-      }
+  const handleDeleteRegistration = (studentData) => {
+    setDeleteDialog({ open: true, student: studentData });
+  };
+
+  const handleConfirmDelete = async () => {
+    const studentData = deleteDialog.student;
+    const registrationName = studentData.student.isTeamRegistration ?
+      `${studentData.student.name} (Team: ${studentData.student.teamName})` :
+      studentData.student.name;
+
+    try {
+      await api.delete(`/api/event-quiz/${id}/registrations/${studentData.student._id}`);
+      toast.success('Registration deleted successfully!');
+      setDeleteDialog({ open: false, student: null });
+      fetchData(); // Refresh the data
+    } catch (error) {
+      toast.error('Failed to delete registration: ' + (error.response?.data?.message || error.message));
+      setDeleteDialog({ open: false, student: null });
     }
+  };
+
+  const handleCancelDelete = () => {
+    setDeleteDialog({ open: false, student: null });
   };
 
   const handleReattempt = (studentData) => {
@@ -440,6 +505,50 @@ const EventQuizSubmissions = () => {
 
   const handleCancelBulkReattempt = () => {
     setBulkReattemptDialog({ open: false, students: [] });
+  };
+
+  // Deleted users handlers
+  const handleViewDeletedUsers = async () => {
+    setLoadingDeletedUsers(true);
+    try {
+      const response = await api.get(`/api/event-quiz/${id}/deleted-registrations`);
+      // The axios interceptor returns response.data directly, so response IS the data
+      const deletedUsers = Array.isArray(response) ? response : (response.data || []);
+      setDeletedUsersDialog({
+        open: true,
+        deletedUsers: deletedUsers
+      });
+    } catch (error) {
+      console.error('Error fetching deleted users:', error);
+      toast.error('Failed to fetch deleted users: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoadingDeletedUsers(false);
+    }
+  };
+
+  const handleRestoreUser = async (registrationId) => {
+    try {
+      await api.post(`/api/event-quiz/${id}/restore-registration/${registrationId}`);
+      toast.success('User restored successfully!');
+
+      // Refresh deleted users list
+      const response = await api.get(`/api/event-quiz/${id}/deleted-registrations`);
+      const deletedUsers = Array.isArray(response) ? response : (response.data || []);
+      setDeletedUsersDialog({
+        open: true,
+        deletedUsers: deletedUsers
+      });
+
+      // Refresh main data
+      fetchData();
+    } catch (error) {
+      console.error('Error restoring user:', error);
+      toast.error('Failed to restore user: ' + (error.response?.data?.message || error.message));
+    }
+  };
+
+  const handleCloseDeletedUsers = () => {
+    setDeletedUsersDialog({ open: false, deletedUsers: [] });
   };
 
   // Download functionality
@@ -815,6 +924,15 @@ const EventQuizSubmissions = () => {
                 disabled={(showShortlisted ? shortlistedCandidates : sortedStudents).length === 0}
               >
                 Create Quiz
+              </Button>
+              <Button
+                variant="outlined"
+                color="error"
+                startIcon={<DeleteIcon />}
+                onClick={handleViewDeletedUsers}
+                disabled={loadingDeletedUsers}
+              >
+                {loadingDeletedUsers ? 'Loading...' : 'Deleted Users'}
               </Button>
 
               {/* Existing Buttons */}
@@ -1207,12 +1325,7 @@ const EventQuizSubmissions = () => {
                       size="small"
                       variant="outlined"
                       color="error"
-                      onClick={() => handleDeleteRegistration(
-                        studentData.student._id,
-                        studentData.student.isTeamRegistration ?
-                          `${studentData.student.name} (Team: ${studentData.student.teamName})` :
-                          studentData.student.name
-                      )}
+                      onClick={() => handleDeleteRegistration(studentData)}
                     >
                       Delete
                     </Button>
@@ -2207,6 +2320,173 @@ const EventQuizSubmissions = () => {
             startIcon={<QuizIcon />}
           >
             Allow Reattempt for {bulkReattemptDialog.students.length} Students
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteDialog.open}
+        onClose={handleCancelDelete}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1}>
+            <DeleteIcon color="error" />
+            Confirm Registration Deletion
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 1 }}>
+            {deleteDialog.student && (
+              <>
+                <Typography variant="body1" gutterBottom>
+                  Are you sure you want to delete the registration for <strong>
+                    {deleteDialog.student.student.isTeamRegistration
+                      ? `${deleteDialog.student.student.name} (Team: ${deleteDialog.student.student.teamName})`
+                      : deleteDialog.student.student.name}
+                  </strong>?
+                </Typography>
+
+                <Alert severity="error" sx={{ mt: 2, mb: 2 }}>
+                  <Typography variant="body2">
+                    <strong>Warning:</strong> This action will:
+                  </Typography>
+                  <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>
+                    <li>Permanently delete their registration</li>
+                    <li>Remove their quiz submission (if any)</li>
+                    <li>Delete their quiz credentials</li>
+                    {deleteDialog.student.student.isTeamRegistration && (
+                      <li>Remove the entire team registration</li>
+                    )}
+                    <li>This data cannot be recovered</li>
+                  </ul>
+                  <Typography variant="body2" sx={{ mt: 1 }}>
+                    <strong>This action cannot be undone.</strong>
+                  </Typography>
+                </Alert>
+
+                <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Name:</strong> {deleteDialog.student.student.name}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Email:</strong> {deleteDialog.student.student.email}
+                  </Typography>
+                  {deleteDialog.student.student.isTeamRegistration && (
+                    <Typography variant="body2" color="text.secondary">
+                      <strong>Team:</strong> {deleteDialog.student.student.teamName}
+                    </Typography>
+                  )}
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Score:</strong> {deleteDialog.student.hasSubmitted ?
+                      `${deleteDialog.student.score || 0} marks` : 'Not submitted'}
+                  </Typography>
+                </Box>
+              </>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={handleCancelDelete}
+            color="secondary"
+            variant="outlined"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirmDelete}
+            color="error"
+            variant="contained"
+            startIcon={<DeleteIcon />}
+          >
+            Delete Registration
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Deleted Users Dialog */}
+      <Dialog
+        open={deletedUsersDialog.open}
+        onClose={handleCloseDeletedUsers}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1}>
+            <DeleteIcon color="error" />
+            Deleted Users - Event Quiz: {quiz?.title}
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 1 }}>
+            {deletedUsersDialog.deletedUsers.length === 0 ? (
+              <Alert severity="info">
+                No deleted users found for this quiz.
+              </Alert>
+            ) : (
+              <>
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  <Typography variant="body2">
+                    These users were deleted from the quiz. Click "Restore & Allow Reattempt" to restore their access and allow them to attempt the quiz again.
+                  </Typography>
+                </Alert>
+
+                <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
+                  <Table stickyHeader>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Name</TableCell>
+                        <TableCell>Email</TableCell>
+                        <TableCell>College</TableCell>
+                        <TableCell>Department</TableCell>
+                        <TableCell>Deleted At</TableCell>
+                        <TableCell>Deleted By</TableCell>
+                        <TableCell>Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {deletedUsersDialog.deletedUsers.map((user) => (
+                        <TableRow key={user._id}>
+                          <TableCell>{user.name}</TableCell>
+                          <TableCell>{user.email}</TableCell>
+                          <TableCell>{user.college}</TableCell>
+                          <TableCell>{user.department}</TableCell>
+                          <TableCell>
+                            {user.deletedAt ? new Date(user.deletedAt).toLocaleString() : 'N/A'}
+                          </TableCell>
+                          <TableCell>
+                            {user.deletedBy?.name || user.deletedBy?.email || 'N/A'}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              size="small"
+                              variant="contained"
+                              color="success"
+                              startIcon={<QuizIcon />}
+                              onClick={() => handleRestoreUser(user._id)}
+                            >
+                              Restore
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={handleCloseDeletedUsers}
+            color="secondary"
+            variant="outlined"
+          >
+            Close
           </Button>
         </DialogActions>
       </Dialog>

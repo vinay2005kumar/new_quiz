@@ -69,9 +69,18 @@ api.interceptors.response.use(
     }
 
     if (error.response?.status === 401) {
-      console.log('Auth error - clearing token and redirecting to login');
-      localStorage.removeItem('token');
-      window.location.href = '/login';
+      // Only redirect to login for authenticated routes, not for login attempts
+      const isLoginAttempt = error.config?.url?.includes('/login') ||
+                            error.config?.url?.includes('/register') ||
+                            error.config?.url?.includes('/event-quiz');
+
+      if (!isLoginAttempt) {
+        console.log('Auth error on protected route - clearing token and redirecting to login');
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+      } else {
+        console.log('Login attempt failed - not redirecting');
+      }
     }
 
     if (error.response?.data?.message) {

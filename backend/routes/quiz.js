@@ -65,23 +65,24 @@ const processTextWithHtmlFormatting = (text) => {
   // Simple approach: if text contains any code patterns, wrap the entire text in <pre>
   // This ensures perfect preservation without complex parsing
   if (hasCodeContent(text)) {
-    // For HTML code, we need to escape it so it displays as text, not renders as HTML
-    // For other code (C, Python, etc.), we preserve symbols as-is
-    let processedText = text;
-
     // Check if this is HTML code that should be displayed as text
-    if (text.includes('<html>') || text.includes('<!DOCTYPE') || text.includes('<div>') || text.includes('<p>') || text.includes('<span>')) {
+    if (text.includes('<html>') || text.includes('<!DOCTYPE') || text.includes('<div>') || text.includes('<p>') || text.includes('<span>') || text.includes('<body>')) {
       // This is HTML code - escape it so it displays as text
-      processedText = text
+      const processedText = text
         .replace(/&/g, '&amp;')   // Must be first
         .replace(/</g, '&lt;')    // Escape < for HTML display
         .replace(/>/g, '&gt;')    // Escape > for HTML display
         .replace(/"/g, '&quot;')  // Escape quotes
         .replace(/'/g, '&#39;');  // Escape single quotes
-    }
-    // For C/C++/Python/etc. code, keep symbols as-is (browser will handle them correctly in <pre>)
 
-    return '<pre>' + processedText + '</pre>';
+      return '<pre>' + processedText + '</pre>';
+    } else {
+      // For C/C++/Python/etc. code, preserve angle brackets completely
+      // Only escape ampersands that aren't part of HTML entities
+      let processedText = text.replace(/&(?![a-zA-Z0-9#]+;)/g, '&amp;');
+
+      return '<pre>' + processedText + '</pre>';
+    }
   }
 
   return text;
@@ -767,7 +768,7 @@ router.post('/:id/start', auth, authorize('student'), async (req, res) => {
       });
     }
 
-    // Check if student has already attempted the quiz
+    // Check if student has already attempted the quiz (including deleted submissions)
     const existingAttempt = await QuizSubmission.findOne({
       quiz: quiz._id,
       student: req.user._id
@@ -777,13 +778,23 @@ router.post('/:id/start', auth, authorize('student'), async (req, res) => {
       console.log('Existing attempt found:', {
         submissionId: existingAttempt._id,
         status: existingAttempt.status,
+        isDeleted: existingAttempt.isDeleted,
         startTime: existingAttempt.startTime
       });
-      return res.status(400).json({ 
-        message: 'Quiz already attempted',
-        submissionId: existingAttempt._id,
-        status: existingAttempt.status
-      });
+
+      if (existingAttempt.isDeleted) {
+        return res.status(400).json({
+          message: 'Your previous submission was removed by the instructor. Please contact your instructor for assistance.',
+          submissionId: existingAttempt._id,
+          status: 'deleted'
+        });
+      } else {
+        return res.status(400).json({
+          message: 'Quiz already attempted',
+          submissionId: existingAttempt._id,
+          status: existingAttempt.status
+        });
+      }
     }
 
     // Create new quiz submission
@@ -940,8 +951,11 @@ router.get('/:id/authorized-students', auth, authorize('faculty', 'admin'), asyn
       section: { $in: quiz.allowedGroups.map(group => group.section) }
     }).select('name admissionNumber department year section');
     
-    // Get all submissions for this quiz
-    const submissions = await QuizSubmission.find({ quiz: req.params.id })
+    // Get all submissions for this quiz (exclude deleted)
+    const submissions = await QuizSubmission.find({
+      quiz: req.params.id,
+      isDeleted: false
+    })
       .select('student status submitTime totalMarks startTime duration answers')
       .lean();
 
@@ -1209,8 +1223,11 @@ router.get('/:id/submissions', auth, authorize('faculty', 'admin'), async (req, 
       return res.status(403).json({ message: 'Access denied. Not your quiz.' });
     }
 
-    // Get all submissions for this quiz with student details
-    const submissions = await QuizSubmission.find({ quiz: req.params.id })
+    // Get all submissions for this quiz with student details (exclude deleted)
+    const submissions = await QuizSubmission.find({
+      quiz: req.params.id,
+      isDeleted: false
+    })
       .populate('student', 'name admissionNumber department year section')
       .select('answers startTime submitTime duration totalMarks status')
       .sort({ submitTime: -1 });
@@ -1229,6 +1246,91 @@ router.get('/:id/submissions', auth, authorize('faculty', 'admin'), async (req, 
     res.json(response);
   } catch (error) {
     console.error('Get quiz submissions error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Get deleted submissions for a quiz (faculty only)
+router.get('/:id/deleted-submissions', auth, authorize('faculty', 'admin'), async (req, res) => {
+  try {
+    const quiz = await Quiz.findById(req.params.id);
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    // Check if faculty owns this quiz (skip check for admin)
+    if (req.user.role === 'faculty' && quiz.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Access denied. Not your quiz.' });
+    }
+
+    // Get all deleted submissions for this quiz with student details
+    const deletedSubmissions = await QuizSubmission.find({
+      quiz: req.params.id,
+      isDeleted: true
+    })
+      .populate('student', 'name admissionNumber department year section')
+      .populate('deletedBy', 'name email')
+      .select('answers startTime submitTime duration totalMarks status isDeleted deletedAt deletedBy deletionReason')
+      .sort({ deletedAt: -1 });
+
+    // Add quiz details to the response
+    const response = {
+      quiz: {
+        title: quiz.title,
+        totalMarks: quiz.totalMarks,
+        duration: quiz.duration,
+        questions: quiz.questions
+      },
+      deletedSubmissions: deletedSubmissions
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error('Get deleted quiz submissions error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Restore a deleted submission (faculty only)
+router.post('/:quizId/restore-submission/:studentId', auth, authorize('faculty', 'admin'), async (req, res) => {
+  try {
+    const quiz = await Quiz.findById(req.params.quizId);
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    // Check if faculty owns this quiz (skip check for admin)
+    if (req.user.role === 'faculty' && quiz.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Access denied. Not your quiz.' });
+    }
+
+    const submission = await QuizSubmission.findOne({
+      quiz: req.params.quizId,
+      student: req.params.studentId,
+      isDeleted: true
+    });
+
+    if (!submission) {
+      return res.status(404).json({ message: 'Deleted submission not found' });
+    }
+
+    // Restore the submission
+    submission.isDeleted = false;
+    submission.deletedAt = null;
+    submission.deletedBy = null;
+    submission.deletionReason = null;
+    await submission.save();
+
+    res.json({
+      message: 'Submission restored successfully',
+      restoredSubmission: {
+        studentId: req.params.studentId,
+        quizId: req.params.quizId,
+        score: submission.totalMarks
+      }
+    });
+  } catch (error) {
+    console.error('Error restoring submission:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
@@ -1670,6 +1772,10 @@ router.post('/parse/word', auth, authorize('faculty', 'admin', 'event'), memoryU
     console.log('='.repeat(50));
     console.log(text);
     console.log('='.repeat(50));
+    console.log('Text analysis:');
+    console.log('- Contains newlines:', text.includes('\n'));
+    console.log('- Number of lines:', text.split('\n').length);
+    console.log('- Lines with indentation:', text.split('\n').filter(line => line.match(/^\s{2,}/)).length);
 
     // Helper function to detect if text needs formatting preservation (Universal)
     const needsFormatPreservation = (text) => {
@@ -1735,6 +1841,7 @@ router.post('/parse/word', auth, authorize('faculty', 'admin', 'event'), memoryU
         if (!hasCodeContent(questionText)) {
           questionText = questionText.trim();
         }
+        console.log('Initial question text:', JSON.stringify(questionText));
         const marksMatch = line.match(/\((\d+)\s*marks?\)/);
         const marks = marksMatch ? parseInt(marksMatch[1]) : 1;
 
@@ -1763,11 +1870,13 @@ router.post('/parse/word', auth, authorize('faculty', 'admin', 'event'), memoryU
         if (isCodeLine(line) || line.match(/^\s{2,}/)) {
           // This looks like code - preserve original formatting exactly
           currentQuestion.question += '\n' + line;
+          console.log('Code line continuation:', JSON.stringify(line));
         } else {
           // Regular text continuation
           currentQuestion.question += ' ' + line.trim();
+          console.log('Text continuation:', JSON.stringify(line));
         }
-        console.log('Question continuation:', line);
+        console.log('Current question after continuation:', JSON.stringify(currentQuestion.question));
       }
     }
 
@@ -1778,6 +1887,7 @@ router.post('/parse/word', auth, authorize('faculty', 'admin', 'event'), memoryU
 
       // Process question text with HTML formatting for perfect preservation
       const formattedQuestion = processTextWithHtmlFormatting(currentQuestion.question);
+      console.log('Final formatted question:', JSON.stringify(formattedQuestion));
 
       questions.push({
         question: formattedQuestion,
@@ -2346,14 +2456,27 @@ router.delete('/:quizId/submissions/:studentId', auth, authorize('faculty', 'adm
       return res.status(403).json({ message: 'Access denied. Not your quiz.' });
     }
 
-    const submission = await QuizSubmission.findOneAndDelete({
+    const submission = await QuizSubmission.findOne({
       quiz: req.params.quizId,
-      student: req.params.studentId
+      student: req.params.studentId,
+      isDeleted: false
     });
 
     if (!submission) {
       return res.status(404).json({ message: 'Submission not found' });
     }
+
+    // Check if already deleted
+    if (submission.isDeleted) {
+      return res.status(400).json({ message: 'Submission is already deleted' });
+    }
+
+    // Soft delete the submission
+    submission.isDeleted = true;
+    submission.deletedAt = new Date();
+    submission.deletedBy = req.user._id;
+    submission.deletionReason = 'Submission deleted by faculty';
+    await submission.save();
 
     res.json({
       message: 'Submission deleted successfully',
@@ -2388,21 +2511,29 @@ router.post('/:quizId/reattempt', auth, authorize('faculty', 'admin'), async (re
       return res.status(403).json({ message: 'Access denied. Not your quiz.' });
     }
 
-    // Delete existing submission to allow reattempt
-    const deletedSubmission = await QuizSubmission.findOneAndDelete({
+    // Soft delete existing submission to allow reattempt
+    const existingSubmission = await QuizSubmission.findOne({
       quiz: req.params.quizId,
-      student: studentId
+      student: studentId,
+      isDeleted: false
     });
 
-    if (!deletedSubmission) {
+    if (!existingSubmission) {
       return res.status(404).json({ message: 'No submission found to reset' });
     }
+
+    // Soft delete the submission
+    existingSubmission.isDeleted = true;
+    existingSubmission.deletedAt = new Date();
+    existingSubmission.deletedBy = req.user._id;
+    existingSubmission.deletionReason = 'Submission deleted by faculty';
+    await existingSubmission.save();
 
     res.json({
       message: 'Reattempt enabled successfully',
       studentId,
       quizId: req.params.quizId,
-      previousScore: deletedSubmission.totalMarks
+      previousScore: existingSubmission.totalMarks
     });
 
   } catch (error) {
@@ -2430,16 +2561,25 @@ router.post('/:quizId/bulk-reattempt', auth, authorize('faculty', 'admin'), asyn
       return res.status(403).json({ message: 'Access denied. Not your quiz.' });
     }
 
-    // Delete existing submissions for all selected students
-    const deletedSubmissions = await QuizSubmission.deleteMany({
-      quiz: req.params.quizId,
-      student: { $in: studentIds }
-    });
+    // Soft delete existing submissions for all selected students
+    const deletedSubmissions = await QuizSubmission.updateMany(
+      {
+        quiz: req.params.quizId,
+        student: { $in: studentIds },
+        isDeleted: false
+      },
+      {
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedBy: req.user._id,
+        deletionReason: 'Submission deleted by faculty'
+      }
+    );
 
     res.json({
       message: `Bulk reattempt enabled successfully for ${studentIds.length} students`,
       studentsCount: studentIds.length,
-      deletedSubmissions: deletedSubmissions.deletedCount,
+      deletedSubmissions: deletedSubmissions.modifiedCount,
       quizId: req.params.quizId
     });
 

@@ -329,37 +329,63 @@ const AuthenticatedQuizTake = () => {
 
   const confirmSubmit = async () => {
     try {
+      console.log('🚀 SUBMIT: Starting quiz submission process...');
       setSubmitting(true);
-      
+
       const timeTaken = startTime ? Math.floor((new Date() - startTime) / 1000) : 0;
-      
+
+      // Check if this is an emergency submission (simple check)
+      const isEmergencySubmission = participant?.isEmergencyLogin === true;
+
+      console.log('🚀 SUBMIT: Participant data:', participant);
+      console.log('🚀 SUBMIT: isEmergencyLogin flag:', participant?.isEmergencyLogin);
+      console.log('🚀 SUBMIT: Is emergency submission:', isEmergencySubmission);
+
       const submissionData = {
-        sessionToken: sessionToken || location.state?.sessionToken,
-        answers: Object.entries(answers).map(([questionIndex, selectedOption]) => ({
-          questionIndex: parseInt(questionIndex),
-          selectedOption
-        })),
-        timeTaken
+        participantEmail: participant?.participantDetails?.email,
+        answers: Object.entries(answers)
+          .filter(([questionIndex, selectedOption]) => selectedOption !== null && selectedOption !== undefined)
+          .map(([questionIndex, selectedOption]) => ({
+            questionIndex: parseInt(questionIndex),
+            selectedOption
+          })),
+        timeTaken,
+        isEmergencySubmission
       };
+
+      console.log('🚀 SUBMIT: Raw answers object:', answers);
+      console.log('🚀 SUBMIT: Filtered answers for submission:', submissionData.answers);
+      console.log('🚀 SUBMIT: Submission data prepared:', submissionData);
+      console.log('🚀 SUBMIT: Making API call to:', `/api/event-quiz/${quizId}/submit`);
 
       const response = await api.post(`/api/event-quiz/${quizId}/submit`, submissionData);
 
-      console.log('📊 Quiz submitted successfully:', response.data);
+      console.log('🚀 SUBMIT: API call successful, response:', response.data);
+      console.log('🚀 SUBMIT: Preparing navigation data...');
+
+      const navigationState = {
+        result: {
+          ...response.data,
+          quiz: quiz,
+          totalQuestions: questions.length,
+          timeTaken: Math.floor((new Date() - startTime) / 1000)
+        },
+        participant,
+        isAuthenticated: true
+      };
+
+      console.log('🚀 SUBMIT: Navigation state prepared:', navigationState);
+      console.log('🚀 SUBMIT: Attempting navigation to:', `/quiz/${quizId}/result`);
 
       // Navigate to results page with comprehensive data
       navigate(`/quiz/${quizId}/result`, {
-        state: {
-          result: {
-            ...response.data,
-            quiz: quiz,
-            totalQuestions: questions.length,
-            timeTaken: Math.floor((new Date() - startTime) / 1000)
-          },
-          participant,
-          isAuthenticated: true
-        }
+        state: navigationState
       });
+
+      console.log('🚀 SUBMIT: Navigation call completed');
     } catch (error) {
+      console.error('🚀 SUBMIT: Error during submission:', error);
+      console.error('🚀 SUBMIT: Error response:', error.response);
       setError(error.response?.data?.message || 'Failed to submit quiz');
       setSubmitting(false);
     }
@@ -420,14 +446,32 @@ const AuthenticatedQuizTake = () => {
     );
   }
 
+  // Only render QuizSecurity if quiz data is loaded
+  if (!quiz) {
+    return (
+      <Container maxWidth="md" sx={{ mt: 4, textAlign: 'center' }}>
+        <CircularProgress size={60} />
+        <Typography variant="h6" sx={{ mt: 2 }}>
+          Loading Quiz...
+        </Typography>
+      </Container>
+    );
+  }
+
   return (
     <QuizSecurity
-      securitySettings={quiz?.securitySettings || {}}
+      securitySettings={quiz.securitySettings || {
+        enableFullscreen: false,
+        disableRightClick: false,
+        disableCopyPaste: false,
+        disableTabSwitch: false,
+        enableProctoringMode: false
+      }}
       onSecurityViolation={(violation) => {
         console.log('Security violation:', violation);
         // You can add additional handling here like logging to backend
       }}
-      quizTitle={quiz?.title}
+      quizTitle={quiz.title}
     >
       <Box sx={{
         height: '100vh',
@@ -680,12 +724,14 @@ const AuthenticatedQuizTake = () => {
                       borderRadius: 1,
                       border: '1px solid',
                       borderColor: 'divider',
+                      fontFamily: 'monospace',
                       fontSize: '1.1rem',
                       lineHeight: 1.6,
+                      whiteSpace: 'pre-wrap', // ALWAYS preserve all formatting
                       overflow: 'auto'
-                    }}
-                    dangerouslySetInnerHTML={{ __html: questions[currentQuestion].question }}
-                    />
+                    }}>
+                      {questions[currentQuestion].question}
+                    </Box>
 
                     <FormControl component="fieldset" sx={{ width: '100%' }}>
                       <RadioGroup

@@ -110,7 +110,7 @@ print(factorial(4))`, '24', '120', '4', '1', 'A', '3', '1'],
       formData.append('file', file);
 
       // Use the correct API endpoint based on quiz type
-      const endpoint = isEventQuiz ? '/api/eventQuiz/parse/excel' : '/api/quiz/parse/excel';
+      const endpoint = isEventQuiz ? '/api/event-quiz/parse/excel' : '/api/quiz/parse/excel';
       const response = await api.post(endpoint, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
@@ -151,8 +151,11 @@ print(factorial(4))`, '24', '120', '4', '1', 'A', '3', '1'],
         onQuestionsUpdate(questions);
       }
 
-      // Move to next step (review)
-      onNext();
+      // Only call onNext if not in modal context (hideNavigation = false)
+      // In modal context, the parent will handle showing the review step
+      if (!hideNavigation) {
+        onNext();
+      }
     } catch (error) {
       setError(error.response?.data?.message || error.message);
     } finally {

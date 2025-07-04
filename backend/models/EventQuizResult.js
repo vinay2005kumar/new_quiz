@@ -38,7 +38,8 @@ const eventQuizResultSchema = new mongoose.Schema({
     },
     selectedOption: {
       type: Number,
-      required: true
+      required: false, // Allow null for unanswered questions
+      default: null
     }
   }],
   score: {

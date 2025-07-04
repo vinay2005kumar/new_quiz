@@ -944,6 +944,8 @@ const EventQuizCreate = () => {
           setError={setError}
           formData={formData}
           setFormData={setFormData}
+          onQuestionsUpdate={(questions) => setFormData(prev => ({ ...prev, questions }))}
+          isEventQuiz={true}
         />
       )}
       {inputMethod === 2 && (
@@ -953,6 +955,8 @@ const EventQuizCreate = () => {
           setError={setError}
           formData={formData}
           setFormData={setFormData}
+          onQuestionsUpdate={(questions) => setFormData(prev => ({ ...prev, questions }))}
+          isEventQuiz={true}
         />
       )}
       {inputMethod === 3 && (
@@ -962,6 +966,8 @@ const EventQuizCreate = () => {
           setError={setError}
           formData={formData}
           setFormData={setFormData}
+          onQuestionsUpdate={(questions) => setFormData(prev => ({ ...prev, questions }))}
+          isEventQuiz={true}
         />
       )}
     </Box>
@@ -1029,11 +1035,16 @@ const EventQuizCreate = () => {
                   fontFamily: 'monospace',
                   fontSize: '0.9rem',
                   lineHeight: 1.5,
-                  whiteSpace: 'pre-wrap', // ALWAYS preserve all formatting
-                  overflow: 'auto'
-                }}>
-                  {question.question}
-                </Box>
+                  overflow: 'auto',
+                  '& pre': {
+                    fontFamily: 'monospace',
+                    whiteSpace: 'pre-wrap',
+                    margin: 0,
+                    padding: 0
+                  }
+                }}
+                dangerouslySetInnerHTML={{ __html: question.question }}
+                />
                 <Typography variant="subtitle2" gutterBottom>Options:</Typography>
                 <ol type="A">
                   {question.options.map((option, optIndex) => (

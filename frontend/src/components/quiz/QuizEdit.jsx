@@ -1098,7 +1098,15 @@ const QuizEdit = () => {
                             ✓ Programming Code Preview:
                           </Typography>
                         )}
-                        {question.question || 'Enter your question below...'}
+                        {question.question ? (
+                          question.question.includes('<pre>') ? (
+                            <div dangerouslySetInnerHTML={{ __html: question.question }} />
+                          ) : (
+                            question.question
+                          )
+                        ) : (
+                          'Enter your question below...'
+                        )}
                       </Box>
 
                       <TextField

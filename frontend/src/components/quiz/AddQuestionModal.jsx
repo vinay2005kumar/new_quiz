@@ -281,19 +281,22 @@ const AddQuestionModal = ({
                     Question {index + 1}
                   </Typography>
 
+                  {/* Question Text with UNIVERSAL Formatting Preservation (same as QuizCreate) */}
                   <Box sx={{
-                    mb: 2,
                     p: 2,
-                    backgroundColor: 'action.hover',
+                    mb: 2,
+                    bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
                     borderRadius: 1,
                     border: '1px solid',
                     borderColor: 'divider',
-                    fontSize: '1rem',
-                    lineHeight: 1.6,
+                    fontFamily: 'monospace',
+                    fontSize: '0.9rem',
+                    lineHeight: 1.5,
+                    whiteSpace: 'pre-wrap', // ALWAYS preserve all formatting
                     overflow: 'auto'
-                  }}
-                  dangerouslySetInnerHTML={{ __html: question.question }}
-                  />
+                  }}>
+                    {question.question || 'No question text found'}
+                  </Box>
 
                   <Grid container spacing={2} sx={{ mb: 2 }}>
                     {question.options?.map((option, optIndex) => (

@@ -127,7 +127,11 @@ const CollegeSettings = () => {
       },
       sessionTimeout: 300
     },
-
+    emergencyAccess: {
+      enabled: true,
+      password: 'Quiz@123',
+      description: 'Emergency password allows admin access to any quiz even without registered credentials'
+    },
     violationSettings: {
       maxViolations: 5,
       autoTerminate: true,
@@ -2450,7 +2454,33 @@ const CollegeSettings = () => {
                   </Card>
                 </Grid>
 
-
+                {/* Emergency Access Settings */}
+                <Grid item xs={12} md={6}>
+                  <Card>
+                    <CardHeader
+                      title="🚨 Emergency Quiz Access"
+                      subheader="Emergency password for quiz access without credentials"
+                    />
+                    <CardContent>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        Status: {quizSettings.emergencyAccess?.enabled ?
+                          <Chip label="Enabled" color="success" size="small" /> :
+                          <Chip label="Disabled" color="default" size="small" />
+                        }
+                      </Typography>
+                      {quizSettings.emergencyAccess?.enabled && (
+                        <>
+                          <Typography variant="body2" sx={{ mt: 1 }}>
+                            <strong>Password:</strong> {quizSettings.emergencyAccess?.password ? '••••••••' : 'Not set'}
+                          </Typography>
+                          <Typography variant="body2" sx={{ mt: 1, fontSize: '0.8rem', fontStyle: 'italic' }}>
+                            {quizSettings.emergencyAccess?.description}
+                          </Typography>
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Grid>
 
                 {/* Violation Settings */}
                 <Grid item xs={12} md={6}>
@@ -2585,7 +2615,51 @@ const CollegeSettings = () => {
               <Divider />
             </Grid>
 
+            {/* Emergency Access Settings */}
+            <Grid item xs={12}>
+              <Typography variant="h6" gutterBottom>🚨 Emergency Quiz Access</Typography>
+              <FormGroup>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={quizSettings.emergencyAccess?.enabled || false}
+                      onChange={(e) => handleDirectQuizSettingsChange('emergencyAccess', 'enabled', e.target.checked)}
+                    />
+                  }
+                  label="Enable Emergency Access System"
+                />
+              </FormGroup>
 
+              {quizSettings.emergencyAccess?.enabled && (
+                <Grid container spacing={2} sx={{ mt: 1 }}>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Emergency Password"
+                      type="password"
+                      value={quizSettings.emergencyAccess?.password || ''}
+                      onChange={(e) => handleDirectQuizSettingsChange('emergencyAccess', 'password', e.target.value)}
+                      helperText="Password for emergency quiz access without credentials"
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="Description"
+                      multiline
+                      rows={2}
+                      value={quizSettings.emergencyAccess?.description || ''}
+                      onChange={(e) => handleDirectQuizSettingsChange('emergencyAccess', 'description', e.target.value)}
+                      helperText="Description of what this emergency access allows"
+                    />
+                  </Grid>
+                </Grid>
+              )}
+            </Grid>
+
+            <Grid item xs={12}>
+              <Divider />
+            </Grid>
 
             {/* Violation Settings */}
             <Grid item xs={12}>

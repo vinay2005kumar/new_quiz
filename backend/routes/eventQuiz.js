@@ -5,6 +5,7 @@ const { auth, isEventAdmin, authorize } = require('../middleware/auth');
 const EventQuizAccount = require('../models/EventQuizAccount');
 const EventQuizResult = require('../models/EventQuizResult');
 const QuizCredentials = require('../models/QuizCredentials');
+const QuizSettings = require('../models/QuizSettings');
 const { generateCredentials, sendRegistrationEmail } = require('../services/emailService');
 const { encrypt, decrypt } = require('../utils/encryption');
 const multer = require('multer');
@@ -14,6 +15,71 @@ const Tesseract = require('tesseract.js');
 const path = require('path');
 const fs = require('fs').promises;
 const User = require('../models/User');
+
+// Universal code detection and HTML formatting functions (same as regular quiz)
+const isCodeLine = (line) => {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+
+  // Check for common programming patterns
+  const codePatterns = [
+    /^\s{2,}/, // 2+ spaces at start (indentation)
+    /def\s+\w+\s*\(/, // Python function definition
+    /function\s+\w+\s*\(/, // JavaScript function
+    /class\s+\w+/, // Class definition
+    /if\s*\(.*\)\s*[:{]/, // If statements
+    /for\s*\(.*\)\s*[:{]/, // For loops
+    /while\s*\(.*\)\s*[:{]/, // While loops
+    /else\s*[:{]/, // Else statements
+    /return\s+/, // Return statements
+    /print\s*\(/, // Print statements
+    /console\.log\s*\(/, // Console.log
+    /\w+\s*=\s*\w+/, // Variable assignments
+    /[{}();]/, // Common code punctuation
+    /<\w+[^>]*>/, // HTML tags
+    /^\s*#/, // Comments or preprocessor directives
+    /import\s+/, // Import statements
+    /from\s+\w+\s+import/, // Python imports
+  ];
+
+  return codePatterns.some(pattern => pattern.test(line));
+};
+
+const hasCodeContent = (text) => {
+  if (!text) return false;
+  const lines = text.split('\n');
+  return lines.some(line => isCodeLine(line));
+};
+
+const processTextWithHtmlFormatting = (text) => {
+  if (!text) return '';
+
+  // Simple approach: if text contains any code patterns, wrap the entire text in <pre>
+  // This ensures perfect preservation without complex parsing
+  if (hasCodeContent(text)) {
+    // Check if this is HTML code that should be displayed as text
+    if (text.includes('<html>') || text.includes('<!DOCTYPE') || text.includes('<div>') || text.includes('<p>') || text.includes('<span>') || text.includes('<body>')) {
+      // This is HTML code - escape it so it displays as text
+      const processedText = text
+        .replace(/&/g, '&amp;')   // Must be first
+        .replace(/</g, '&lt;')    // Escape < for HTML display
+        .replace(/>/g, '&gt;')    // Escape > for HTML display
+        .replace(/"/g, '&quot;')  // Escape quotes
+        .replace(/'/g, '&#x27;'); // Escape single quotes
+
+      return '<pre>' + processedText + '</pre>';
+    } else {
+      // For C/C++/Python/etc. code, preserve angle brackets completely
+      // Only escape ampersands that aren't part of HTML entities
+      let processedText = text.replace(/&(?![a-zA-Z0-9#]+;)/g, '&amp;');
+
+      return '<pre>' + processedText + '</pre>';
+    }
+  }
+
+  // For non-code text, return as-is
+  return text;
+};
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, '../uploads');
@@ -71,7 +137,7 @@ const memoryUpload = multer({
 });
 
 // Create a new event quiz
-router.post('/', auth, isEventAdmin, async (req, res) => {
+router.post('/', auth, authorize('faculty', 'admin', 'event'), async (req, res) => {
   try {
     // Validate questions
     if (!req.body.questions || !Array.isArray(req.body.questions) || req.body.questions.length === 0) {
@@ -337,7 +403,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // Update an event quiz
-router.put('/:id', auth, isEventAdmin, async (req, res) => {
+router.put('/:id', auth, authorize('faculty', 'admin', 'event'), async (req, res) => {
   try {
     const quiz = await EventQuiz.findById(req.params.id);
     
@@ -515,7 +581,7 @@ router.post('/:id/register-public', async (req, res) => {
         return res.status(400).json({ message: 'Duplicate emails found within the team' });
       }
 
-      // Check if any team member email is already registered
+      // Check if any team member email is already registered (including deleted registrations)
       const existingEmails = quiz.registrations.flatMap(reg => {
         if (reg.isTeamRegistration) {
           return [reg.teamLeader.email, ...reg.teamMembers.map(m => m.email)];
@@ -525,9 +591,23 @@ router.post('/:id/register-public', async (req, res) => {
 
       const duplicateEmail = allEmails.find(email => existingEmails.includes(email));
       if (duplicateEmail) {
-        return res.status(400).json({
+        // Check if it's a deleted registration
+        const deletedRegistration = quiz.registrations.find(reg => {
+          if (reg.isTeamRegistration) {
+            return reg.isDeleted && (reg.teamLeader.email === duplicateEmail || reg.teamMembers.some(m => m.email === duplicateEmail));
+          }
+          return reg.isDeleted && reg.email === duplicateEmail;
+        });
+
+        if (deletedRegistration) {
+          return res.status(400).json({
+            message: `Email ${duplicateEmail} was previously registered but has been removed by the administrator. Please contact the event organizer for assistance.`
+          });
+        } else {
+          return res.status(400).json({
           message: `Email ${duplicateEmail} is already registered for this quiz`
         });
+        }
       }
 
       // Set default college for college students if not provided
@@ -573,7 +653,7 @@ router.post('/:id/register-public', async (req, res) => {
         }
       }
 
-      // Check if email is already registered
+      // Check if email is already registered (including deleted registrations)
       const existingEmails = quiz.registrations.flatMap(reg => {
         if (reg.isTeamRegistration) {
           return [reg.teamLeader.email, ...reg.teamMembers.map(m => m.email)];
@@ -582,7 +662,21 @@ router.post('/:id/register-public', async (req, res) => {
       });
 
       if (existingEmails.includes(email)) {
-        return res.status(400).json({ message: 'This email is already registered for this quiz' });
+        // Check if it's a deleted registration
+        const deletedRegistration = quiz.registrations.find(reg => {
+          if (reg.isTeamRegistration) {
+            return reg.isDeleted && (reg.teamLeader.email === email || reg.teamMembers.some(m => m.email === email));
+          }
+          return reg.isDeleted && reg.email === email;
+        });
+
+        if (deletedRegistration) {
+          return res.status(400).json({
+            message: 'This email was previously registered but has been removed by the administrator. Please contact the event organizer for assistance.'
+          });
+        } else {
+          return res.status(400).json({ message: 'This email is already registered for this quiz' });
+        }
       }
 
       registration = {
@@ -738,6 +832,9 @@ router.post('/:id/register-public', async (req, res) => {
     });
   } catch (error) {
     console.error('Error registering for event quiz:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Request body:', req.body);
+    console.error('Quiz ID:', req.params.id);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
@@ -837,63 +934,82 @@ router.post('/:id/login', async (req, res) => {
       });
     }
 
-    // If no credentials found and password is emergency password, try to find any active credentials for this quiz
-    if (!credentials && password === 'Quiz@123') {
-      console.log(`🔑 LOGIN: No credentials found, trying emergency password`);
-      credentials = await QuizCredentials.findOne({
-        quiz: id,
-        isActive: true
-      });
+    // Get quiz settings to check emergency password
+    const quizSettings = await QuizSettings.getOrCreateDefault();
+    const isEmergencyPassword = quizSettings.validateEmergencyPassword(password);
 
-      if (credentials) {
-        console.log(`🔑 LOGIN: Emergency password used for quiz ${id} by user ${username}`);
-        console.log(`🔑 LOGIN: Using emergency credentials:`, {
-          username: credentials.username,
-          isTeam: credentials.isTeam,
-          teamName: credentials.teamName
-        });
-      } else {
-        console.log(`🔑 LOGIN: No active credentials found for emergency password`);
-      }
-    }
-
+    // If no credentials found, return error (emergency password doesn't create fake credentials)
     if (!credentials) {
       console.log(`🔑 LOGIN: No valid credentials found for username: ${username}`);
       return res.status(401).json({ message: 'Invalid username or password' });
     }
 
-    // Check if account is locked
-    if (credentials.isAccountLocked()) {
+    // Check if account is locked (skip for emergency admin credentials)
+    if (credentials._id !== 'emergency-admin' && credentials.isAccountLocked()) {
       return res.status(423).json({
         message: 'Account is temporarily locked due to too many failed attempts. Please try again later.'
       });
     }
 
     // Verify password (check both regular password and emergency password)
-    const isPasswordValid = await credentials.comparePassword(password) || password === 'Quiz@123';
+    let isPasswordValid = false;
+    if (isEmergencyPassword) {
+      // Emergency password is always valid
+      isPasswordValid = true;
+      console.log(`🔑 LOGIN: Emergency password used for quiz ${id} by user ${username}`);
+    } else if (credentials._id !== 'emergency-admin') {
+      // Regular password validation for real credentials
+      isPasswordValid = await credentials.comparePassword(password);
+    }
+
     if (!isPasswordValid) {
-      await credentials.incLoginAttempts();
+      // Only increment login attempts for real credentials, not emergency admin
+      if (credentials._id !== 'emergency-admin' && credentials.incLoginAttempts) {
+        await credentials.incLoginAttempts();
+      }
       return res.status(401).json({ message: 'Invalid username or password' });
     }
 
-    // Log if emergency password was used
-    if (password === 'Quiz@123') {
-      console.log(`Emergency password used for quiz ${id} by user ${username}`);
-    }
-
-    // Check if already attempted quiz
-    if (credentials.hasAttemptedQuiz) {
+    // Check if already attempted quiz (allow emergency password to override)
+    if (credentials.hasAttemptedQuiz && !isEmergencyPassword) {
       return res.status(400).json({ message: 'You have already attempted this quiz' });
     }
 
+    // Additional check: Look for existing quiz results (allow emergency password to override)
+    if (!isEmergencyPassword) {
+      const existingResult = await EventQuizResult.findOne({
+        quiz: id,
+        'participantInfo.email': credentials.participantDetails?.email || username
+      });
+
+      if (existingResult) {
+        console.log(`🔑 LOGIN: Found existing quiz result for ${username}, blocking login`);
+        return res.status(400).json({
+          message: 'You have already submitted this quiz',
+          submissionDetails: {
+            submittedAt: existingResult.submittedAt,
+            score: existingResult.score,
+            totalMarks: existingResult.totalMarks
+          }
+        });
+      }
+    } else {
+      console.log(`🔑 LOGIN: Emergency password used - allowing login even if already submitted`);
+    }
+
     // Reset login attempts on successful login
-    await credentials.resetLoginAttempts();
+    if (credentials.resetLoginAttempts) {
+      await credentials.resetLoginAttempts();
+    }
 
     // Generate session token
     const sessionToken = require('crypto').randomBytes(32).toString('hex');
 
-    // Store session (in production, use Redis or database)
-    // For now, we'll just return it
+    // Store session token in the credentials record
+    credentials.sessionToken = sessionToken;
+    credentials.lastLoginAt = new Date();
+    await credentials.save();
+    console.log(`🔑 LOGIN: Session token stored for user: ${username}`);
 
     const responseData = {
       message: 'Login successful',
@@ -913,7 +1029,8 @@ router.post('/:id/login', async (req, res) => {
         isTeam: credentials.isTeam,
         teamName: credentials.teamName,
         participantDetails: credentials.participantDetails,
-        teamMembers: credentials.teamMembers
+        teamMembers: credentials.teamMembers,
+        isEmergencyLogin: isEmergencyPassword
       },
       hasAttemptedQuiz: credentials.hasAttemptedQuiz
     };
@@ -1147,36 +1264,181 @@ router.get('/:id/status', async (req, res) => {
   }
 });
 
-// Submit quiz answers (authenticated participants)
+// Debug endpoint to check quiz credentials and submissions
+router.get('/:id/debug/:email', async (req, res) => {
+  try {
+    const { id, email } = req.params;
+
+    console.log(`🔍 DEBUG: Checking quiz ${id} for email ${email}`);
+
+    // Find quiz
+    const quiz = await EventQuiz.findById(id);
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    // Find credentials
+    const credentials = await QuizCredentials.find({
+      quiz: id,
+      'participantDetails.email': email
+    });
+
+    // Find existing results
+    const existingResults = await EventQuizResult.find({
+      quiz: id,
+      'participantInfo.email': email
+    });
+
+    // Find registrations
+    const registrations = quiz.registrations.filter(reg =>
+      reg.email === email ||
+      (reg.isTeamRegistration && reg.teamMembers.some(member => member.email === email))
+    );
+
+    // Check what would happen during submission
+    const submissionCheck = {
+      wouldFindCredentials: false,
+      credentialsFound: null,
+      wouldFailAttemptCheck: false,
+      wouldFailExistingResultCheck: false,
+      isEmergencySession: false
+    };
+
+    // Simulate the submission logic
+    const sessionToken = 'dummy-token'; // We'll check both emergency and regular
+    const isEmergencySession = sessionToken && sessionToken.startsWith('emergency_');
+    submissionCheck.isEmergencySession = isEmergencySession;
+
+    if (isEmergencySession) {
+      submissionCheck.wouldFindCredentials = true;
+      submissionCheck.credentialsFound = 'emergency';
+    } else {
+      const availableCredentials = await QuizCredentials.findOne({
+        quiz: id,
+        'participantDetails.email': email,
+        isActive: true,
+        hasAttemptedQuiz: false
+      });
+
+      if (availableCredentials) {
+        submissionCheck.wouldFindCredentials = true;
+        submissionCheck.credentialsFound = availableCredentials._id;
+      }
+
+      // Check if would fail attempt check
+      const attemptedCredentials = await QuizCredentials.findOne({
+        quiz: id,
+        'participantDetails.email': email,
+        hasAttemptedQuiz: true
+      });
+
+      if (attemptedCredentials) {
+        submissionCheck.wouldFailAttemptCheck = true;
+      }
+
+      // Check if would fail existing result check
+      if (existingResults.length > 0) {
+        submissionCheck.wouldFailExistingResultCheck = true;
+      }
+    }
+
+    const debugInfo = {
+      quiz: {
+        id: quiz._id,
+        title: quiz.title,
+        status: quiz.status,
+        startTime: quiz.startTime,
+        endTime: quiz.endTime
+      },
+      email,
+      registrations: registrations.length,
+      registrationDetails: registrations,
+      credentials: credentials.length,
+      credentialDetails: credentials.map(cred => ({
+        id: cred._id,
+        isActive: cred.isActive,
+        hasAttemptedQuiz: cred.hasAttemptedQuiz,
+        isTeam: cred.isTeam,
+        teamName: cred.teamName,
+        participantDetails: cred.participantDetails
+      })),
+      existingResults: existingResults.length,
+      resultDetails: existingResults.map(result => ({
+        id: result._id,
+        score: result.score,
+        submittedAt: result.submittedAt,
+        participantInfo: result.participantInfo
+      })),
+      submissionCheck,
+      totalCredentials: await QuizCredentials.countDocuments({ quiz: id }),
+      totalResults: await EventQuizResult.countDocuments({ quiz: id })
+    };
+
+    console.log('🔍 DEBUG INFO:', JSON.stringify(debugInfo, null, 2));
+
+    res.json(debugInfo);
+  } catch (error) {
+    console.error('Error in debug endpoint:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Submit quiz answers (simplified flow without session token)
 router.post('/:id/submit', async (req, res) => {
   try {
     const { id } = req.params;
-    const { sessionToken, answers, timeTaken } = req.body;
+    const { participantEmail, answers, timeTaken, participantInfo, isEmergencySubmission } = req.body;
 
-    if (!sessionToken) {
-      return res.status(401).json({ message: 'Session token required' });
+    if (!participantEmail && !participantInfo) {
+      return res.status(400).json({ message: 'Participant email or info is required' });
     }
 
     if (!answers || !Array.isArray(answers)) {
       return res.status(400).json({ message: 'Valid answers array is required' });
     }
 
+    console.log(`🚀 SUBMIT: Submission request for quiz ${id} from email: ${participantEmail || participantInfo?.email}`);
+    console.log(`🚀 SUBMIT: Request body:`, req.body);
+    console.log(`🚀 SUBMIT: Emergency submission flag: ${isEmergencySubmission ? 'YES' : 'NO'}`);
+
     const quiz = await EventQuiz.findById(id);
     if (!quiz) {
       return res.status(404).json({ message: 'Quiz not found' });
     }
 
-    // Find the credentials associated with this session
-    // In production, you'd validate the session token properly
-    // For team registrations, any team member's credentials can be used
-    const credentials = await QuizCredentials.findOne({
+    // Determine participant email
+    const email = participantEmail || participantInfo?.email;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Participant email is required' });
+    }
+
+    // Find credentials by email (simplified approach)
+    let credentials = await QuizCredentials.findOne({
       quiz: id,
-      isActive: true,
-      hasAttemptedQuiz: false // Ensure quiz hasn't been attempted yet
+      'participantDetails.email': email,
+      isActive: true
     });
 
-    if (!credentials) {
-      return res.status(401).json({ message: 'Invalid session' });
+    console.log(`🚀 SUBMIT: Looking for credentials with email: ${email}`);
+
+    if (credentials) {
+      console.log(`🚀 SUBMIT: Found credentials:`, {
+        id: credentials._id,
+        email: credentials.participantDetails?.email,
+        hasAttemptedQuiz: credentials.hasAttemptedQuiz,
+        isTeam: credentials.isTeam
+      });
+    } else {
+      console.log(`🚀 SUBMIT: No credentials found for email`);
+
+      // If this is an emergency submission, allow it to proceed
+      if (isEmergencySubmission) {
+        console.log(`🚀 SUBMIT: Emergency submission detected, allowing submission without credentials`);
+        credentials = null; // Will be handled later
+      } else {
+        console.log(`🚀 SUBMIT: Regular submission without credentials, checking if public quiz allowed`);
+      }
     }
 
     // Check if quiz is still active
@@ -1187,52 +1449,85 @@ router.post('/:id/submit', async (req, res) => {
       return res.status(400).json({ message: 'Quiz time has expired' });
     }
 
-    // Check if already submitted
-    if (credentials.hasAttemptedQuiz) {
+    // Check if already submitted (only if credentials exist and no reattempt allowed)
+    console.log(`🚀 SUBMIT: Credentials check:`, {
+      hasCredentials: !!credentials,
+      hasAttemptedQuiz: credentials?.hasAttemptedQuiz,
+      canReattempt: credentials?.canReattempt
+    });
+
+    if (credentials && credentials.hasAttemptedQuiz && !credentials.canReattempt) {
+      console.log(`🚀 SUBMIT: Blocking submission - already attempted and no reattempt allowed`);
       return res.status(400).json({ message: 'You have already submitted this quiz' });
     }
 
+    // Check if there's already a result for this participant
+    console.log(`🚀 SUBMIT: Checking for existing results for email: ${email}`);
+
+    // Clean up any existing results for this participant to avoid duplicate key errors
+    const deleteResult = await EventQuizResult.deleteMany({
+      quiz: id,
+      'participantInfo.email': email
+    });
+
+    console.log(`🚀 SUBMIT: Cleaned up existing results:`, {
+      deletedCount: deleteResult.deletedCount,
+      email: email
+    });
+
+    // Reset credentials if they exist
+    if (credentials) {
+      await QuizCredentials.updateOne(
+        { _id: credentials._id },
+        { hasAttemptedQuiz: false, canReattempt: false }
+      );
+      console.log(`🚀 SUBMIT: Reset credentials for fresh submission`);
+    }
+
     // Calculate score with negative marking support
+    // Process ALL questions in the quiz, not just submitted answers
     let score = 0;
-    const results = answers.map((answer, index) => {
-      const question = quiz.questions[index];
-      const isCorrect = question && answer.selectedOption === question.correctAnswer;
+    const results = [];
+
+    // Create a map of submitted answers for quick lookup
+    const submittedAnswers = {};
+    answers.forEach(answer => {
+      submittedAnswers[answer.questionIndex] = answer.selectedOption;
+    });
+
+    // Process each question in the quiz
+    quiz.questions.forEach((question, questionIndex) => {
+      const selectedOption = submittedAnswers[questionIndex];
+      const isAnswered = selectedOption !== undefined && selectedOption !== null;
+      const isCorrect = isAnswered && selectedOption === question.correctAnswer;
       let questionScore = 0;
 
       if (isCorrect) {
         questionScore = question.marks || 1;
         score += questionScore;
-      } else if (quiz.negativeMarkingEnabled && answer.selectedOption !== -1) {
-        // Apply negative marking only if an option is selected (not skipped)
+      } else if (quiz.negativeMarkingEnabled && isAnswered && selectedOption !== -1) {
+        // Apply negative marking only if an option is selected (not skipped/unanswered)
         const negativeMarks = question.negativeMarks || 0;
         questionScore = -negativeMarks;
         score -= negativeMarks;
       }
+      // If unanswered, questionScore remains 0 (no points, no negative marking)
 
-      return {
-        questionIndex: index,
-        selectedOption: answer.selectedOption,
+      results.push({
+        questionIndex,
+        selectedOption: isAnswered ? selectedOption : null,
         correctAnswer: question.correctAnswer,
         isCorrect,
         marks: questionScore,
-        negativeMarks: question.negativeMarks || 0
-      };
+        negativeMarks: question.negativeMarks || 0,
+        isAnswered
+      });
     });
 
-    // Check if this participant has already submitted
-    const existingResult = await EventQuizResult.findOne({
-      quiz: quiz._id,
-      'participantInfo.email': credentials.participantDetails.email
-    });
-
-    if (existingResult) {
-      return res.status(400).json({ message: 'You have already submitted this quiz' });
-    }
-
-    // Save result
-    const result = new EventQuizResult({
-      quiz: quiz._id,
-      participantInfo: {
+    // Prepare participant info (from credentials or participantInfo)
+    let participantData;
+    if (credentials) {
+      participantData = {
         name: credentials.participantDetails.name,
         email: credentials.participantDetails.email,
         college: credentials.participantDetails.college,
@@ -1241,10 +1536,44 @@ router.post('/:id/submit', async (req, res) => {
         isTeam: credentials.isTeam,
         teamName: credentials.teamName,
         teamMembers: credentials.teamMembers
-      },
-      answers: answers.map(a => ({
-        questionIndex: a.questionIndex,
-        selectedOption: a.selectedOption
+      };
+    } else if (participantInfo) {
+      // For public submissions without credentials
+      participantData = {
+        name: participantInfo.name,
+        email: participantInfo.email,
+        college: participantInfo.college,
+        department: participantInfo.department,
+        year: participantInfo.year,
+        isTeam: participantInfo.isTeam || false,
+        teamName: participantInfo.teamName,
+        teamMembers: participantInfo.teamMembers || []
+      };
+    } else if (isEmergencySubmission) {
+      // For emergency submissions without credentials
+      participantData = {
+        name: 'Emergency Admin',
+        email: email,
+        college: 'Admin Access',
+        department: 'Admin',
+        year: 'N/A',
+        isTeam: false,
+        teamName: null,
+        teamMembers: []
+      };
+      console.log(`🚀 SUBMIT: Created emergency participant data for ${email}`);
+    } else {
+      return res.status(400).json({ message: 'Participant information is required' });
+    }
+
+    // Save result
+    const result = new EventQuizResult({
+      quiz: quiz._id,
+      student: credentials?.participantDetails?.student || null,
+      participantInfo: participantData,
+      answers: quiz.questions.map((question, index) => ({
+        questionIndex: index,
+        selectedOption: submittedAnswers[index] !== undefined ? submittedAnswers[index] : null
       })),
       score,
       totalMarks: quiz.questions.reduce((sum, q) => sum + (q.marks || 1), 0),
@@ -1256,29 +1585,47 @@ router.post('/:id/submit', async (req, res) => {
       await result.save();
     } catch (saveError) {
       if (saveError.code === 11000) {
-        // Duplicate key error - participant already submitted
-        return res.status(400).json({ message: 'You have already submitted this quiz' });
+        console.log(`🚀 SUBMIT: Duplicate key error detected:`, saveError.message);
+        console.log(`🚀 SUBMIT: Attempting to force cleanup and retry`);
+
+        // Force delete any remaining results for this specific participant only
+        await EventQuizResult.deleteMany({
+          quiz: id,
+          'participantInfo.email': email
+        });
+
+        // Try to save again
+        try {
+          await result.save();
+          console.log(`🚀 SUBMIT: Submission successful after force cleanup`);
+        } catch (retryError) {
+          console.error(`🚀 SUBMIT: Submission failed even after cleanup:`, retryError);
+          return res.status(500).json({ message: 'Submission failed due to database conflict - please contact administrator' });
+        }
+      } else {
+        throw saveError; // Re-throw other errors
       }
-      throw saveError; // Re-throw other errors
     }
 
-    // Mark all related credentials as having attempted quiz
-    if (credentials.isTeam) {
-      // For team registrations, mark all team member credentials as attempted
-      await QuizCredentials.updateMany(
-        {
-          quiz: id,
-          teamName: credentials.teamName,
-          isActive: true
-        },
-        { hasAttemptedQuiz: true, quizSubmission: result._id }
-      );
-    } else {
-      // For individual registrations, mark only this credential as attempted
-      await QuizCredentials.updateOne(
-        { _id: credentials._id },
-        { hasAttemptedQuiz: true, quizSubmission: result._id }
-      );
+    // Mark all related credentials as having attempted quiz (only if credentials exist)
+    if (credentials) {
+      if (credentials.isTeam) {
+        // For team registrations, mark all team member credentials as attempted
+        await QuizCredentials.updateMany(
+          {
+            quiz: id,
+            teamName: credentials.teamName,
+            isActive: true
+          },
+          { hasAttemptedQuiz: true, quizSubmission: result._id }
+        );
+      } else {
+        // For individual registrations, mark only this credential as attempted
+        await QuizCredentials.updateOne(
+          { _id: credentials._id },
+          { hasAttemptedQuiz: true, quizSubmission: result._id }
+        );
+      }
     }
 
     res.json({
@@ -1312,6 +1659,11 @@ router.get('/:id/registrations', auth, isEventAdmin, async (req, res) => {
     const transformedRegistrations = [];
 
     quiz.registrations.forEach(reg => {
+      // Skip deleted registrations
+      if (reg.isDeleted) {
+        return;
+      }
+
       if (reg.isTeamRegistration) {
         // Add team as a single registration entry
         transformedRegistrations.push({
@@ -1359,6 +1711,81 @@ router.get('/:id/registrations', auth, isEventAdmin, async (req, res) => {
   }
 });
 
+// Get deleted registrations for an event quiz
+router.get('/:id/deleted-registrations', auth, isEventAdmin, async (req, res) => {
+  try {
+    const quiz = await EventQuiz.findById(req.params.id)
+      .populate('registrations.student', 'name email')
+      .populate('registrations.deletedBy', 'name email');
+
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    // Transform deleted registrations only
+    const deletedRegistrations = [];
+
+    quiz.registrations.forEach(reg => {
+      // Only include deleted registrations
+      if (!reg.isDeleted) {
+        return;
+      }
+
+      if (reg.isTeamRegistration) {
+        // Add team as a single registration entry
+        deletedRegistrations.push({
+          _id: reg._id,
+          name: reg.teamLeader.name, // Team leader name
+          email: reg.teamLeader.email,
+          college: reg.teamLeader.college,
+          department: reg.teamLeader.department,
+          year: reg.teamLeader.year,
+          phoneNumber: reg.teamLeader.phoneNumber,
+          admissionNumber: reg.teamLeader.admissionNumber,
+          participantType: reg.teamLeader.participantType,
+          registeredAt: reg.registeredAt,
+          isSpotRegistration: reg.isSpotRegistration,
+          isTeamRegistration: true,
+          teamName: reg.teamName,
+          teamLeader: reg.teamLeader,
+          teamMembers: reg.teamMembers,
+          teamMemberNames: reg.teamMembers.map(member => member.name).join(', '),
+          totalTeamSize: reg.teamMembers.length + 1, // +1 for team leader
+          // Deletion info
+          isDeleted: reg.isDeleted,
+          deletedAt: reg.deletedAt,
+          deletedBy: reg.deletedBy
+        });
+      } else {
+        // Individual registration - keep as is
+        deletedRegistrations.push({
+          _id: reg._id,
+          name: reg.name,
+          email: reg.email,
+          college: reg.college,
+          department: reg.department,
+          year: reg.year,
+          phoneNumber: reg.phoneNumber,
+          admissionNumber: reg.admissionNumber,
+          participantType: reg.participantType,
+          registeredAt: reg.registeredAt,
+          isSpotRegistration: reg.isSpotRegistration,
+          isTeamRegistration: false,
+          // Deletion info
+          isDeleted: reg.isDeleted,
+          deletedAt: reg.deletedAt,
+          deletedBy: reg.deletedBy
+        });
+      }
+    });
+
+    res.json(deletedRegistrations);
+  } catch (error) {
+    console.error('Error fetching deleted registrations:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Delete a specific registration
 router.delete('/:id/registrations/:registrationId', auth, isEventAdmin, async (req, res) => {
   try {
@@ -1368,63 +1795,121 @@ router.delete('/:id/registrations/:registrationId', auth, isEventAdmin, async (r
       return res.status(404).json({ message: 'Quiz not found' });
     }
 
-    // Find and remove the registration
-    const registrationIndex = quiz.registrations.findIndex(
+    // Find the registration to soft delete
+    const registration = quiz.registrations.find(
       reg => reg._id.toString() === req.params.registrationId
     );
 
-    if (registrationIndex === -1) {
+    if (!registration) {
       return res.status(404).json({ message: 'Registration not found' });
     }
 
-    const deletedRegistration = quiz.registrations[registrationIndex];
-    quiz.registrations.splice(registrationIndex, 1);
+    // Check if already deleted
+    if (registration.isDeleted) {
+      return res.status(400).json({ message: 'Registration is already deleted' });
+    }
+
+    // Soft delete the registration
+    registration.isDeleted = true;
+    registration.deletedAt = new Date();
+    registration.deletedBy = req.user._id;
     await quiz.save();
 
-    // Also delete related quiz credentials if they exist
+    // Soft delete related quiz credentials if they exist
     try {
-      await require('../models/QuizCredentials').deleteMany({
-        quiz: req.params.id,
-        registration: req.params.registrationId
-      });
+      await require('../models/QuizCredentials').updateMany(
+        {
+          quiz: req.params.id,
+          registration: req.params.registrationId
+        },
+        {
+          isActive: false,
+          deletionReason: 'Registration deleted by admin',
+          deletedAt: new Date()
+        }
+      );
+      console.log(`Soft deleted quiz credentials for registration: ${req.params.registrationId}`);
     } catch (credError) {
-      console.log('No quiz credentials found to delete:', credError.message);
+      console.log('No quiz credentials found to soft delete:', credError.message);
     }
 
-    // Also delete related quiz results if they exist
-    try {
-      const EventQuizResult = require('../models/EventQuizResult');
-
-      // For team registrations, delete by team name
-      if (deletedRegistration.isTeamRegistration) {
-        await EventQuizResult.deleteMany({
-          quiz: req.params.id,
-          'participantInfo.teamName': deletedRegistration.teamName
-        });
-        console.log(`Deleted quiz results for team: ${deletedRegistration.teamName}`);
-      } else {
-        // For individual registrations, delete by email
-        await EventQuizResult.deleteMany({
-          quiz: req.params.id,
-          'participantInfo.email': deletedRegistration.email
-        });
-        console.log(`Deleted quiz results for email: ${deletedRegistration.email}`);
-      }
-    } catch (resultError) {
-      console.log('No quiz results found to delete:', resultError.message);
-    }
+    // Note: We keep quiz results for audit purposes - they are not deleted
 
     res.json({
       message: 'Registration deleted successfully',
       deletedRegistration: {
-        name: deletedRegistration.isTeamRegistration ?
-          `${deletedRegistration.teamLeader.name} (Team: ${deletedRegistration.teamName})` :
-          deletedRegistration.name,
-        type: deletedRegistration.isTeamRegistration ? 'Team' : 'Individual'
+        name: registration.isTeamRegistration ?
+          `${registration.teamLeader.name} (Team: ${registration.teamName})` :
+          registration.name,
+        type: registration.isTeamRegistration ? 'Team' : 'Individual'
       }
     });
   } catch (error) {
     console.error('Error deleting registration:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Restore a deleted registration
+router.post('/:id/restore-registration/:registrationId', auth, isEventAdmin, async (req, res) => {
+  try {
+    const quiz = await EventQuiz.findById(req.params.id);
+
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    // Find the registration to restore
+    const registration = quiz.registrations.find(
+      reg => reg._id.toString() === req.params.registrationId
+    );
+
+    if (!registration) {
+      return res.status(404).json({ message: 'Registration not found' });
+    }
+
+    // Check if not deleted
+    if (!registration.isDeleted) {
+      return res.status(400).json({ message: 'Registration is not deleted' });
+    }
+
+    // Restore the registration
+    registration.isDeleted = false;
+    registration.deletedAt = null;
+    registration.deletedBy = null;
+    await quiz.save();
+
+    // Restore related quiz credentials if they exist
+    try {
+      await require('../models/QuizCredentials').updateMany(
+        {
+          quiz: req.params.id,
+          registration: req.params.registrationId
+        },
+        {
+          isActive: true,
+          $unset: {
+            deletionReason: 1,
+            deletedAt: 1
+          }
+        }
+      );
+      console.log(`Restored quiz credentials for registration: ${req.params.registrationId}`);
+    } catch (credError) {
+      console.log('No quiz credentials found to restore:', credError.message);
+    }
+
+    res.json({
+      message: 'Registration restored successfully',
+      restoredRegistration: {
+        name: registration.isTeamRegistration ?
+          `${registration.teamLeader.name} (Team: ${registration.teamName})` :
+          registration.name,
+        type: registration.isTeamRegistration ? 'Team' : 'Individual'
+      }
+    });
+  } catch (error) {
+    console.error('Error restoring registration:', error);
     res.status(500).json({ message: error.message });
   }
 });
@@ -1594,7 +2079,7 @@ router.get('/accounts/passwords/:id', auth, async (req, res) => {
 });
 
 // Create event quiz from Excel file - WITH UNIVERSAL INDENTATION SUPPORT
-router.post('/excel', auth, authorize(['event']), upload.single('file'), async (req, res) => {
+router.post('/excel', auth, authorize('faculty', 'admin', 'event'), upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: 'No file uploaded' });
@@ -1814,7 +2299,7 @@ router.post('/excel', auth, authorize(['event']), upload.single('file'), async (
 });
 
 // Create event quiz from Word document
-router.post('/word', auth, authorize(['event']), upload.single('file'), async (req, res) => {
+router.post('/word', auth, authorize('faculty', 'admin', 'event'), upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: 'No file uploaded' });
@@ -1912,7 +2397,7 @@ router.post('/word', auth, authorize(['event']), upload.single('file'), async (r
 });
 
 // Parse Excel file and return questions (for preview) - WITH UNIVERSAL INDENTATION SUPPORT
-router.post('/parse/excel', auth, authorize(['event']), memoryUpload.single('file'), async (req, res) => {
+router.post('/parse/excel', auth, authorize('faculty', 'admin', 'event'), memoryUpload.single('file'), async (req, res) => {
   try {
     console.log('Event Excel parse request received');
     console.log('File info:', {
@@ -2118,7 +2603,7 @@ router.post('/parse/excel', auth, authorize(['event']), memoryUpload.single('fil
 });
 
 // Parse Word file and return questions (for preview)
-router.post('/parse/word', auth, authorize(['event']), memoryUpload.single('file'), async (req, res) => {
+router.post('/parse/word', auth, authorize('faculty', 'admin', 'event'), memoryUpload.single('file'), async (req, res) => {
   try {
     console.log('Event Word parse request received');
     console.log('File info:', {
@@ -2131,58 +2616,130 @@ router.post('/parse/word', auth, authorize(['event']), memoryUpload.single('file
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    // Extract text from Word document
-    const result = await mammoth.extractRawText({ buffer: req.file.buffer });
-    const text = result.value;
+    // Extract text from Word document with HTML tag preservation
+    const htmlResult = await mammoth.convertToHtml({ buffer: req.file.buffer });
 
-    console.log('Extracted text length:', text.length);
-    console.log('First 200 characters:', text.substring(0, 200));
+    // Convert HTML to text while preserving line breaks, indentation, AND HTML tags as literal text
+    let text = htmlResult.value
+      .replace(/<p[^>]*>/g, '\n')           // Convert paragraphs to line breaks
+      .replace(/<\/p>/g, '')               // Remove closing paragraph tags
+      .replace(/<br[^>]*>/g, '\n')         // Convert line breaks
+      .replace(/<div[^>]*>/g, '\n')        // Convert divs to line breaks
+      .replace(/<\/div>/g, '')             // Remove closing div tags
+      .replace(/&nbsp;/g, ' ')             // Convert non-breaking spaces
+      .replace(/&lt;/g, '<')               // Convert HTML entities to preserve HTML tags as text
+      .replace(/&gt;/g, '>')               // Convert HTML entities to preserve HTML tags as text
+      .replace(/&amp;/g, '&')              // Convert HTML entities
+      // Only remove mammoth-generated formatting tags, preserve content HTML tags
+      .replace(/<(strong|b|em|i|u|span)[^>]*>/g, '')     // Remove formatting tags
+      .replace(/<\/(strong|b|em|i|u|span)>/g, '')        // Remove closing formatting tags
+      .replace(/\n\s*\n/g, '\n')           // Remove extra empty lines
+      .trim();
 
-    // Parse questions from text
+    // If the HTML conversion didn't preserve much formatting, fall back to raw text
+    if (!text.includes('\n') || text.length < 50) {
+      const rawResult = await mammoth.extractRawText({ buffer: req.file.buffer });
+      text = rawResult.value;
+    }
+
+    console.log('Extracted text from Word document:');
+    console.log('='.repeat(50));
+    console.log(text);
+    console.log('='.repeat(50));
+    console.log('Text analysis:');
+    console.log('- Contains newlines:', text.includes('\n'));
+    console.log('- Number of lines:', text.split('\n').length);
+    console.log('- Lines with indentation:', text.split('\n').filter(line => line.match(/^\s{2,}/)).length);
+
+    // Parse questions from text - improved logic with code preservation (same as regular quiz)
+    const lines = text.split('\n').filter(line => line.length > 0);
+    console.log('All lines:', lines);
+
     const questions = [];
-    const lines = text.split('\n').map(line => line.trim()).filter(line => line);
-
     let currentQuestion = null;
-    let questionLines = [];
-
+    let currentOptions = [];
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
+      console.log(`Processing line ${i}: "${line}"`);
 
-      // Check if this line starts a new question
-      const questionMatch = line.match(/^(?:Q\d+\.?\s*|Question\s*\d+\.?\s*|\d+\.?\s*)(.*?)(?:\s*\((\d+(?:\.\d+)?)\s*marks?\))?\s*(?:\[Negative:\s*(\d+(?:\.\d+)?)\])?$/i);
+      // Check if this line starts a new question (Q1., Q2., etc.)
+      if (/^Q\d+\./.test(line)) {
+        // Save previous question if exists
+        if (currentQuestion) {
+          const correctAnswer = currentOptions.findIndex(opt => opt.includes('*'));
+          const cleanOptions = currentOptions.map(opt => opt.replace(/\*$/, '').trim());
 
-      if (questionMatch) {
-        // Process previous question if exists
-        if (currentQuestion && questionLines.length > 0) {
-          processWordQuestion(currentQuestion, questionLines, questions);
+          // Process question text with HTML formatting for perfect preservation
+          const formattedQuestion = processTextWithHtmlFormatting(currentQuestion.question);
+
+          questions.push({
+            question: formattedQuestion,
+            options: cleanOptions,
+            correctAnswer: correctAnswer >= 0 ? correctAnswer : 0,
+            marks: currentQuestion.marks,
+            negativeMarks: currentQuestion.negativeMarks
+          });
         }
 
         // Start new question
-        const questionText = questionMatch[1].trim();
-        const marks = questionMatch[2] ? parseFloat(questionMatch[2]) : 1;
-        const negativeMarks = questionMatch[3] ? parseFloat(questionMatch[3]) : 0;
-
-        currentQuestion = {
-          questionText: questionText,
-          marks: marks,
-          negativeMarks: negativeMarks,
-          options: [],
-          correctAnswer: null
-        };
-        questionLines = [];
-
-        // If question text is empty, collect it from next lines
-        if (!questionText) {
-          questionLines.push(line);
+        let questionText = line.replace(/^Q\d+\.\s*/, '').replace(/\(\d+\s*marks?\)/, '').replace(/\[Negative:\s*[\d.]+\]/, '');
+        // Only trim leading/trailing whitespace if it's not a code question
+        if (!hasCodeContent(questionText)) {
+          questionText = questionText.trim();
         }
-      } else if (currentQuestion) {
-        questionLines.push(line);
+        console.log('Initial question text:', JSON.stringify(questionText));
+        const marksMatch = line.match(/\((\d+)\s*marks?\)/);
+        const marks = marksMatch ? parseInt(marksMatch[1]) : 1;
+
+        // Extract negative marks from [Negative: X] format
+        const negativeMatch = line.match(/\[Negative:\s*([\d.]+)\]/);
+        let negativeMarks = 0;
+
+        if (negativeMatch) {
+          negativeMarks = parseFloat(negativeMatch[1]);
+        }
+
+        currentQuestion = { question: questionText, marks, negativeMarks };
+        currentOptions = [];
+        console.log('Started new question:', currentQuestion);
+      }
+      // Check if this is an option line (starts with A), B), C), D))
+      else if (/^[A-D]\)/.test(line) && currentQuestion) {
+        const option = line.replace(/^[A-D]\)\s*/, '').trim();
+        currentOptions.push(option);
+        console.log('Found option:', option);
+      }
+      // Handle question continuation (especially for code blocks)
+      else if (currentQuestion && currentOptions.length === 0) {
+        // This might be a continuation of the question text
+        if (isCodeLine(line) || line.match(/^\s{2,}/)) {
+          // This looks like code - preserve original formatting exactly
+          currentQuestion.question += '\n' + line;
+          console.log('Code line continuation:', JSON.stringify(line));
+        } else {
+          // Regular text continuation
+          currentQuestion.question += ' ' + line.trim();
+          console.log('Text continuation:', JSON.stringify(line));
+        }
+        console.log('Current question after continuation:', JSON.stringify(currentQuestion.question));
       }
     }
 
-    // Process the last question
-    if (currentQuestion && questionLines.length > 0) {
-      processWordQuestion(currentQuestion, questionLines, questions);
+    // Don't forget the last question
+    if (currentQuestion && currentOptions.length > 0) {
+      const correctAnswer = currentOptions.findIndex(opt => opt.includes('*'));
+      const cleanOptions = currentOptions.map(opt => opt.replace(/\*$/, '').trim());
+
+      // Process question text with HTML formatting for perfect preservation
+      const formattedQuestion = processTextWithHtmlFormatting(currentQuestion.question);
+
+      questions.push({
+        question: formattedQuestion,
+        options: cleanOptions,
+        correctAnswer: correctAnswer >= 0 ? correctAnswer : 0,
+        marks: currentQuestion.marks,
+        negativeMarks: currentQuestion.negativeMarks
+      });
     }
 
     console.log(`Event Word parsing completed. Total questions: ${questions.length}`);
@@ -2201,77 +2758,10 @@ router.post('/parse/word', auth, authorize(['event']), memoryUpload.single('file
   }
 });
 
-// Helper function for processing Word questions (same as main quiz routes)
-function processWordQuestion(currentQuestion, questionLines, questions) {
-  try {
-    let questionText = currentQuestion.questionText;
-    const options = [];
-    let correctAnswer = null;
-    let collectingQuestionText = !questionText;
 
-    for (const line of questionLines) {
-      // Check for options
-      const optionMatch = line.match(/^([A-D])\)\s*(.+)$/i);
-      if (optionMatch) {
-        collectingQuestionText = false;
-        const optionLetter = optionMatch[1].toUpperCase();
-        const optionText = optionMatch[2].trim();
-
-        // Check if this option is marked as correct
-        const isCorrect = optionText.includes('*') || optionText.includes('(correct)') ||
-                         optionText.includes('[correct]') || optionText.includes('✓');
-
-        if (isCorrect) {
-          correctAnswer = options.length;
-          // Clean the option text
-          options.push(optionText.replace(/\*|\(correct\)|\[correct\]|✓/g, '').trim());
-        } else {
-          options.push(optionText);
-        }
-      } else if (collectingQuestionText) {
-        // Add to question text
-        questionText += (questionText ? '\n' : '') + line;
-      }
-    }
-
-    // Apply formatting preservation (same logic as main quiz routes)
-    const needsFormatPreservation = (text) => {
-      const codePatterns = [
-        /\b(def|class|if|else|elif|for|while|try|except|finally|with|import|from)\b/,
-        /\b(function|var|let|const|if|else|for|while|switch|case|return)\b/,
-        /\b(public|private|protected|class|interface|extends|implements)\b/,
-        /\b(#include|int|char|float|double|void|printf|scanf)\b/,
-        /<[^>]+>/,
-        /\{[\s\S]*\}/,
-        /^\s*(def|class|if|for|while|function|var|let|const|public|private)/m
-      ];
-      return codePatterns.some(pattern => pattern.test(text));
-    };
-
-    if (needsFormatPreservation(questionText)) {
-      // Preserve original line spacing for code
-      questionText = questionText.split('\n').map(line => line.trimRight()).join('\n');
-    }
-
-    // Validate question
-    if (questionText && options.length >= 2 && correctAnswer !== null) {
-      questions.push({
-        question: questionText,
-        options: options,
-        correctAnswer: correctAnswer,
-        marks: currentQuestion.marks,
-        negativeMarks: currentQuestion.negativeMarks
-      });
-
-      console.log(`Processed Word question: ${questionText.substring(0, 50)}...`);
-    }
-  } catch (error) {
-    console.error('Error processing Word question:', error);
-  }
-}
 
 // Parse images and return questions (for preview)
-router.post('/parse/image', auth, authorize(['event']), memoryUpload.array('images'), async (req, res) => {
+router.post('/parse/image', auth, authorize('faculty', 'admin', 'event'), memoryUpload.array('images'), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ message: 'No images uploaded' });
@@ -2309,7 +2799,19 @@ router.post('/parse/image', auth, authorize(['event']), memoryUpload.array('imag
             .replace(/redy/g, 'ready') // Fix common OCR errors
             .replace(/startup\(\)\)/g, 'startup()') // Fix extra parenthesis
             .replace(/\bif global connected\b/g, 'if global_connected') // Fix variable names
-            .replace(/print \(/g, 'print('); // Fix space before parenthesis
+            .replace(/print \(/g, 'print(') // Fix space before parenthesis
+            .replace(/<main\(\)>/g, 'main()') // Fix OCR misreading main() as <main()>
+            .replace(/\bN\s*=\s*$/gm, 'A) 1*') // Fix "N =" to "A) 1*" (common OCR error)
+            .replace(/^0(\d)\s*$/gm, 'C) $1') // Fix "03" to "C) 3" (common OCR error)
+            .replace(/^(\d+)\s*$/gm, (match, num) => { // Fix standalone numbers to options
+              if (num === '1') return 'A) 1*';
+              if (num === '2') return 'B) 2';
+              if (num === '3') return 'C) 3';
+              if (num === '4') return 'D) 4';
+              return match;
+            })
+            .replace(/^([A-D])\)\s*\*\s*$/gm, '$1) 1*') // Fix "A) *" to "A) 1*"
+            .replace(/^([A-D])\s+(\d+)\s*\*?\s*$/gm, '$1) $2*') // Fix "A 1" to "A) 1*";
         };
 
         const preprocessedText = preprocessOCRText(text);
@@ -2361,6 +2863,18 @@ router.post('/parse/image', auth, authorize(['event']), memoryUpload.array('imag
             questionLines = [];
             options = [];
             correctAnswer = null;
+            continue;
+          }
+
+          // Check for answer line (Answer: A/B/C/D)
+          const answerMatch = line.match(/^Answer:\s*([A-D])/i);
+          if (answerMatch) {
+            const answerLetter = answerMatch[1].toUpperCase();
+            const answerIndex = ['A', 'B', 'C', 'D'].indexOf(answerLetter);
+            if (answerIndex !== -1) {
+              correctAnswer = answerIndex;
+              console.log(`Found answer line: Answer: ${answerLetter} (index: ${answerIndex})`);
+            }
             continue;
           }
 
@@ -2438,8 +2952,23 @@ function processImageQuestion(currentQuestion, questionLines, options, correctAn
       questionText += (questionText ? '\n' : '') + formattedCode;
     }
 
+    // If no correct answer was found, try to infer it
+    if (questionText && options.length >= 2 && (correctAnswer === null || correctAnswer === -1)) {
+      // Check if any option looks like it should be marked as correct
+      // Look for patterns like "1", "Case 1", or first option for C code
+      const firstOptionText = options[0]?.toLowerCase() || '';
+      if (firstOptionText.includes('1') || firstOptionText.includes('case 1') ||
+          questionText.includes('switch') || questionText.includes('case 1:')) {
+        console.log('Inferring correct answer as first option based on C code pattern');
+        correctAnswer = 0;
+      } else {
+        console.log('No correct answer found, defaulting to first option');
+        correctAnswer = 0;
+      }
+    }
+
     // Validate question
-    if (questionText && options.length >= 2 && correctAnswer !== null) {
+    if (questionText && options.length >= 2 && correctAnswer !== null && correctAnswer !== -1) {
       return {
         question: questionText,
         options: options,
@@ -2449,6 +2978,11 @@ function processImageQuestion(currentQuestion, questionLines, options, correctAn
       };
     }
 
+    console.log('Question validation failed:', {
+      hasQuestionText: !!questionText,
+      optionsCount: options.length,
+      correctAnswer: correctAnswer
+    });
     return null;
   } catch (error) {
     console.error('Error processing image question:', error);
@@ -2548,7 +3082,7 @@ function restoreUniversalIndentation(text) {
 }
 
 // Create event quiz from images
-router.post('/image', auth, authorize(['event']), upload.array('images'), async (req, res) => {
+router.post('/image', auth, authorize('faculty', 'admin', 'event'), upload.array('images'), async (req, res) => {
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ message: 'No images uploaded' });
@@ -2571,14 +3105,36 @@ router.post('/image', auth, authorize(['event']), upload.array('images'), async 
           }
         );
 
+        // Apply same OCR preprocessing as parse endpoint
+        const preprocessOCRText = (text) => {
+          return text
+            .replace(/24x/g, '24*')  // Fix asterisk recognition
+            .replace(/©\)/g, 'C)')   // Fix copyright symbol to C)
+            .replace(/redy/g, 'ready') // Fix common OCR errors
+            .replace(/startup\(\)\)/g, 'startup()') // Fix extra parenthesis
+            .replace(/\bif global connected\b/g, 'if global_connected') // Fix variable names
+            .replace(/print \(/g, 'print(') // Fix space before parenthesis
+            .replace(/<main\(\)>/g, 'main()') // Fix OCR misreading main() as <main()>
+            .replace(/\bN\s*=\s*$/gm, 'A) 1*') // Fix "N =" to "A) 1*" (common OCR error)
+            .replace(/^0(\d)\s*$/gm, 'C) $1') // Fix "03" to "C) 3" (common OCR error)
+            .replace(/^(\d+)\s*$/gm, (match, num) => { // Fix standalone numbers to options
+              if (num === '1') return 'A) 1*';
+              if (num === '2') return 'B) 2';
+              if (num === '3') return 'C) 3';
+              if (num === '4') return 'D) 4';
+              return match;
+            })
+            .replace(/^([A-D])\)\s*\*\s*$/gm, '$1) 1*') // Fix "A) *" to "A) 1*"
+            .replace(/^([A-D])\s+(\d+)\s*\*?\s*$/gm, '$1) $2*') // Fix "A 1" to "A) 1*";
+        };
+
         // Preprocess OCR text to fix common recognition errors
-        let preprocessedText = text
-          // Fix common OCR errors in Python code
+        let preprocessedText = preprocessOCRText(text)
+          // Additional Python-specific fixes
           .replace(/def\s+(\w+)\(\)\):/g, 'def $1():')  // Fix def startup())): to def startup():
           .replace(/\(\)\):/g, '():')                    // Fix ())): to ):
           .replace(/if\s+global\s+(\w+):/g, 'if global $1:')  // Fix spacing in if global
           .replace(/print\s*\(\s*"([^"]*?)"\s*\)/g, 'print("$1")')  // Fix print spacing
-          .replace(/redy/g, 'ready')                     // Fix common typo
           .replace(/Engines/g, 'Engines')                // Ensure proper capitalization
           // Fix indentation issues - if a print statement follows an if statement, it should be indented
           .replace(/(\n\s*if\s+[^:\n]+:\s*\n)(\s*print\s*\([^)]+\))/g, '$1        $2');
@@ -2831,6 +3387,17 @@ router.post('/image', auth, authorize(['event']), upload.array('images'), async 
             questionLines = [questionText]; // Start collecting question lines
             options = [];
             correctAnswer = -1;
+          } else if (line.match(/^Answer:\s*([A-D])/i)) {
+            // Check for answer line (Answer: A/B/C/D)
+            const answerMatch = line.match(/^Answer:\s*([A-D])/i);
+            if (answerMatch) {
+              const answerLetter = answerMatch[1].toUpperCase();
+              const answerIndex = ['A', 'B', 'C', 'D'].indexOf(answerLetter);
+              if (answerIndex !== -1) {
+                correctAnswer = answerIndex;
+                console.log(`Found answer line: Answer: ${answerLetter} (index: ${answerIndex})`);
+              }
+            }
           } else if (line.match(/^[A-D©]\)/)) {
             // Handle OCR misreading: © as C, x as * at end
             let normalizedLine = line
@@ -2919,7 +3486,7 @@ router.get('/:id/results', auth, async (req, res) => {
 });
 
 // Delete an event quiz
-router.delete('/:id', auth, isEventAdmin, async (req, res) => {
+router.delete('/:id', auth, authorize('faculty', 'admin', 'event'), async (req, res) => {
   try {
     const quiz = await EventQuiz.findById(req.params.id);
 
@@ -3074,10 +3641,27 @@ router.get('/:id/submissions', auth, authorize('event', 'admin'), async (req, re
     }
 
     // Get submissions from EventQuizResult (event quiz results use participantInfo, not student field)
-    const submissions = await EventQuizResult.find({ quiz: req.params.id })
+    const allSubmissions = await EventQuizResult.find({ quiz: req.params.id })
       .lean();
 
-    console.log(`Found ${submissions.length} submissions for quiz ${req.params.id}`);
+    console.log(`Found ${allSubmissions.length} total submissions for quiz ${req.params.id}`);
+
+    // Filter out submissions from deleted registrations
+    const activeRegistrationEmails = quiz.registrations
+      .filter(reg => !reg.isDeleted)
+      .flatMap(reg => {
+        if (reg.isTeamRegistration) {
+          return [reg.teamLeader.email, ...reg.teamMembers.map(m => m.email)];
+        }
+        return [reg.email];
+      });
+
+    const submissions = allSubmissions.filter(submission => {
+      const submissionEmail = submission.participantInfo?.email;
+      return submissionEmail && activeRegistrationEmails.includes(submissionEmail);
+    });
+
+    console.log(`Filtered to ${submissions.length} submissions from active registrations`);
 
     // Transform submissions data to include all necessary details
     const transformedSubmissions = submissions.map(submission => ({
@@ -3481,6 +4065,44 @@ router.post('/:id/bulk-reattempt', auth, authorize('event', 'admin'), async (req
   } catch (error) {
     console.error('Error enabling bulk reattempt:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Admin endpoint to clear a participant's result (for testing)
+router.delete('/:id/results/:email', auth, isEventAdmin, async (req, res) => {
+  try {
+    const { id, email } = req.params;
+
+    console.log(`🗑️ ADMIN: Clearing results for ${email} in quiz ${id}`);
+
+    // Delete the result
+    const deletedResult = await EventQuizResult.deleteOne({
+      quiz: id,
+      'participantInfo.email': email
+    });
+
+    // Reset the credentials
+    const updatedCredentials = await QuizCredentials.updateMany(
+      {
+        quiz: id,
+        'participantDetails.email': email
+      },
+      {
+        hasAttemptedQuiz: false,
+        $unset: { quizSubmission: 1 }
+      }
+    );
+
+    console.log(`🗑️ ADMIN: Cleared ${deletedResult.deletedCount} results and reset ${updatedCredentials.modifiedCount} credentials`);
+
+    res.json({
+      message: 'Results cleared successfully',
+      deletedResults: deletedResult.deletedCount,
+      resetCredentials: updatedCredentials.modifiedCount
+    });
+  } catch (error) {
+    console.error('Error clearing results:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

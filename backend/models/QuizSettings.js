@@ -30,6 +30,22 @@ const quizSettingsSchema = new mongoose.Schema({
       max: 1800 // Max 30 minutes
     }
   },
+
+  // Emergency Password Settings for Event Quiz Access
+  emergencyAccess: {
+    enabled: {
+      type: Boolean,
+      default: true
+    },
+    password: {
+      type: String,
+      default: 'Quiz@123' // Default emergency password for quiz access
+    },
+    description: {
+      type: String,
+      default: 'Emergency password allows admin access to any quiz even without registered credentials'
+    }
+  },
   
   // Violation Settings
   violationSettings: {
@@ -115,6 +131,11 @@ quizSettingsSchema.statics.getOrCreateDefault = async function(collegeId = 'defa
 // Instance method to validate admin override
 quizSettingsSchema.methods.validateAdminPassword = function(password) {
   return this.adminOverride.enabled && this.adminOverride.password === password;
+};
+
+// Instance method to validate emergency password
+quizSettingsSchema.methods.validateEmergencyPassword = function(password) {
+  return this.emergencyAccess.enabled && this.emergencyAccess.password === password;
 };
 
 // Instance method to check if admin override is available

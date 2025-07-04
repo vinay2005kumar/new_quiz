@@ -54,6 +54,25 @@ const quizSubmissionSchema = new mongoose.Schema({
   totalMarks: {
     type: Number,
     default: 0
+  },
+
+  // Soft delete functionality
+  isDeleted: {
+    type: Boolean,
+    default: false
+  },
+  deletedAt: {
+    type: Date,
+    default: null
+  },
+  deletedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  deletionReason: {
+    type: String,
+    enum: ['Submission deleted by faculty', 'Account deactivated', 'Other'],
+    required: false
   }
 }, {
   timestamps: true

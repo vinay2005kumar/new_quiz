@@ -305,12 +305,14 @@ const PublicQuizTake = () => {
               borderRadius: 1,
               border: '1px solid',
               borderColor: 'divider',
+              fontFamily: 'monospace',
               fontSize: '0.9rem',
               lineHeight: 1.5,
+              whiteSpace: 'pre-wrap', // ALWAYS preserve all formatting
               overflow: 'auto'
-            }}
-            dangerouslySetInnerHTML={{ __html: question.question }}
-            />
+            }}>
+              {question.question}
+            </Box>
             
             <FormControl component="fieldset">
               <RadioGroup

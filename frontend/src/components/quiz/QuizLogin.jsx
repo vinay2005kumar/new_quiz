@@ -17,7 +17,8 @@ import {
   Login as LoginIcon,
   Quiz as QuizIcon,
   AccessTime as TimeIcon,
-  People as PeopleIcon
+  People as PeopleIcon,
+  ArrowBack as ArrowBackIcon
 } from '@mui/icons-material';
 import api from '../../config/axios';
 
@@ -98,7 +99,19 @@ const QuizLogin = () => {
     } catch (error) {
       console.error('🔑 Login error:', error);
       console.error('🔑 Error response:', error.response);
-      setError(error.response?.data?.message || 'Login failed. Please try again.');
+
+      // Check if it's an "already submitted" error with submission details
+      if (error.response?.data?.submissionDetails) {
+        const details = error.response.data.submissionDetails;
+        const submittedDate = new Date(details.submittedAt).toLocaleString();
+        setError(
+          `You have already submitted this quiz on ${submittedDate}. ` +
+          `Score: ${details.score}/${details.totalMarks}. ` +
+          `Use the emergency password if you need to resubmit.`
+        );
+      } else {
+        setError(error.response?.data?.message || 'Login failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -163,6 +176,18 @@ const QuizLogin = () => {
 
   return (
     <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
+      {/* Back Button */}
+      <Box sx={{ mb: 3 }}>
+        <Button
+          variant="outlined"
+          startIcon={<ArrowBackIcon />}
+          onClick={() => navigate('/events')}
+          sx={{ mb: 2 }}
+        >
+          Back to Events
+        </Button>
+      </Box>
+
       <Box sx={{ textAlign: 'center', mb: 4 }}>
         <QuizIcon sx={{ fontSize: 60, color: 'primary.main', mb: 2 }} />
         <Typography variant="h3" component="h1" gutterBottom>

@@ -90,10 +90,15 @@ const QuizAuthorizedStudents = () => {
     direction: 'asc'
   });
   const [reattemptDialog, setReattemptDialog] = useState({ open: false, student: null });
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, student: null });
 
   // Bulk reattempt functionality
   const [selectedStudents, setSelectedStudents] = useState(new Set());
   const [bulkReattemptDialog, setBulkReattemptDialog] = useState({ open: false, students: [] });
+
+  // Deleted users functionality
+  const [deletedUsersDialog, setDeletedUsersDialog] = useState({ open: false, deletedUsers: [] });
+  const [loadingDeletedUsers, setLoadingDeletedUsers] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -159,17 +164,26 @@ const QuizAuthorizedStudents = () => {
     setSortConfig({ key, direction });
   };
 
-  const handleDeleteSubmission = async (studentData) => {
-    if (window.confirm(`Are you sure you want to delete the submission for "${studentData.student.name}"? This action cannot be undone.`)) {
-      try {
-        await api.delete(`/api/quiz/${id}/submissions/${studentData.student._id}`);
-        toast.success('Submission deleted successfully!');
-        fetchData(); // Refresh the data
-      } catch (error) {
-        console.error('Error deleting submission:', error);
-        toast.error('Failed to delete submission: ' + (error.response?.data?.message || error.message));
-      }
+  const handleDeleteSubmission = (studentData) => {
+    setDeleteDialog({ open: true, student: studentData });
+  };
+
+  const handleConfirmDelete = async () => {
+    const studentData = deleteDialog.student;
+    try {
+      await api.delete(`/api/quiz/${id}/submissions/${studentData.student._id}`);
+      toast.success('Submission deleted successfully!');
+      setDeleteDialog({ open: false, student: null });
+      fetchData(); // Refresh the data
+    } catch (error) {
+      console.error('Error deleting submission:', error);
+      toast.error('Failed to delete submission: ' + (error.response?.data?.message || error.message));
+      setDeleteDialog({ open: false, student: null });
     }
+  };
+
+  const handleCancelDelete = () => {
+    setDeleteDialog({ open: false, student: null });
   };
 
   const handleReattempt = (studentData) => {
@@ -254,6 +268,47 @@ const QuizAuthorizedStudents = () => {
 
   const handleCancelBulkReattempt = () => {
     setBulkReattemptDialog({ open: false, students: [] });
+  };
+
+  // Deleted users handlers
+  const handleViewDeletedUsers = async () => {
+    setLoadingDeletedUsers(true);
+    try {
+      const response = await api.get(`/api/quiz/${id}/deleted-submissions`);
+      setDeletedUsersDialog({
+        open: true,
+        deletedUsers: response.data.deletedSubmissions || []
+      });
+    } catch (error) {
+      console.error('Error fetching deleted users:', error);
+      toast.error('Failed to fetch deleted users: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoadingDeletedUsers(false);
+    }
+  };
+
+  const handleRestoreUser = async (studentId) => {
+    try {
+      await api.post(`/api/quiz/${id}/restore-submission/${studentId}`);
+      toast.success('User restored successfully!');
+
+      // Refresh deleted users list
+      const response = await api.get(`/api/quiz/${id}/deleted-submissions`);
+      setDeletedUsersDialog({
+        open: true,
+        deletedUsers: response.data.deletedSubmissions || []
+      });
+
+      // Refresh main data
+      fetchData();
+    } catch (error) {
+      console.error('Error restoring user:', error);
+      toast.error('Failed to restore user: ' + (error.response?.data?.message || error.message));
+    }
+  };
+
+  const handleCloseDeletedUsers = () => {
+    setDeletedUsersDialog({ open: false, deletedUsers: [] });
   };
 
   // Helper function to format duration
@@ -408,9 +463,20 @@ const QuizAuthorizedStudents = () => {
             Back
           </Button>
 
-          <Typography variant="h4" gutterBottom>
-            {quiz?.title} - Submissions
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h4" gutterBottom>
+              {quiz?.title} - Submissions
+            </Typography>
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={<DeleteIcon />}
+              onClick={handleViewDeletedUsers}
+              disabled={loadingDeletedUsers}
+            >
+              {loadingDeletedUsers ? 'Loading...' : 'Deleted Users'}
+            </Button>
+          </Box>
 
           <Grid container spacing={2} sx={{ mt: 2 }}>
             <Grid item xs={12} sm={4}>
@@ -426,7 +492,7 @@ const QuizAuthorizedStudents = () => {
             <Grid item xs={12} sm={4}>
               <Typography variant="body1">
                 Average Score: {
-                  students.length > 0 
+                  students.length > 0
                     ? (students.reduce((acc, s) => acc + (s.totalMarks || 0), 0) / students.length).toFixed(2)
                     : 0
                 }
@@ -629,7 +695,6 @@ const QuizAuthorizedStudents = () => {
                       color="error"
                       startIcon={<DeleteIcon />}
                       onClick={() => handleDeleteSubmission(studentData)}
-                      disabled={!studentData.hasSubmitted}
                     >
                       Delete
                     </Button>
@@ -791,6 +856,166 @@ const QuizAuthorizedStudents = () => {
             startIcon={<QuizIcon />}
           >
             Allow Reattempt for {bulkReattemptDialog.students.length} Students
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteDialog.open}
+        onClose={handleCancelDelete}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1}>
+            <DeleteIcon color="error" />
+            Confirm Submission Deletion
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 1 }}>
+            {deleteDialog.student && (
+              <>
+                <Typography variant="body1" gutterBottom>
+                  Are you sure you want to delete the submission for <strong>
+                    {deleteDialog.student.student.name}
+                  </strong>?
+                </Typography>
+
+                <Alert severity="error" sx={{ mt: 2, mb: 2 }}>
+                  <Typography variant="body2">
+                    <strong>Warning:</strong> This action will:
+                  </Typography>
+                  <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>
+                    <li>Permanently delete their submission and score</li>
+                    <li>Remove their quiz attempt record</li>
+                    <li>This data cannot be recovered</li>
+                  </ul>
+                  <Typography variant="body2" sx={{ mt: 1 }}>
+                    <strong>This action cannot be undone.</strong>
+                  </Typography>
+                </Alert>
+
+                <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Student:</strong> {deleteDialog.student.student.name}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Score:</strong> {deleteDialog.student.totalMarks || 0} marks
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Submitted:</strong> {deleteDialog.student.submitTime ?
+                      new Date(deleteDialog.student.submitTime).toLocaleString() : 'N/A'}
+                  </Typography>
+                </Box>
+              </>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={handleCancelDelete}
+            color="secondary"
+            variant="outlined"
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleConfirmDelete}
+            color="error"
+            variant="contained"
+            startIcon={<DeleteIcon />}
+          >
+            Delete Submission
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Deleted Users Dialog */}
+      <Dialog
+        open={deletedUsersDialog.open}
+        onClose={handleCloseDeletedUsers}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1}>
+            <DeleteIcon color="error" />
+            Deleted Users - Academic Quiz: {quiz?.title}
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 1 }}>
+            {deletedUsersDialog.deletedUsers.length === 0 ? (
+              <Alert severity="info">
+                No deleted users found for this quiz.
+              </Alert>
+            ) : (
+              <>
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  <Typography variant="body2">
+                    These users were deleted from the quiz. Click "Restore" to restore their access.
+                  </Typography>
+                </Alert>
+
+                <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
+                  <Table stickyHeader>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Name</TableCell>
+                        <TableCell>Admission Number</TableCell>
+                        <TableCell>Department</TableCell>
+                        <TableCell>Year</TableCell>
+                        <TableCell>Score</TableCell>
+                        <TableCell>Deleted At</TableCell>
+                        <TableCell>Deleted By</TableCell>
+                        <TableCell>Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {deletedUsersDialog.deletedUsers.map((submission) => (
+                        <TableRow key={submission._id}>
+                          <TableCell>{submission.student?.name || 'N/A'}</TableCell>
+                          <TableCell>{submission.student?.admissionNumber || 'N/A'}</TableCell>
+                          <TableCell>{submission.student?.department || 'N/A'}</TableCell>
+                          <TableCell>{submission.student?.year || 'N/A'}</TableCell>
+                          <TableCell>
+                            {submission.totalMarks || 0}/{quiz?.totalMarks || 0}
+                          </TableCell>
+                          <TableCell>
+                            {submission.deletedAt ? new Date(submission.deletedAt).toLocaleString() : 'N/A'}
+                          </TableCell>
+                          <TableCell>
+                            {submission.deletedBy?.name || submission.deletedBy?.email || 'N/A'}
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              size="small"
+                              variant="contained"
+                              color="success"
+                              startIcon={<QuizIcon />}
+                              onClick={() => handleRestoreUser(submission.student?._id)}
+                            >
+                              Restore
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </>
+            )}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={handleCloseDeletedUsers}
+            color="secondary"
+            variant="outlined"
+          >
+            Close
           </Button>
         </DialogActions>
       </Dialog>

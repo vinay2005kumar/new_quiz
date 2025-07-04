@@ -68,7 +68,7 @@ const ImageQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate, hide
       });
 
       // Use the correct API endpoint based on quiz type
-      const endpoint = isEventQuiz ? '/api/eventQuiz/parse/image' : '/api/quiz/parse/image';
+      const endpoint = isEventQuiz ? '/api/event-quiz/parse/image' : '/api/quiz/parse/image';
       const response = await api.post(endpoint, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
@@ -97,8 +97,11 @@ const ImageQuizForm = ({ onNext, setError, basicDetails, onQuestionsUpdate, hide
         onQuestionsUpdate(questions);
       }
 
-      // Move to next step (review)
-      onNext();
+      // Only call onNext if not in modal context (hideNavigation = false)
+      // In modal context, the parent will handle showing the review step
+      if (!hideNavigation) {
+        onNext();
+      }
     } catch (error) {
       setError(error.response?.data?.message || 'Failed to process images');
     } finally {

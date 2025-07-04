@@ -30,15 +30,26 @@ const QuizResult = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
+  console.log('🎯 RESULT: QuizResult component mounted');
+  console.log('🎯 RESULT: Current URL:', window.location.href);
+  console.log('🎯 RESULT: Location state:', location.state);
+  console.log('🎯 RESULT: Quiz ID from params:', quizId);
+
   // Get data from navigation state
   const result = location.state?.result;
   const participant = location.state?.participant;
   const isAuthenticated = location.state?.isAuthenticated;
 
+  console.log('🎯 RESULT: Extracted data:', { result, participant, isAuthenticated });
+
   useEffect(() => {
+    console.log('🎯 RESULT: useEffect triggered, result:', result);
     // If no result data, redirect to events page
     if (!result) {
+      console.log('🎯 RESULT: No result data found, redirecting to events page');
       navigate('/events');
+    } else {
+      console.log('🎯 RESULT: Result data found, displaying results');
     }
   }, [result, navigate]);
 

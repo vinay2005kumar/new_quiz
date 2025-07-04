@@ -832,28 +832,8 @@ const EventQuizEdit = () => {
                           </span>
                         )})
                       </Typography>
-                    </Box>
-
-                    {/* Question Text with UNIVERSAL Formatting Preservation */}
-                    <Box sx={{
-                      p: 2,
-                      mb: 2,
-                      bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
-                      borderRadius: 1,
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      fontFamily: 'monospace',
-                      fontSize: '0.9rem',
-                      lineHeight: 1.5,
-                      whiteSpace: 'pre-wrap', // ALWAYS preserve all formatting
-                      overflow: 'auto'
-                    }}>
-                      {question.question}
-                    </Box>
-
-                    <Box>
-                      <IconButton 
-                        color="error" 
+                      <IconButton
+                        color="error"
                         onClick={() => removeQuestion(index)}
                         size="small"
                       >
@@ -867,7 +847,7 @@ const EventQuizEdit = () => {
                         Question Text (all formatting preserved):
                       </Typography>
 
-                      {/* Display formatted question text for easy reading */}
+                      {/* Preview of formatted question text */}
                       <Box sx={{
                         p: 2,
                         mb: 2,
@@ -878,12 +858,22 @@ const EventQuizEdit = () => {
                         fontFamily: 'monospace',
                         fontSize: '0.9rem',
                         lineHeight: 1.5,
-                        whiteSpace: 'pre-wrap', // ALWAYS preserve all formatting
+                        whiteSpace: 'pre-wrap',
                         overflow: 'auto',
-                        maxHeight: '300px',
+                        maxHeight: '200px',
                         overflowY: 'auto'
                       }}>
-                        {question.question || 'Enter your question below...'}
+                        {question.question ? (
+                          question.question.includes('<pre>') ? (
+                            <div dangerouslySetInnerHTML={{ __html: question.question }} />
+                          ) : (
+                            question.question
+                          )
+                        ) : (
+                          <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                            Enter your question below to see preview...
+                          </Typography>
+                        )}
                       </Box>
 
                       <TextField

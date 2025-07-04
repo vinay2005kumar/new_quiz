@@ -14,7 +14,6 @@ const quizCredentialsSchema = new mongoose.Schema({
   username: {
     type: String,
     required: true,
-    unique: true,
     trim: true
   },
   password: {
@@ -60,6 +59,11 @@ const quizCredentialsSchema = new mongoose.Schema({
     default: true
   },
   lastLogin: Date,
+  lastLoginAt: Date,
+  sessionToken: {
+    type: String,
+    default: null
+  },
   loginAttempts: {
     type: Number,
     default: 0
@@ -77,6 +81,18 @@ const quizCredentialsSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'EventQuizResult'
   },
+  // Reattempt functionality
+  canReattempt: {
+    type: Boolean,
+    default: false
+  },
+  reattemptGrantedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  reattemptGrantedAt: {
+    type: Date
+  },
   // Deletion tracking
   deletionReason: {
     type: String,
@@ -92,7 +108,7 @@ const quizCredentialsSchema = new mongoose.Schema({
 });
 
 // Index for efficient queries
-quizCredentialsSchema.index({ quiz: 1, username: 1 });
+quizCredentialsSchema.index({ quiz: 1, username: 1 }, { unique: true }); // Compound unique index
 quizCredentialsSchema.index({ quiz: 1, isActive: 1 });
 
 // Hash password before saving
