@@ -12,7 +12,9 @@ import {
   Typography,
   Box,
   Divider,
-  IconButton
+  IconButton,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -23,6 +25,10 @@ import {
 import api from '../../config/axios';
 
 const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
   const [quiz, setQuiz] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
@@ -155,15 +161,29 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
   // Remove hardcoded arrays - will use AcademicFilter data instead
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>
+    <Dialog 
+      open={open} 
+      onClose={onClose} 
+      maxWidth="md" 
+      fullWidth
+      sx={{
+        '& .MuiDialog-paper': {
+          margin: { xs: 1, sm: 2 },
+          width: { xs: 'calc(100% - 16px)', sm: 'auto' }
+        }
+      }}
+    >
+      <DialogTitle sx={{ 
+        fontSize: { xs: '1.1rem', sm: '1.25rem' },
+        p: { xs: 1.5, sm: 2 }
+      }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {quiz?.participationMode === 'team' ? (
             <GroupIcon color="primary" />
           ) : (
             <PersonIcon color="primary" />
           )}
-          <Typography variant="h6">
+          <Typography variant="h6" sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}>
             {quiz?.participationMode === 'team'
               ? `Team Registration (${quiz?.teamSize || 1} members)`
               : 'Individual Registration'
@@ -172,13 +192,13 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
         </Box>
       </DialogTitle>
       <form onSubmit={handleSubmit}>
-        <DialogContent>
+        <DialogContent sx={{ p: { xs: 1.5, sm: 2 } }}>
           {success && (
             <Alert severity="success" sx={{ mb: 2 }}>
-              <Typography variant="body1">
+              <Typography variant="body1" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                 🎉 Registration Successful!
               </Typography>
-              <Typography variant="body2">
+              <Typography variant="body2" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                 {quiz?.participationMode === 'team'
                   ? `Your team "${formData.teamName}" has been registered for "${quiz.title}". All team members will receive individual emails with login credentials.`
                   : `You have been registered for "${quiz.title}". You will receive an email with your login credentials.`
@@ -189,7 +209,9 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
 
           {error && (
             <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
+              <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+                {error}
+              </Typography>
             </Alert>
           )}
 
@@ -204,16 +226,17 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
                 value={formData.teamName}
                 onChange={handleChange}
                 sx={{ mb: 2 }}
+                size={isMobile ? "small" : "medium"}
               />
               <Divider sx={{ mb: 2 }}>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                   Team Leader Details
                 </Typography>
               </Divider>
             </Box>
           )}
 
-          <Grid container spacing={2}>
+          <Grid container spacing={isMobile ? 1 : 2}>
             <Grid item xs={12}>
               <TextField
                 required
@@ -222,6 +245,7 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
                 name="name"
                 value={formData.name}
                 onChange={handleChange}
+                size={isMobile ? "small" : "medium"}
               />
             </Grid>
             
@@ -234,6 +258,7 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
                 type="email"
                 value={formData.email}
                 onChange={handleChange}
+                size={isMobile ? "small" : "medium"}
               />
             </Grid>
 
@@ -245,6 +270,7 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
                 name="college"
                 value={formData.college}
                 onChange={handleChange}
+                size={isMobile ? "small" : "medium"}
               />
             </Grid>
 
@@ -257,6 +283,7 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
                 name="department"
                 value={formData.department}
                 onChange={handleChange}
+                size={isMobile ? "small" : "medium"}
               >
                 {academicData.departments.map(option => (
                   <MenuItem key={option} value={option}>
@@ -275,6 +302,7 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
                 name="year"
                 value={formData.year}
                 onChange={handleChange}
+                size={isMobile ? "small" : "medium"}
               >
                 {academicData.years.map(option => (
                   <MenuItem key={option} value={option}>
@@ -292,6 +320,7 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
                 name="rollNumber"
                 value={formData.rollNumber}
                 onChange={handleChange}
+                size={isMobile ? "small" : "medium"}
               />
             </Grid>
 
@@ -304,6 +333,7 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
                 value={formData.phoneNumber}
                 onChange={handleChange}
                 inputProps={{ pattern: '[0-9]{10}' }}
+                size={isMobile ? "small" : "medium"}
               />
             </Grid>
           </Grid>
@@ -312,17 +342,17 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
           {quiz?.participationMode === 'team' && formData.teamMembers.length > 0 && (
             <Box sx={{ mt: 3 }}>
               <Divider sx={{ mb: 2 }}>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                   Team Members ({formData.teamMembers.length} additional members)
                 </Typography>
               </Divider>
 
               {formData.teamMembers.map((member, index) => (
-                <Box key={index} sx={{ mb: 3, p: 2, border: '1px solid #e0e0e0', borderRadius: 1 }}>
-                  <Typography variant="subtitle2" sx={{ mb: 2 }}>
+                <Box key={index} sx={{ mb: 3, p: { xs: 1, sm: 2 }, border: '1px solid #e0e0e0', borderRadius: 1 }}>
+                  <Typography variant="subtitle2" sx={{ mb: 2, fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                     Member {index + 2}
                   </Typography>
-                  <Grid container spacing={2}>
+                  <Grid container spacing={isMobile ? 1 : 2}>
                     <Grid item xs={12}>
                       <TextField
                         required
@@ -330,6 +360,7 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
                         label="Full Name"
                         value={member.name}
                         onChange={(e) => handleTeamMemberChange(index, 'name', e.target.value)}
+                        size={isMobile ? "small" : "medium"}
                       />
                     </Grid>
 
@@ -341,6 +372,7 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
                         type="email"
                         value={member.email}
                         onChange={(e) => handleTeamMemberChange(index, 'email', e.target.value)}
+                        size={isMobile ? "small" : "medium"}
                       />
                     </Grid>
 
@@ -351,6 +383,7 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
                         label="College/Institution"
                         value={member.college}
                         onChange={(e) => handleTeamMemberChange(index, 'college', e.target.value)}
+                        size={isMobile ? "small" : "medium"}
                       />
                     </Grid>
 
@@ -362,6 +395,7 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
                         label="Department"
                         value={member.department}
                         onChange={(e) => handleTeamMemberChange(index, 'department', e.target.value)}
+                        size={isMobile ? "small" : "medium"}
                       >
                         {academicData.departments.map(option => (
                           <MenuItem key={option} value={option}>
@@ -379,6 +413,7 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
                         label="Year"
                         value={member.year}
                         onChange={(e) => handleTeamMemberChange(index, 'year', e.target.value)}
+                        size={isMobile ? "small" : "medium"}
                       >
                         {academicData.years.map(option => (
                           <MenuItem key={option} value={option}>
@@ -395,6 +430,7 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
                         label="Roll Number"
                         value={member.rollNumber}
                         onChange={(e) => handleTeamMemberChange(index, 'rollNumber', e.target.value)}
+                        size={isMobile ? "small" : "medium"}
                       />
                     </Grid>
 
@@ -406,6 +442,7 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
                         value={member.phoneNumber}
                         onChange={(e) => handleTeamMemberChange(index, 'phoneNumber', e.target.value)}
                         inputProps={{ pattern: '[0-9]{10}' }}
+                        size={isMobile ? "small" : "medium"}
                       />
                     </Grid>
                   </Grid>
@@ -414,33 +451,35 @@ const EventQuizRegistration = ({ open, onClose, quizId, onSuccess }) => {
             </Box>
           )}
         </DialogContent>
-        
-        <DialogActions>
-          {success ? (
-            <Button
-              onClick={() => {
-                onClose();
-                setSuccess(false);
-              }}
-              variant="contained"
-              color="success"
-              fullWidth
-            >
-              Close
-            </Button>
-          ) : (
-            <>
-              <Button onClick={onClose}>Cancel</Button>
-              <Button
-                type="submit"
-                variant="contained"
-                color="primary"
-                disabled={loading}
-              >
-                {loading ? 'Registering...' : 'Register'}
-              </Button>
-            </>
-          )}
+        <DialogActions sx={{ 
+          p: { xs: 1.5, sm: 2 },
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: { xs: 1, sm: 0 }
+        }}>
+          <Button 
+            onClick={onClose}
+            fullWidth={isMobile}
+            size={isMobile ? "small" : "medium"}
+            sx={{ 
+              fontSize: { xs: '0.875rem', sm: '1rem' },
+              py: { xs: 1, sm: 1.5 }
+            }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            type="submit"
+            variant="contained"
+            disabled={loading}
+            fullWidth={isMobile}
+            size={isMobile ? "small" : "medium"}
+            sx={{ 
+              fontSize: { xs: '0.875rem', sm: '1rem' },
+              py: { xs: 1, sm: 1.5 }
+            }}
+          >
+            {loading ? 'Registering...' : 'Register'}
+          </Button>
         </DialogActions>
       </form>
     </Dialog>

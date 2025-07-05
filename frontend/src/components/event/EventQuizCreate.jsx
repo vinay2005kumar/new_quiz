@@ -30,6 +30,8 @@ import {
   Radio,
   RadioGroup,
   FormHelperText,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import { ArrowBack as ArrowBackIcon, } from '@mui/icons-material'
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
@@ -46,6 +48,8 @@ const EventQuizCreate = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [activeStep, setActiveStep] = useState(0);
@@ -1108,27 +1112,59 @@ const EventQuizCreate = () => {
   };
 
   return (
-    <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-      <Paper sx={{ p: 3 }}>
+    <Container
+      maxWidth="md"
+      sx={{
+        mt: { xs: 2, sm: 3, md: 4 },
+        mb: { xs: 2, sm: 3, md: 4 },
+        px: { xs: 1, sm: 2, md: 3 }
+      }}
+    >
+      <Paper sx={{
+        p: { xs: 2, sm: 3 },
+        borderRadius: isMobile ? 1 : 2
+      }}>
         <Button
-          startIcon={<ArrowBackIcon />}
+          startIcon={<ArrowBackIcon sx={{ fontSize: { xs: '1rem', sm: '1.2rem' } }} />}
           onClick={() => navigate(-1)}
-          sx={{ mb: 2 }}
+          sx={{
+            mb: { xs: 1.5, sm: 2 },
+            fontSize: { xs: '0.875rem', sm: '1rem' },
+            py: { xs: 0.75, sm: 1 }
+          }}
         >
           Back
         </Button>
-        <Typography variant="h5" gutterBottom>
+        <Typography
+          variant={isMobile ? "h6" : "h5"}
+          gutterBottom
+          sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' } }}
+        >
           Create Event Quiz
         </Typography>
 
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
+          <Alert
+            severity="error"
+            sx={{
+              mb: { xs: 1.5, sm: 2 },
+              fontSize: { xs: '0.875rem', sm: '1rem' }
+            }}
+          >
             {error}
           </Alert>
         )}
 
-        <Box sx={{ width: '100%', mb: 3 }}>
-          <Stepper activeStep={activeStep}>
+        <Box sx={{ width: '100%', mb: { xs: 2, sm: 3 } }}>
+          <Stepper
+            activeStep={activeStep}
+            orientation={isMobile ? "vertical" : "horizontal"}
+            sx={{
+              '& .MuiStepLabel-label': {
+                fontSize: { xs: '0.875rem', sm: '1rem' }
+              }
+            }}
+          >
             {steps.map((label) => (
               <Step key={label}>
                 <StepLabel>{label}</StepLabel>

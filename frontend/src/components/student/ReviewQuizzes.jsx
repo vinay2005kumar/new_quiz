@@ -13,7 +13,9 @@ import {
   Alert,
   Paper,
   Stack,
-  Chip
+  Chip,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import AssessmentIcon from '@mui/icons-material/Assessment';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
@@ -28,6 +30,8 @@ const ReviewQuizzes = () => {
   const [error, setError] = useState('');
   const { user } = useAuth();
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   useEffect(() => {
     fetchSubmittedQuizzes();
@@ -136,18 +140,46 @@ const ReviewQuizzes = () => {
     else if (percentage >= 50) performanceColor = 'warning';
 
     return (
-      <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <CardContent sx={{ flexGrow: 1 }}>
-          <Typography variant="h6" gutterBottom>
+      <Card sx={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        borderRadius: isMobile ? 1 : 2
+      }}>
+        <CardContent sx={{
+          flexGrow: 1,
+          p: isMobile ? 1.5 : 2
+        }}>
+          <Typography
+            variant={isMobile ? "subtitle1" : "h6"}
+            gutterBottom
+            sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}
+          >
             {quiz.title}
           </Typography>
-          <Stack spacing={1}>
-            <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center' }}>
-              <ClassIcon sx={{ mr: 1, fontSize: '1.2rem' }} />
+          <Stack spacing={isMobile ? 0.5 : 1}>
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                fontSize: { xs: '0.75rem', sm: '0.875rem' }
+              }}
+            >
+              <ClassIcon sx={{ mr: 1, fontSize: { xs: '1rem', sm: '1.2rem' } }} />
               Subject: {getSubjectDisplay(quiz.subject)}
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center' }}>
-              <AccessTimeIcon sx={{ mr: 1, fontSize: '1.2rem' }} />
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                fontSize: { xs: '0.75rem', sm: '0.875rem' }
+              }}
+            >
+              <AccessTimeIcon sx={{ mr: 1, fontSize: { xs: '1rem', sm: '1.2rem' } }} />
               Duration: {quiz.duration} minutes
             </Typography>
             <Typography variant="body2" sx={{
@@ -186,13 +218,17 @@ const ReviewQuizzes = () => {
             </Box>
           </Stack>
         </CardContent>
-        <CardActions>
+        <CardActions sx={{ p: isMobile ? 1 : 2 }}>
           <Button
             fullWidth
             variant="contained"
             color="primary"
-            startIcon={<AssessmentIcon />}
+            startIcon={<AssessmentIcon sx={{ fontSize: { xs: '1rem', sm: '1.2rem' } }} />}
             onClick={() => navigate(`/student/quizzes/${quiz._id}/review`)}
+            sx={{
+              fontSize: { xs: '0.875rem', sm: '1rem' },
+              py: { xs: 1, sm: 1.5 }
+            }}
           >
             View Details
           </Button>
@@ -210,28 +246,63 @@ const ReviewQuizzes = () => {
   }
 
   return (
-    <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
-      <Typography variant="h4" gutterBottom>
+    <Container
+      maxWidth="xl"
+      sx={{
+        mt: { xs: 2, sm: 3, md: 4 },
+        mb: { xs: 2, sm: 3, md: 4 },
+        px: { xs: 1, sm: 2, md: 3 }
+      }}
+    >
+      <Typography
+        variant={isMobile ? "h5" : "h4"}
+        gutterBottom
+        sx={{
+          fontSize: { xs: '1.5rem', sm: '2rem', md: '2.125rem' },
+          mb: { xs: 2, sm: 3 }
+        }}
+      >
         Review Quizzes
       </Typography>
-      
+
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert
+          severity="error"
+          sx={{
+            mb: { xs: 1.5, sm: 2 },
+            fontSize: { xs: '0.875rem', sm: '1rem' }
+          }}
+        >
           {error}
         </Alert>
       )}
 
       {submittedQuizzes.length === 0 ? (
-        <Paper sx={{ p: 3, textAlign: 'center' }}>
-          <Typography variant="h6" color="text.secondary">
+        <Paper sx={{
+          p: { xs: 2, sm: 3 },
+          textAlign: 'center',
+          borderRadius: isMobile ? 1 : 2
+        }}>
+          <Typography
+            variant={isMobile ? "subtitle1" : "h6"}
+            color="text.secondary"
+            sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}
+          >
             No submitted quizzes found
           </Typography>
-          <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
+          <Typography
+            variant="body1"
+            color="text.secondary"
+            sx={{
+              mt: 1,
+              fontSize: { xs: '0.875rem', sm: '1rem' }
+            }}
+          >
             Once you complete quizzes, they will appear here for review
           </Typography>
         </Paper>
       ) : (
-        <Grid container spacing={3}>
+        <Grid container spacing={isMobile ? 2 : 3}>
           {submittedQuizzes.map((submission) => (
             <Grid item xs={12} sm={6} md={4} key={submission.quizId}>
               {renderQuizCard(submission)}

@@ -9,7 +9,10 @@ import {
   CircularProgress,
   Box,
   TextField,
-  Paper
+  Paper,
+  useTheme,
+  useMediaQuery,
+  Stack
 } from '@mui/material';
 import { Add as AddIcon, Refresh as RefreshIcon } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
@@ -19,6 +22,9 @@ import EventQuizCard from './EventQuizCard';
 const EventQuizList = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  
   const [quizzes, setQuizzes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -114,18 +120,45 @@ const EventQuizList = () => {
   }
 
   return (
-    <Container maxWidth={false} sx={{ mt: 4, mb: 4, px: { xs: 2, sm: 3, md: 4 } }}>
+    <Container 
+      maxWidth={false} 
+      sx={{ 
+        mt: { xs: 2, sm: 3, md: 4 }, 
+        mb: { xs: 2, sm: 3, md: 4 }, 
+        px: { xs: 1, sm: 2, md: 4 } 
+      }}
+    >
       <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-          <Typography variant="h4" component="h1">
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: { xs: 'column', sm: 'row' },
+          justifyContent: 'space-between', 
+          alignItems: { xs: 'stretch', sm: 'center' }, 
+          mb: { xs: 2, sm: 3, md: 4 },
+          gap: { xs: 1, sm: 0 }
+        }}>
+          <Typography 
+            variant={isMobile ? "h5" : "h4"} 
+            component="h1"
+            sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
+          >
             Event Quizzes
           </Typography>
-          <Box sx={{ display: 'flex', gap: 2 }}>
+          <Stack 
+            direction={isMobile ? "column" : "row"} 
+            spacing={isMobile ? 1 : 2}
+            sx={{ width: { xs: '100%', sm: 'auto' } }}
+          >
             <Button
               variant="outlined"
               startIcon={<RefreshIcon />}
               onClick={fetchQuizzes}
               disabled={loading}
+              fullWidth={isMobile}
+              sx={{ 
+                fontSize: { xs: '0.875rem', sm: '1rem' },
+                py: { xs: 1, sm: 1.5 }
+              }}
             >
               Refresh
             </Button>
@@ -135,11 +168,16 @@ const EventQuizList = () => {
                 color="primary"
                 startIcon={<AddIcon />}
                 onClick={() => navigate('/event/quiz/create')}
+                fullWidth={isMobile}
+                sx={{ 
+                  fontSize: { xs: '0.875rem', sm: '1rem' },
+                  py: { xs: 1, sm: 1.5 }
+                }}
               >
                 Create Quiz
               </Button>
             )}
-          </Box>
+          </Stack>
         </Box>
 
         {error && (
@@ -155,7 +193,11 @@ const EventQuizList = () => {
         )}
 
         {/* Search Filter */}
-        <Paper sx={{ p: 2, mb: 3 }}>
+        <Paper sx={{ 
+          p: { xs: 1.5, sm: 2 }, 
+          mb: { xs: 2, sm: 3 },
+          borderRadius: { xs: 1, sm: 2 }
+        }}>
           <TextField
             fullWidth
             label="Search quizzes by title..."
@@ -163,6 +205,7 @@ const EventQuizList = () => {
             value={searchTitle}
             onChange={(e) => setSearchTitle(e.target.value)}
             placeholder="Enter quiz title to search"
+            size={isMobile ? "small" : "medium"}
             InputProps={{
               startAdornment: (
                 <Box sx={{ mr: 1, display: 'flex', alignItems: 'center' }}>
@@ -180,10 +223,11 @@ const EventQuizList = () => {
         ) : (
           <Grid
             container
-            spacing={3}
+            spacing={isMobile ? 2 : 3}
             sx={{
               width: '100%',
-              margin: '0 auto'
+              margin: '0 auto',
+              overflow: 'hidden'
             }}
           >
             {getFilteredQuizzes().map((quiz) => (

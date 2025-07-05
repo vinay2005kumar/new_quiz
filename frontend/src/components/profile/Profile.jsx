@@ -20,7 +20,10 @@ import {
   DialogActions,
   IconButton,
   Tooltip,
-  Chip
+  Chip,
+  useTheme,
+  useMediaQuery,
+  Stack
 } from '@mui/material';
 import {
   Edit as EditIcon,
@@ -34,6 +37,9 @@ import api from '../../config/axios';
 
 const Profile = () => {
   const { user, updateUser } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -208,24 +214,51 @@ const Profile = () => {
   };
 
   return (
-    <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-      <Paper sx={{ p: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h4">
+    <Container 
+      maxWidth="md" 
+      sx={{ 
+        mt: { xs: 2, sm: 3, md: 4 }, 
+        mb: { xs: 2, sm: 3, md: 4 },
+        px: { xs: 1, sm: 2, md: 3 }
+      }}
+    >
+      <Paper sx={{ 
+        p: { xs: 2, sm: 3 },
+        borderRadius: { xs: 1, sm: 2 }
+      }}>
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: { xs: 'column', sm: 'row' },
+          justifyContent: 'space-between', 
+          alignItems: { xs: 'stretch', sm: 'center' }, 
+          mb: { xs: 2, sm: 3 },
+          gap: { xs: 1, sm: 0 }
+        }}>
+          <Typography 
+            variant={isMobile ? "h5" : "h4"}
+            sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
+          >
             Profile Settings
           </Typography>
-          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          <Box sx={{ 
+            display: 'flex', 
+            gap: 1, 
+            alignItems: 'center',
+            justifyContent: { xs: 'space-between', sm: 'flex-end' }
+          }}>
             <Chip
               label={user?.role?.toUpperCase()}
               color="primary"
               variant="outlined"
-              size="small"
+              size={isMobile ? "small" : "small"}
+              sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
             />
             {canEditProfile() && (
               <Tooltip title={editMode ? "Cancel Edit" : "Edit Profile"}>
                 <IconButton
                   onClick={handleEditToggle}
                   className={editMode ? "delete-icon" : "edit-icon"}
+                  size={isMobile ? "small" : "medium"}
                 >
                   {editMode ? <CancelIcon /> : <EditIcon />}
                 </IconButton>
@@ -238,12 +271,16 @@ const Profile = () => {
         {success && <Alert severity="success" sx={{ mb: 2 }}>{success}</Alert>}
 
         {/* Profile Information Section */}
-        <Typography variant="h5" gutterBottom>
+        <Typography 
+          variant={isMobile ? "h6" : "h5"} 
+          gutterBottom
+          sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}
+        >
           Profile Information
         </Typography>
 
         <Box component="form" onSubmit={handleProfileUpdate} sx={{ mb: 4 }}>
-          <Grid container spacing={3}>
+          <Grid container spacing={isMobile ? 2 : 3}>
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
@@ -253,6 +290,7 @@ const Profile = () => {
                 onChange={handleChange}
                 disabled={!editMode || !canEditProfile()}
                 required
+                size={isMobile ? "small" : "medium"}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
@@ -265,6 +303,7 @@ const Profile = () => {
                 onChange={handleChange}
                 disabled={!editMode || !canEditProfile()}
                 required
+                size={isMobile ? "small" : "medium"}
               />
             </Grid>
 
@@ -278,6 +317,7 @@ const Profile = () => {
                   value={formData.department}
                   onChange={handleChange}
                   disabled={!editMode}
+                  size={isMobile ? "small" : "medium"}
                 />
               </Grid>
             )}
@@ -292,6 +332,7 @@ const Profile = () => {
                     value={formData.departments}
                     onChange={handleDepartmentChange}
                     label="Departments"
+                    size={isMobile ? "small" : "medium"}
                     renderValue={(selected) => (
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                         {selected.map((value) => (
@@ -312,33 +353,58 @@ const Profile = () => {
 
             {editMode && canEditProfile() && (
               <Grid item xs={12}>
-                <Button
-                  type="submit"
-                  variant="contained"
-                  disabled={loading}
-                  startIcon={<SaveIcon />}
-                  className="add-icon"
-                  sx={{ mr: 2 }}
+                <Stack 
+                  direction={isMobile ? "column" : "row"} 
+                  spacing={isMobile ? 1 : 2}
+                  sx={{ mt: 1 }}
                 >
-                  {loading ? <CircularProgress size={24} /> : 'Save Changes'}
-                </Button>
-                <Button
-                  variant="outlined"
-                  onClick={handleEditToggle}
-                  disabled={loading}
-                >
-                  Cancel
-                </Button>
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    disabled={loading}
+                    startIcon={<SaveIcon />}
+                    className="add-icon"
+                    fullWidth={isMobile}
+                    sx={{ 
+                      fontSize: { xs: '0.875rem', sm: '1rem' },
+                      py: { xs: 1, sm: 1.5 }
+                    }}
+                  >
+                    {loading ? <CircularProgress size={24} /> : 'Save Changes'}
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    onClick={handleEditToggle}
+                    disabled={loading}
+                    fullWidth={isMobile}
+                    sx={{ 
+                      fontSize: { xs: '0.875rem', sm: '1rem' },
+                      py: { xs: 1, sm: 1.5 }
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </Stack>
               </Grid>
             )}
           </Grid>
         </Box>
 
-        <Divider sx={{ my: 4 }} />
+        <Divider sx={{ my: { xs: 3, sm: 4 } }} />
 
         {/* Password Change Section */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h5">
+        <Box sx={{ 
+          display: 'flex', 
+          flexDirection: { xs: 'column', sm: 'row' },
+          justifyContent: 'space-between', 
+          alignItems: { xs: 'stretch', sm: 'center' }, 
+          mb: { xs: 2, sm: 3 },
+          gap: { xs: 1, sm: 0 }
+        }}>
+          <Typography 
+            variant={isMobile ? "h6" : "h5"}
+            sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}
+          >
             Security Settings
           </Typography>
           <Button
@@ -346,12 +412,24 @@ const Profile = () => {
             onClick={() => setPasswordDialogOpen(true)}
             startIcon={<EditIcon />}
             className="settings-icon"
+            fullWidth={isMobile}
+            sx={{ 
+              fontSize: { xs: '0.875rem', sm: '1rem' },
+              py: { xs: 1, sm: 1.5 }
+            }}
           >
             Change Password
           </Button>
         </Box>
 
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+        <Typography 
+          variant="body2" 
+          color="text.secondary" 
+          sx={{ 
+            mb: 3,
+            fontSize: { xs: '0.75rem', sm: '0.875rem' }
+          }}
+        >
           {user?.role === 'student' || user?.role === 'event'
             ? 'As a student/event user, you can only update your password. Contact admin for other changes.'
             : 'You can change your password anytime for security purposes.'

@@ -51,7 +51,8 @@ import {
   Quiz as QuizIcon,
   PictureAsPdf as PdfIcon,
   TableChart as ExcelIcon,
-  Delete as DeleteIcon
+  Delete as DeleteIcon,
+  Close as CloseIcon
 } from '@mui/icons-material';
 import api from '../../config/axios';
 import { toast } from 'react-toastify';
@@ -60,11 +61,18 @@ import useAcademicFilters from '../../hooks/useAcademicFilters';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '@mui/material/styles';
+import { useMediaQuery } from '@mui/material';
 
 const EventQuizSubmissions = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   // Reusable text field style for edit mode
   const editTextFieldStyle = {
@@ -882,57 +890,120 @@ const EventQuizSubmissions = () => {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Paper sx={{ p: 3 }}>
-        <Box sx={{ mb: 3 }}>
+    <Container 
+      maxWidth="lg" 
+      sx={{ 
+        mt: { xs: 2, sm: 3, md: 4 }, 
+        mb: { xs: 2, sm: 3, md: 4 },
+        px: { xs: 1, sm: 2, md: 3 }
+      }}
+    >
+      <Paper sx={{ 
+        p: { xs: 2, sm: 3 },
+        borderRadius: { xs: 1, sm: 2 }
+      }}>
+        <Box sx={{ mb: { xs: 2, sm: 3 } }}>
           <Button
             startIcon={<ArrowBackIcon />}
             onClick={() => navigate(-1)}
             sx={{ mb: 2 }}
+            size={isMobile ? "small" : "medium"}
           >
             Back
           </Button>
 
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h4" gutterBottom>
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: { xs: 'column', sm: 'row' },
+            justifyContent: 'space-between', 
+            alignItems: { xs: 'stretch', sm: 'center' }, 
+            mb: 2,
+            gap: { xs: 1, sm: 0 }
+          }}>
+            <Typography 
+              variant={isMobile ? "h5" : "h4"} 
+              gutterBottom
+              sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
+            >
               {quiz?.title} - {showShortlisted ? 'Shortlisted Candidates' : 'Results & Registrations'}
             </Typography>
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+            <Box sx={{
+              display: 'flex',
+              flexDirection: { xs: 'row', sm: 'row' },
+              gap: { xs: 0.5, sm: 2 },
+              flexWrap: 'wrap',
+              width: { xs: '100%', sm: 'auto' }
+            }}>
               {/* New Action Buttons */}
               <Button
                 variant="contained"
                 color="primary"
-                startIcon={<DownloadIcon />}
+                startIcon={isMobile ? null : <DownloadIcon />}
                 onClick={(e) => setDownloadMenuAnchor(e.currentTarget)}
+                size="small"
+                sx={{
+                  fontSize: { xs: '0.75rem', sm: '1rem' },
+                  py: { xs: 0.5, sm: 1.5 },
+                  px: { xs: 1, sm: 2 },
+                  minWidth: { xs: 'auto', sm: 'auto' },
+                  flex: { xs: 1, sm: 'none' }
+                }}
               >
-                Download
+                {isMobile ? 'Download' : 'Download'}
               </Button>
               <Button
                 variant="contained"
                 color="secondary"
-                startIcon={<EmailIcon />}
+                startIcon={isMobile ? null : <EmailIcon />}
                 onClick={handleOpenEmailDialog}
                 disabled={(showShortlisted ? shortlistedCandidates : sortedStudents).length === 0}
+                size="small"
+                sx={{
+                  fontSize: { xs: '0.75rem', sm: '1rem' },
+                  py: { xs: 0.5, sm: 1.5 },
+                  px: { xs: 1, sm: 2 },
+                  minWidth: { xs: 'auto', sm: 'auto' },
+                  flex: { xs: 1, sm: 'none' },
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}
               >
-                Send Email ({(showShortlisted ? shortlistedCandidates : sortedStudents).length})
+                {isMobile ? 'Email' : `Send Email (${(showShortlisted ? shortlistedCandidates : sortedStudents).length})`}
               </Button>
               <Button
                 variant="contained"
                 color="success"
-                startIcon={<QuizIcon />}
+                startIcon={isMobile ? null : <QuizIcon />}
                 onClick={handleCreateQuiz}
                 disabled={(showShortlisted ? shortlistedCandidates : sortedStudents).length === 0}
+                size="small"
+                sx={{
+                  fontSize: { xs: '0.75rem', sm: '1rem' },
+                  py: { xs: 0.5, sm: 1.5 },
+                  px: { xs: 1, sm: 2 },
+                  minWidth: { xs: 'auto', sm: 'auto' },
+                  flex: { xs: 1, sm: 'none' }
+                }}
               >
-                Create Quiz
+                {isMobile ? 'Quiz' : 'Create Quiz'}
               </Button>
               <Button
                 variant="outlined"
                 color="error"
-                startIcon={<DeleteIcon />}
+                startIcon={isMobile ? null : <DeleteIcon />}
                 onClick={handleViewDeletedUsers}
                 disabled={loadingDeletedUsers}
+                size="small"
+                sx={{
+                  fontSize: { xs: '0.75rem', sm: '1rem' },
+                  py: { xs: 0.5, sm: 1.5 },
+                  px: { xs: 1, sm: 2 },
+                  minWidth: { xs: 'auto', sm: 'auto' },
+                  flex: { xs: 1, sm: 'none' }
+                }}
               >
-                {loadingDeletedUsers ? 'Loading...' : 'Deleted Users'}
+                {loadingDeletedUsers ? 'Loading...' : (isMobile ? 'Deleted' : 'Deleted Users')}
               </Button>
 
               {/* Existing Buttons */}
@@ -941,6 +1012,12 @@ const EventQuizSubmissions = () => {
                 onClick={fetchData}
                 startIcon={<RefreshIcon />}
                 disabled={loading}
+                fullWidth={isMobile}
+                size={isMobile ? "small" : "medium"}
+                sx={{ 
+                  fontSize: { xs: '0.875rem', sm: '1rem' },
+                  py: { xs: 1, sm: 1.5 }
+                }}
               >
                 Refresh
               </Button>
@@ -948,6 +1025,12 @@ const EventQuizSubmissions = () => {
                 variant={showShortlisted ? "outlined" : "contained"}
                 onClick={() => setShowShortlisted(false)}
                 startIcon={<ListIcon />}
+                fullWidth={isMobile}
+                size={isMobile ? "small" : "medium"}
+                sx={{ 
+                  fontSize: { xs: '0.875rem', sm: '1rem' },
+                  py: { xs: 1, sm: 1.5 }
+                }}
               >
                 All Results ({students.length})
               </Button>
@@ -956,43 +1039,127 @@ const EventQuizSubmissions = () => {
                 onClick={() => setShowShortlisted(true)}
                 startIcon={<PersonAddIcon />}
                 color="success"
+                fullWidth={isMobile}
+                size={isMobile ? "small" : "medium"}
+                sx={{ 
+                  fontSize: { xs: '0.875rem', sm: '1rem' },
+                  py: { xs: 1, sm: 1.5 }
+                }}
               >
                 Shortlisted ({shortlistedCandidates.length})
               </Button>
             </Box>
           </Box>
 
-          <Grid container spacing={2} sx={{ mt: 2 }}>
-            <Grid item xs={12} sm={2.4}>
-              <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'primary.light', color: 'white' }}>
-                <Typography variant="h6">{participationCounts.totalRegistered}</Typography>
-                <Typography variant="body2">Total Registered</Typography>
+          <Grid container spacing={isMobile ? 1 : 2} sx={{ mt: 2 }}>
+            <Grid item xs={6} sm={2.4}>
+              <Paper sx={{ 
+                p: { xs: 1, sm: 2 }, 
+                textAlign: 'center', 
+                bgcolor: 'primary.light', 
+                color: 'white',
+                borderRadius: { xs: 1, sm: 2 }
+              }}>
+                <Typography 
+                  variant={isMobile ? "h6" : "h6"}
+                  sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}
+                >
+                  {participationCounts.totalRegistered}
+                </Typography>
+                <Typography 
+                  variant="body2"
+                  sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
+                >
+                  Total Registered
+                </Typography>
+              </Paper>
+            </Grid>
+            <Grid item xs={6} sm={2.4}>
+              <Paper sx={{ 
+                p: { xs: 1, sm: 2 }, 
+                textAlign: 'center', 
+                bgcolor: 'success.light', 
+                color: 'white',
+                borderRadius: { xs: 1, sm: 2 }
+              }}>
+                <Typography 
+                  variant={isMobile ? "h6" : "h6"}
+                  sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}
+                >
+                  {participationCounts.totalAttempted}
+                </Typography>
+                <Typography 
+                  variant="body2"
+                  sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
+                >
+                  Attempted Quiz
+                </Typography>
+              </Paper>
+            </Grid>
+            <Grid item xs={6} sm={2.4}>
+              <Paper sx={{ 
+                p: { xs: 1, sm: 2 }, 
+                textAlign: 'center', 
+                bgcolor: 'warning.light', 
+                color: 'white',
+                borderRadius: { xs: 1, sm: 2 }
+              }}>
+                <Typography 
+                  variant={isMobile ? "h6" : "h6"}
+                  sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}
+                >
+                  {participationCounts.registeredNotAttempted}
+                </Typography>
+                <Typography 
+                  variant="body2"
+                  sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
+                >
+                  Registered Only
+                </Typography>
+              </Paper>
+            </Grid>
+            <Grid item xs={6} sm={2.4}>
+              <Paper sx={{ 
+                p: { xs: 1, sm: 2 }, 
+                textAlign: 'center', 
+                bgcolor: 'info.light', 
+                color: 'white',
+                borderRadius: { xs: 1, sm: 2 }
+              }}>
+                <Typography 
+                  variant={isMobile ? "h6" : "h6"}
+                  sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}
+                >
+                  {shortlistedCandidates.length}
+                </Typography>
+                <Typography 
+                  variant="body2"
+                  sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
+                >
+                  Shortlisted
+                </Typography>
               </Paper>
             </Grid>
             <Grid item xs={12} sm={2.4}>
-              <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'success.light', color: 'white' }}>
-                <Typography variant="h6">{participationCounts.totalAttempted}</Typography>
-                <Typography variant="body2">Attempted Quiz</Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={12} sm={2.4}>
-              <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'warning.light', color: 'white' }}>
-                <Typography variant="h6">{participationCounts.registeredNotAttempted}</Typography>
-                <Typography variant="body2">Registered Only</Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={12} sm={2.4}>
-              <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'info.light', color: 'white' }}>
-                <Typography variant="h6">{shortlistedCandidates.length}</Typography>
-                <Typography variant="body2">Shortlisted</Typography>
-              </Paper>
-            </Grid>
-            <Grid item xs={12} sm={2.4}>
-              <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'secondary.light', color: 'white' }}>
-                <Typography variant="h6">
+              <Paper sx={{ 
+                p: { xs: 1, sm: 2 }, 
+                textAlign: 'center', 
+                bgcolor: 'secondary.light', 
+                color: 'white',
+                borderRadius: { xs: 1, sm: 2 }
+              }}>
+                <Typography 
+                  variant={isMobile ? "h6" : "h6"}
+                  sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}
+                >
                   {participationCounts.filteredCount}
                 </Typography>
-                <Typography variant="body2">Filtered Results</Typography>
+                <Typography 
+                  variant="body2"
+                  sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
+                >
+                  Filtered Results
+                </Typography>
               </Paper>
             </Grid>
           </Grid>
@@ -1073,25 +1240,58 @@ const EventQuizSubmissions = () => {
 
         {/* Bulk Actions */}
         {selectedStudents.size > 0 && (
-          <Box sx={{ mb: 2, p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="body1">
-                {selectedStudents.size} student{selectedStudents.size !== 1 ? 's' : ''} selected
+          <Box sx={{ 
+            mb: 2, 
+            p: { xs: 1.5, sm: 2 }, 
+            bgcolor: 'action.hover', 
+            borderRadius: 1 
+          }}>
+            <Box sx={{
+              display: 'flex',
+              flexDirection: { xs: 'row', sm: 'row' },
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: { xs: 1, sm: 2 }
+            }}>
+              <Typography
+                variant="body1"
+                sx={{
+                  fontSize: { xs: '0.875rem', sm: '1rem' },
+                  flex: 1
+                }}
+              >
+                {selectedStudents.size} selected
               </Typography>
               <Button
                 variant="contained"
                 color="warning"
-                startIcon={<QuizIcon />}
+                startIcon={isMobile ? null : <QuizIcon />}
                 onClick={handleBulkReattempt}
+                size="small"
+                sx={{
+                  fontSize: { xs: '0.75rem', sm: '1rem' },
+                  py: { xs: 0.5, sm: 1.5 },
+                  px: { xs: 1.5, sm: 2 },
+                  minWidth: { xs: 'auto', sm: 'auto' },
+                  whiteSpace: 'nowrap'
+                }}
               >
-                Allow Reattempt for Selected
+                {isMobile ? 'Reattempt' : 'Allow Reattempt for Selected'}
               </Button>
             </Box>
           </Box>
         )}
 
-        <TableContainer>
-          <Table>
+        {/* Responsive Table View */}
+        <TableContainer
+          component={Paper}
+          sx={{
+            mt: 2,
+            overflowX: 'auto',
+            maxWidth: '100%'
+          }}
+        >
+          <Table stickyHeader size={isMobile ? "small" : "medium"}>
             <TableHead>
               <TableRow>
                 <TableCell padding="checkbox">
@@ -1100,10 +1300,11 @@ const EventQuizSubmissions = () => {
                     checked={sortedStudents.filter(s => s.hasSubmitted).length > 0 && selectedStudents.size === sortedStudents.filter(s => s.hasSubmitted).length}
                     onChange={handleSelectAll}
                     disabled={sortedStudents.filter(s => s.hasSubmitted).length === 0}
+                    size={isMobile ? "small" : "medium"}
                   />
                 </TableCell>
-                <TableCell>Shortlist</TableCell>
-                <TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Shortlist</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                   <Tooltip title="Sort by Name">
                     <IconButton size="small" onClick={() => requestSort('name')}>
                       {renderSortIcon('name')}
@@ -1111,7 +1312,7 @@ const EventQuizSubmissions = () => {
                   </Tooltip>
                   Name
                 </TableCell>
-                <TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                   <Tooltip title="Sort by Email">
                     <IconButton size="small" onClick={() => requestSort('email')}>
                       {renderSortIcon('email')}
@@ -1119,23 +1320,25 @@ const EventQuizSubmissions = () => {
                   </Tooltip>
                   Email
                 </TableCell>
-                <TableCell>
-                  <Tooltip title="Sort by College">
-                    <IconButton size="small" onClick={() => requestSort('college')}>
-                      {renderSortIcon('college')}
-                    </IconButton>
-                  </Tooltip>
-                  College
-                </TableCell>
-                <TableCell>
+                {!isMobile && (
+                  <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                    <Tooltip title="Sort by College">
+                      <IconButton size="small" onClick={() => requestSort('college')}>
+                        {renderSortIcon('college')}
+                      </IconButton>
+                    </Tooltip>
+                    College
+                  </TableCell>
+                )}
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                   <Tooltip title="Sort by Department">
                     <IconButton size="small" onClick={() => requestSort('department')}>
                       {renderSortIcon('department')}
                     </IconButton>
                   </Tooltip>
-                  Department
+                  {isMobile ? 'Dept.' : 'Department'}
                 </TableCell>
-                <TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                   <Tooltip title="Sort by Year">
                     <IconButton size="small" onClick={() => requestSort('year')}>
                       {renderSortIcon('year')}
@@ -1143,15 +1346,15 @@ const EventQuizSubmissions = () => {
                   </Tooltip>
                   Year
                 </TableCell>
-                {quiz?.participationMode === 'team' && (
+                {quiz?.participationMode === 'team' && !isMobile && (
                   <>
-                    <TableCell>Team Name</TableCell>
-                    <TableCell>Team Members</TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Team Name</TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Team Members</TableCell>
                   </>
                 )}
-                <TableCell>Participant Type</TableCell>
-                <TableCell>Attempt Status</TableCell>
-                <TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Type</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Status</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                   <Tooltip title="Sort by Score">
                     <IconButton size="small" onClick={() => requestSort('score')}>
                       {renderSortIcon('score')}
@@ -1159,7 +1362,7 @@ const EventQuizSubmissions = () => {
                   </Tooltip>
                   Score
                 </TableCell>
-                <TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                   <Tooltip title="Sort by Duration">
                     <IconButton size="small" onClick={() => requestSort('duration')}>
                       {renderSortIcon('duration')}
@@ -1167,10 +1370,10 @@ const EventQuizSubmissions = () => {
                   </Tooltip>
                   Duration
                 </TableCell>
-                <TableCell>Details</TableCell>
-                <TableCell>Actions</TableCell>
-                <TableCell>Reattempt</TableCell>
-                <TableCell>Delete</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Details</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Actions</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Reattempt</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Delete</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -1186,53 +1389,84 @@ const EventQuizSubmissions = () => {
                       checked={selectedStudents.has(studentData.student._id)}
                       onChange={() => handleSelectStudent(studentData.student._id)}
                       disabled={!studentData.hasSubmitted}
+                      size={isMobile ? "small" : "medium"}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                     {isShortlisted(studentData.student._id) ? (
                       <Button
-                        size="small"
+                        size={isMobile ? "small" : "small"}
                         variant="outlined"
                         color="error"
                         onClick={() => removeFromShortlist(studentData.student._id)}
-                        startIcon={<PersonAddIcon />}
+                        startIcon={!isMobile ? <PersonAddIcon /> : null}
+                        sx={{ 
+                          fontSize: { xs: '0.625rem', sm: '0.75rem' },
+                          px: { xs: 1, sm: 2 },
+                          py: { xs: 0.5, sm: 1 }
+                        }}
                       >
-                        Remove
+                        {isMobile ? 'Remove' : 'Remove'}
                       </Button>
                     ) : (
                       <Button
-                        size="small"
+                        size={isMobile ? "small" : "small"}
                         variant="contained"
                         color="primary"
                         onClick={() => handleShortlist(studentData)}
-                        startIcon={<AddIcon />}
+                        startIcon={!isMobile ? <AddIcon /> : null}
+                        sx={{ 
+                          fontSize: { xs: '0.625rem', sm: '0.75rem' },
+                          px: { xs: 1, sm: 2 },
+                          py: { xs: 0.5, sm: 1 }
+                        }}
                       >
-                        Add
+                        {isMobile ? 'Add' : 'Add'}
                       </Button>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                     {studentData.student.name}
                     {studentData.student.isTeamRegistration && (
                       <Chip
                         label="Team Leader"
                         size="small"
                         color="success"
-                        sx={{ ml: 1 }}
+                        sx={{ ml: 1, fontSize: { xs: '0.625rem', sm: '0.75rem' } }}
                       />
                     )}
                   </TableCell>
-                  <TableCell>{studentData.student.email}</TableCell>
-                  <TableCell>{studentData.student.college}</TableCell>
-                  <TableCell>{studentData.student.department}</TableCell>
-                  <TableCell>{studentData.student.year}</TableCell>
-                  {quiz?.participationMode === 'team' && (
+                  <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                    {studentData.student.email}
+                  </TableCell>
+                  {!isMobile && (
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                      {studentData.student.college}
+                    </TableCell>
+                  )}
+                  <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                    {studentData.student.department}
+                  </TableCell>
+                  <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                    {studentData.student.year}
+                  </TableCell>
+                  {quiz?.participationMode === 'team' && !isMobile && (
                     <>
-                      <TableCell>{studentData.student.teamName || '-'}</TableCell>
-                      <TableCell>
+                      <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                        {studentData.student.teamName || '-'}
+                      </TableCell>
+                      <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                         {studentData.student.isTeamRegistration ? (
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography variant="body2" sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <Typography 
+                              variant="body2" 
+                              sx={{ 
+                                maxWidth: 200, 
+                                overflow: 'hidden', 
+                                textOverflow: 'ellipsis',
+                                fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                              }}
+                            >
                               {studentData.student.teamMemberNames ||
                                (studentData.student.teamMembers?.map(m => m.name).join(', ')) ||
                                'No members'}
@@ -1244,30 +1478,34 @@ const EventQuizSubmissions = () => {
                       </TableCell>
                     </>
                   )}
-                  <TableCell>
+                  <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                     <Chip
                       label={studentData.student.participantType === 'college' ? 'College' : 'External'}
                       size="small"
                       color={studentData.student.participantType === 'college' ? 'primary' : 'secondary'}
+                      sx={{ fontSize: { xs: '0.625rem', sm: '0.75rem' } }}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                     <Chip
                       label={studentData.hasSubmitted ? 'Attempted' : 'Registered Only'}
                       size="small"
                       color={studentData.hasSubmitted ? 'success' : 'warning'}
+                      sx={{ fontSize: { xs: '0.625rem', sm: '0.75rem' } }}
                     />
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                     {studentData.hasSubmitted
                       ? `${studentData.totalMarks}/${quiz?.totalMarks} (${Math.round(calculateScorePercentage(studentData.totalMarks, quiz?.totalMarks))}%)`
                       : 'Not submitted'
                     }
                   </TableCell>
-                  <TableCell>{formatDuration(studentData.duration)}</TableCell>
+                  <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                    {formatDuration(studentData.duration)}
+                  </TableCell>
                   <TableCell>
                     <Button
-                      size="small"
+                      size={isMobile ? "small" : "small"}
                       variant="outlined"
                       color="info"
                       onClick={() => {
@@ -1277,13 +1515,18 @@ const EventQuizSubmissions = () => {
                           handleViewIndividualDetails(studentData);
                         }
                       }}
+                      sx={{ 
+                        fontSize: { xs: '0.625rem', sm: '0.75rem' },
+                        px: { xs: 1, sm: 2 },
+                        py: { xs: 0.5, sm: 1 }
+                      }}
                     >
-                      {studentData.student.isTeamRegistration ? 'Team Details' : 'Details'}
+                      {studentData.student.isTeamRegistration ? (isMobile ? 'Team' : 'Team Details') : (isMobile ? 'Details' : 'Details')}
                     </Button>
                   </TableCell>
                   <TableCell>
                     <Button
-                      size="small"
+                      size={isMobile ? "small" : "small"}
                       variant="outlined"
                       onClick={() => {
                         // Use email instead of registration ID for better backend lookup
@@ -1297,45 +1540,62 @@ const EventQuizSubmissions = () => {
                         console.log('🚀 Quiz ID:', id);
                         console.log('🚀 Is admin path?', location.pathname.includes('/admin/'));
                         console.log('🚀 Full URL will be:', window.location.origin + path);
-
-                        // Add a small delay to see the logs before navigation
-                        setTimeout(() => {
-                          console.log('🚀 Executing navigation...');
-                          navigate(path);
-                        }, 100);
+                        navigate(path);
                       }}
                       disabled={!studentData.hasSubmitted}
+                      sx={{ 
+                        fontSize: { xs: '0.625rem', sm: '0.75rem' },
+                        px: { xs: 1, sm: 2 },
+                        py: { xs: 0.5, sm: 1 }
+                      }}
                     >
-                      View Submission
+                      {isMobile ? 'View' : 'View Submission'}
                     </Button>
                   </TableCell>
                   <TableCell>
                     <Button
-                      size="small"
+                      size={isMobile ? "small" : "small"}
                       variant="contained"
                       color="warning"
                       onClick={() => handleReattempt(studentData)}
                       disabled={!studentData.hasSubmitted}
+                      sx={{ 
+                        fontSize: { xs: '0.625rem', sm: '0.75rem' },
+                        px: { xs: 1, sm: 2 },
+                        py: { xs: 0.5, sm: 1 }
+                      }}
                     >
-                      Reattempt
+                      {isMobile ? 'Retry' : 'Reattempt'}
                     </Button>
                   </TableCell>
                   <TableCell>
                     <Button
-                      size="small"
+                      size={isMobile ? "small" : "small"}
                       variant="outlined"
                       color="error"
+                      startIcon={!isMobile ? <DeleteIcon /> : null}
                       onClick={() => handleDeleteRegistration(studentData)}
+                      sx={{ 
+                        fontSize: { xs: '0.625rem', sm: '0.75rem' },
+                        px: { xs: 1, sm: 2 },
+                        py: { xs: 0.5, sm: 1 }
+                      }}
                     >
-                      Delete
+                      {isMobile ? 'Del' : 'Delete'}
                     </Button>
                   </TableCell>
                 </TableRow>
               ))}
-              {sortedStudents.length === 0 && (
+              {(showShortlisted ? shortlistedCandidates : sortedStudents).length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={quiz?.participationMode === 'team' ? 13 : 11} align="center">
-                    No registrations found
+                  <TableCell colSpan={isMobile ? 12 : 15} align="center">
+                    <Typography 
+                      variant="h6" 
+                      color="text.secondary"
+                      sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}
+                    >
+                      No submissions found
+                    </Typography>
                   </TableCell>
                 </TableRow>
               )}
@@ -2105,11 +2365,27 @@ const EventQuizSubmissions = () => {
         onClose={handleCancelReattempt}
         maxWidth="sm"
         fullWidth
+        fullScreen={isMobile}
+        sx={{
+          '& .MuiDialog-paper': {
+            margin: { xs: 1, sm: 2 },
+            maxHeight: { xs: '95vh', sm: '90vh' }
+          }
+        }}
       >
-        <DialogTitle>
-          <Box display="flex" alignItems="center" gap={1}>
-            <QuizIcon color="warning" />
-            Confirm Quiz Reattempt
+        <DialogTitle sx={{ pb: 1 }}>
+          <Box display="flex" alignItems="center" justifyContent="space-between">
+            <Box display="flex" alignItems="center" gap={1}>
+              <QuizIcon color="warning" />
+              <Typography variant={isMobile ? "h6" : "h5"}>
+                {isMobile ? 'Confirm Reattempt' : 'Confirm Quiz Reattempt'}
+              </Typography>
+            </Box>
+            {isMobile && (
+              <IconButton onClick={handleCancelReattempt} size="small">
+                <CloseIcon />
+              </IconButton>
+            )}
           </Box>
         </DialogTitle>
         <DialogContent>
@@ -2165,11 +2441,17 @@ const EventQuizSubmissions = () => {
             )}
           </Box>
         </DialogContent>
-        <DialogActions>
+        <DialogActions sx={{
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: { xs: 1, sm: 0 },
+          p: { xs: 2, sm: 3 }
+        }}>
           <Button
             onClick={handleCancelReattempt}
             color="secondary"
             variant="outlined"
+            fullWidth={isMobile}
+            size={isMobile ? "medium" : "large"}
           >
             Cancel
           </Button>
@@ -2178,6 +2460,8 @@ const EventQuizSubmissions = () => {
             color="warning"
             variant="contained"
             startIcon={<QuizIcon />}
+            fullWidth={isMobile}
+            size={isMobile ? "medium" : "large"}
           >
             Allow Reattempt
           </Button>
@@ -2190,76 +2474,13 @@ const EventQuizSubmissions = () => {
         onClose={handleCancelBulkReattempt}
         maxWidth="md"
         fullWidth
-      >
-        <DialogTitle>
-          <Box display="flex" alignItems="center" gap={1}>
-            <QuizIcon color="warning" />
-            Confirm Bulk Quiz Reattempt
-          </Box>
-        </DialogTitle>
-        <DialogContent>
-          <Box sx={{ pt: 1 }}>
-            <Typography variant="body1" gutterBottom>
-              Are you sure you want to allow <strong>{bulkReattemptDialog.students.length} students</strong> to reattempt this quiz?
-            </Typography>
-
-            <Alert severity="warning" sx={{ mt: 2, mb: 2 }}>
-              <Typography variant="body2">
-                <strong>Warning:</strong> This action will:
-              </Typography>
-              <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>
-                <li>Delete their previous submissions and scores</li>
-                <li>Reset their quiz credentials</li>
-                <li>Allow them to take the quiz again</li>
-                <li>Reset team submissions for team registrations</li>
-              </ul>
-              <Typography variant="body2" sx={{ mt: 1 }}>
-                This action cannot be undone.
-              </Typography>
-            </Alert>
-
-            <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
-              Selected Students:
-            </Typography>
-            <Box sx={{ maxHeight: 300, overflow: 'auto', border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
-              <List dense>
-                {bulkReattemptDialog.students.map((studentData, index) => (
-                  <ListItem key={studentData.student._id}>
-                    <ListItemText
-                      primary={`${index + 1}. ${studentData.student.name}${studentData.student.isTeamRegistration ? ` (Team: ${studentData.student.teamName})` : ''}`}
-                      secondary={`${studentData.student.email} - ${studentData.student.college} - Score: ${studentData.totalMarks}/${quiz?.totalMarks}`}
-                    />
-                  </ListItem>
-                ))}
-              </List>
-            </Box>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={handleCancelBulkReattempt}
-            color="secondary"
-            variant="outlined"
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleConfirmBulkReattempt}
-            color="warning"
-            variant="contained"
-            startIcon={<QuizIcon />}
-          >
-            Allow Reattempt for {bulkReattemptDialog.students.length} Students
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Bulk Reattempt Confirmation Dialog */}
-      <Dialog
-        open={bulkReattemptDialog.open}
-        onClose={handleCancelBulkReattempt}
-        maxWidth="md"
-        fullWidth
+        fullScreen={isMobile}
+        sx={{
+          '& .MuiDialog-paper': {
+            margin: { xs: 1, sm: 2 },
+            maxHeight: { xs: '95vh', sm: '90vh' }
+          }
+        }}
       >
         <DialogTitle>
           <Box display="flex" alignItems="center" gap={1}>

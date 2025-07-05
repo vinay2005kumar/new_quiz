@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -27,7 +27,9 @@ import {
   Tooltip,
   Paper,
   Tabs,
-  Tab
+  Tab,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import {
   PieChart,
@@ -57,6 +59,7 @@ import GroupIcon from '@mui/icons-material/Group';
 import ClassIcon from '@mui/icons-material/Class';
 import QuizIcon from '@mui/icons-material/Quiz';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import CountDisplayPaper from '../common/CountDisplayPaper';
 
 const COLORS = {
   excellent: '#4caf50',
@@ -155,6 +158,9 @@ const QuizList = () => {
 
   const [deleteDialog, setDeleteDialog] = useState(false);
   // Removed old filter state - now using useAcademicFilters hook
+
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   useEffect(() => {
     // Initialize submissions loading flag
@@ -970,32 +976,57 @@ const QuizList = () => {
     };
 
     return (
-      <Card 
-        key={quiz._id} 
-        sx={{ 
+      <Card
+        key={quiz._id}
+        sx={{
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
           width: '100%',
           minHeight: '100%',
-          maxWidth: '100%'
+          maxWidth: '100%',
+          borderRadius: isMobile ? 1 : 2
         }}
       >
-        <CardContent sx={{ flexGrow: 1, p: 2 }}>
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="h6" gutterBottom noWrap>
+        <CardContent sx={{
+          flexGrow: 1,
+          p: isMobile ? 1.5 : 2
+        }}>
+          <Box sx={{ mb: isMobile ? 1.5 : 2 }}>
+            <Typography
+              variant={isMobile ? "subtitle1" : "h6"}
+              gutterBottom
+              noWrap
+              sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}
+            >
               {quiz.title}
             </Typography>
           </Box>
-          <Grid container spacing={1}>
+          <Grid container spacing={isMobile ? 0.5 : 1}>
             <Grid item xs={12}>
-              <Stack spacing={1}>
-                <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center' }}>
-                  <ClassIcon sx={{ mr: 1, fontSize: '1.2rem' }} />
+              <Stack spacing={isMobile ? 0.5 : 1}>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                  }}
+                >
+                  <ClassIcon sx={{ mr: 1, fontSize: { xs: '1rem', sm: '1.2rem' } }} />
                   Subject: {getSubjectDisplay(quiz.subject)}
                 </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center' }}>
-                  <AccessTimeIcon sx={{ mr: 1, fontSize: '1.2rem' }} />
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                  }}
+                >
+                  <AccessTimeIcon sx={{ mr: 1, fontSize: { xs: '1rem', sm: '1.2rem' } }} />
                   Duration: {quiz.duration} minutes
                 </Typography>
                 <Typography variant="body2" sx={{
@@ -1171,14 +1202,38 @@ const QuizList = () => {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h4">Quizzes</Typography>
+    <Container 
+      maxWidth="lg" 
+      sx={{ 
+        mt: { xs: 2, sm: 3, md: 4 }, 
+        mb: { xs: 2, sm: 3, md: 4 },
+        px: { xs: 1, sm: 2, md: 3 }
+      }}
+    >
+      <Box sx={{ 
+        mb: { xs: 2, sm: 3 }, 
+        display: 'flex', 
+        flexDirection: { xs: 'column', sm: 'row' },
+        justifyContent: 'space-between', 
+        alignItems: { xs: 'stretch', sm: 'center' },
+        gap: { xs: 1, sm: 0 }
+      }}>
+        <Typography 
+          variant={isMobile ? "h5" : "h4"}
+          sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
+        >
+          Quizzes
+        </Typography>
         {user?.role === 'faculty' && (
           <Button
             variant="contained"
             color="primary"
             onClick={handleCreateQuiz}
+            fullWidth={isMobile}
+            sx={{ 
+              fontSize: { xs: '0.875rem', sm: '1rem' },
+              py: { xs: 1, sm: 1.5 }
+            }}
           >
             Create Quiz
           </Button>
@@ -1215,7 +1270,11 @@ const QuizList = () => {
 
         {/* Show refresh button for students */}
         {user?.role === 'student' && (
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 3 }}>
+          <Box sx={{ 
+            display: 'flex', 
+            justifyContent: { xs: 'stretch', sm: 'flex-end' }, 
+            mb: 3 
+          }}>
             <Button
               variant="outlined"
               startIcon={<RefreshIcon />}
@@ -1223,7 +1282,11 @@ const QuizList = () => {
                 fetchQuizzes();
                 fetchSubmissions();
               }}
-              sx={{ minWidth: 120 }}
+              fullWidth={isMobile}
+              sx={{ 
+                minWidth: { xs: 'auto', sm: 120 },
+                fontSize: { xs: '0.875rem', sm: '1rem' }
+              }}
             >
               Refresh
             </Button>
@@ -1232,11 +1295,27 @@ const QuizList = () => {
 
         {/* Quiz Cards */}
         {getFilteredQuizzes().length === 0 ? (
-          <Paper sx={{ p: 3, textAlign: 'center', mt: 3 }}>
-            <Typography variant="h6" color="text.secondary">
+          <Paper sx={{ 
+            p: { xs: 2, sm: 3 }, 
+            textAlign: 'center', 
+            mt: { xs: 2, sm: 3 },
+            borderRadius: { xs: 1, sm: 2 }
+          }}>
+            <Typography 
+              variant={isMobile ? "h6" : "h6"} 
+              color="text.secondary"
+              sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}
+            >
               No available quizzes
             </Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
+            <Typography 
+              variant="body1" 
+              color="text.secondary" 
+              sx={{ 
+                mt: 1,
+                fontSize: { xs: '0.875rem', sm: '1rem' }
+              }}
+            >
               {user?.role === 'student'
                 ? 'There are no quizzes available for you at the moment. Check back later!'
                 : 'No quizzes found matching your criteria.'
@@ -1244,15 +1323,15 @@ const QuizList = () => {
             </Typography>
           </Paper>
         ) : (
-          <Grid container spacing={3}>
+          <Grid container spacing={isMobile ? 2 : 3}>
             {getFilteredQuizzes().map((quiz) => (
               <Grid item xs={12} sm={6} md={4} key={quiz._id}>
-                    <Box sx={{ width: '100%', maxWidth: '320px' }}>
-                      {renderQuizCard(quiz)}
-                    </Box>
-                  </Grid>
+                <Box sx={{ width: '100%', maxWidth: { xs: '100%', sm: '320px' } }}>
+                  {renderQuizCard(quiz)}
+                </Box>
+              </Grid>
             ))}
-            </Grid>
+          </Grid>
         )}
       </Box>
 

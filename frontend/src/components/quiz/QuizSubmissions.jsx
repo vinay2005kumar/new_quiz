@@ -30,12 +30,21 @@ import {
   Checkbox,
   List,
   ListItem,
-  ListItemText
+  ListItemText,
+  useTheme,
+  useMediaQuery,
+  IconButton,
+  Tooltip,
+  Card,
+  CardContent,
+  CardActions
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import DeleteIcon from '@mui/icons-material/Delete';
 import QuizIcon from '@mui/icons-material/Quiz';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import api from '../../config/axios';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-toastify';
@@ -47,6 +56,9 @@ const QuizAuthorizedStudents = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   // Function to determine the correct submission details path
   const getSubmissionDetailsPath = (studentId) => {
@@ -228,11 +240,17 @@ const QuizAuthorizedStudents = () => {
     }
 
     try {
+      console.log('🗑️ Sending delete request for student:', studentData.student._id);
       const response = await api.delete(`/api/quiz/${id}/submissions/${studentData.student._id}`);
       console.log('🗑️ Delete response:', response);
+      
       toast.success('Submission deleted successfully!');
       setDeleteDialog({ open: false, student: null });
-      fetchData(); // Refresh the data
+      
+      // Refresh the data to update the UI
+      console.log('🔄 Refreshing data after delete...');
+      await fetchData();
+      console.log('✅ Data refreshed after delete');
     } catch (error) {
       console.error('❌ Error deleting submission:', error);
       console.error('❌ Error response:', error.response);
@@ -341,9 +359,12 @@ const QuizAuthorizedStudents = () => {
     try {
       const response = await api.get(`/api/quiz/${id}/deleted-submissions`);
       console.log('🗑️ Deleted submissions response:', response);
+      
+      // Handle response structure consistently with axios interceptor
+      const deletedUsers = response.deletedSubmissions || [];
       setDeletedUsersDialog({
         open: true,
-        deletedUsers: response.deletedSubmissions || []
+        deletedUsers: deletedUsers
       });
     } catch (error) {
       console.error('Error fetching deleted users:', error);
@@ -360,9 +381,10 @@ const QuizAuthorizedStudents = () => {
 
       // Refresh deleted users list
       const response = await api.get(`/api/quiz/${id}/deleted-submissions`);
+      const deletedUsers = response.deletedSubmissions || [];
       setDeletedUsersDialog({
         open: true,
-        deletedUsers: response.deletedSubmissions || []
+        deletedUsers: deletedUsers
       });
 
       // Refresh main data
@@ -397,10 +419,22 @@ const QuizAuthorizedStudents = () => {
   };
 
   const filteredStudents = useMemo(() => {
-    if (!students || !Array.isArray(students)) return [];
+    console.log('🔄 Calculating filteredStudents:', {
+      studentsLength: students?.length || 0,
+      filters,
+      quizTotalMarks: quiz?.totalMarks
+    });
     
-    return students.filter(student => {
-      if (!student || !student.student) return false;
+    if (!students || !Array.isArray(students)) {
+      console.log('⚠️ No students or not array, returning empty array');
+      return [];
+    }
+    
+    const filtered = students.filter(student => {
+      if (!student || !student.student) {
+        console.log('⚠️ Invalid student data:', student);
+        return false;
+      }
 
       // Admission number filter
       if (filters.admissionNumber && 
@@ -453,15 +487,35 @@ const QuizAuthorizedStudents = () => {
 
       return true;
     });
+    
+    console.log('✅ Filtered students result:', {
+      originalLength: students.length,
+      filteredLength: filtered.length,
+      filtersApplied: filters
+    });
+    
+    return filtered;
   }, [students, filters, quiz?.totalMarks]);
 
   const sortedStudents = useMemo(() => {
-    if (!filteredStudents || !Array.isArray(filteredStudents)) return [];
+    console.log('🔄 Calculating sortedStudents:', {
+      filteredStudentsLength: filteredStudents?.length || 0,
+      sortConfig,
+      studentsLength: students?.length || 0
+    });
+    
+    if (!filteredStudents || !Array.isArray(filteredStudents)) {
+      console.log('⚠️ No filteredStudents or not array, returning empty array');
+      return [];
+    }
     
     const sortableStudents = [...filteredStudents];
-    if (!sortConfig.key) return sortableStudents;
+    if (!sortConfig.key) {
+      console.log('✅ No sort config, returning students as-is:', sortableStudents.length);
+      return sortableStudents;
+    }
 
-    return sortableStudents.sort((a, b) => {
+    const sorted = sortableStudents.sort((a, b) => {
       if (!a || !b || !a.student || !b.student) return 0;
 
       switch (sortConfig.key) {
@@ -499,6 +553,15 @@ const QuizAuthorizedStudents = () => {
           return 0;
       }
     });
+    
+    console.log('✅ Sorted students result:', {
+      originalLength: sortableStudents.length,
+      sortedLength: sorted.length,
+      sortKey: sortConfig.key,
+      sortDirection: sortConfig.direction
+    });
+    
+    return sorted;
   }, [filteredStudents, sortConfig, quiz]);
 
   if (loading) {
@@ -518,19 +581,41 @@ const QuizAuthorizedStudents = () => {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Paper sx={{ p: 3 }}>
-        <Box sx={{ mb: 3 }}>
+    <Container 
+      maxWidth="lg" 
+      sx={{ 
+        mt: { xs: 2, sm: 3, md: 4 }, 
+        mb: { xs: 2, sm: 3, md: 4 },
+        px: { xs: 1, sm: 2, md: 3 }
+      }}
+    >
+      <Paper sx={{ 
+        p: { xs: 2, sm: 3 },
+        borderRadius: { xs: 1, sm: 2 }
+      }}>
+        <Box sx={{ mb: { xs: 2, sm: 3 } }}>
           <Button
             startIcon={<ArrowBackIcon />}
             onClick={() => navigate(-1)}
             sx={{ mb: 2 }}
+            size={isMobile ? "small" : "medium"}
           >
             Back
           </Button>
 
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h4" gutterBottom>
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: { xs: 'column', sm: 'row' },
+            justifyContent: 'space-between', 
+            alignItems: { xs: 'stretch', sm: 'center' }, 
+            mb: 2,
+            gap: { xs: 1, sm: 0 }
+          }}>
+            <Typography 
+              variant={isMobile ? "h5" : "h4"} 
+              gutterBottom
+              sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
+            >
               {quiz?.title} - Submissions
             </Typography>
             <Button
@@ -539,24 +624,39 @@ const QuizAuthorizedStudents = () => {
               startIcon={<DeleteIcon />}
               onClick={handleViewDeletedUsers}
               disabled={loadingDeletedUsers}
+              fullWidth={isMobile}
+              size={isMobile ? "small" : "medium"}
+              sx={{ 
+                fontSize: { xs: '0.875rem', sm: '1rem' },
+                py: { xs: 1, sm: 1.5 }
+              }}
             >
               {loadingDeletedUsers ? 'Loading...' : 'Deleted Users'}
             </Button>
           </Box>
 
-          <Grid container spacing={2} sx={{ mt: 2 }}>
+          <Grid container spacing={isMobile ? 1 : 2} sx={{ mt: 2 }}>
             <Grid item xs={12} sm={4}>
-              <Typography variant="body1">
+              <Typography 
+                variant="body1"
+                sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+              >
                 Total Students: {students.length}
               </Typography>
             </Grid>
             <Grid item xs={12} sm={4}>
-              <Typography variant="body1">
+              <Typography 
+                variant="body1"
+                sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+              >
                 Submitted: {students.filter(s => s.hasSubmitted).length}
               </Typography>
             </Grid>
             <Grid item xs={12} sm={4}>
-              <Typography variant="body1">
+              <Typography 
+                variant="body1"
+                sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+              >
                 Average Score: {
                   students.length > 0
                     ? (students.reduce((acc, s) => acc + (s.totalMarks || 0), 0) / students.length).toFixed(2)
@@ -619,159 +719,267 @@ const QuizAuthorizedStudents = () => {
 
         {/* Bulk Actions */}
         {selectedStudents.size > 0 && (
-          <Box sx={{ mb: 2, p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="body1">
-                {selectedStudents.size} student{selectedStudents.size !== 1 ? 's' : ''} selected
+          <Box sx={{ 
+            mb: 2, 
+            p: { xs: 1.5, sm: 2 }, 
+            bgcolor: 'action.hover', 
+            borderRadius: 1 
+          }}>
+            <Box sx={{
+              display: 'flex',
+              flexDirection: { xs: 'row', sm: 'row' },
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: { xs: 1, sm: 2 }
+            }}>
+              <Typography
+                variant="body1"
+                sx={{
+                  fontSize: { xs: '0.875rem', sm: '1rem' },
+                  flex: 1
+                }}
+              >
+                {selectedStudents.size} selected
               </Typography>
               <Button
                 variant="contained"
                 color="warning"
-                startIcon={<QuizIcon />}
+                startIcon={isMobile ? null : <QuizIcon />}
                 onClick={handleBulkReattempt}
+                size="small"
+                sx={{
+                  fontSize: { xs: '0.75rem', sm: '1rem' },
+                  py: { xs: 0.5, sm: 1.5 },
+                  px: { xs: 1.5, sm: 2 },
+                  minWidth: { xs: 'auto', sm: 'auto' },
+                  whiteSpace: 'nowrap'
+                }}
               >
-                Allow Reattempt for Selected
+                {isMobile ? 'Reattempt' : 'Allow Reattempt for Selected'}
               </Button>
             </Box>
           </Box>
         )}
 
-        {/* Results Table */}
-        <TableContainer>
-          <Table>
+        {/* Responsive Table View */}
+        <TableContainer
+          component={Paper}
+          sx={{
+            mt: 2,
+            overflowX: 'auto',
+            maxWidth: '100%'
+          }}
+        >
+          <Table stickyHeader size={isMobile ? "small" : "medium"}>
             <TableHead>
               <TableRow>
                 <TableCell padding="checkbox">
                   <Checkbox
+                    checked={selectedStudents.size > 0 && selectedStudents.size === sortedStudents.filter(s => s.hasSubmitted).length}
                     indeterminate={selectedStudents.size > 0 && selectedStudents.size < sortedStudents.filter(s => s.hasSubmitted).length}
-                    checked={sortedStudents.filter(s => s.hasSubmitted).length > 0 && selectedStudents.size === sortedStudents.filter(s => s.hasSubmitted).length}
                     onChange={handleSelectAll}
-                    disabled={sortedStudents.filter(s => s.hasSubmitted).length === 0}
+                    size={isMobile ? "small" : "medium"}
                   />
                 </TableCell>
-                <TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                   <TableSortLabel
                     active={sortConfig.key === 'name'}
-                    direction={sortConfig.direction}
+                    direction={sortConfig.key === 'name' ? sortConfig.direction : 'asc'}
                     onClick={() => requestSort('name')}
                   >
                     Name
                   </TableSortLabel>
                 </TableCell>
-                <TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                   <TableSortLabel
                     active={sortConfig.key === 'admissionNumber'}
-                    direction={sortConfig.direction}
+                    direction={sortConfig.key === 'admissionNumber' ? sortConfig.direction : 'asc'}
                     onClick={() => requestSort('admissionNumber')}
                   >
-                    Admission No.
+                    {isMobile ? 'Adm. No.' : 'Admission Number'}
                   </TableSortLabel>
                 </TableCell>
-                <TableCell>Department</TableCell>
-                <TableCell>Year</TableCell>
-                <TableCell>Section</TableCell>
-                <TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                  {isMobile ? 'Dept.' : 'Department'}
+                </TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Year</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Section</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                   <TableSortLabel
                     active={sortConfig.key === 'score'}
-                    direction={sortConfig.direction}
+                    direction={sortConfig.key === 'score' ? sortConfig.direction : 'asc'}
                     onClick={() => requestSort('score')}
                   >
                     Score
                   </TableSortLabel>
                 </TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Submit Time</TableCell>
-                <TableCell>Duration</TableCell>
-                <TableCell>Actions</TableCell>
-                <TableCell>Reattempt</TableCell>
-                <TableCell>Delete</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                  <TableSortLabel
+                    active={sortConfig.key === 'submissionStatus'}
+                    direction={sortConfig.key === 'submissionStatus' ? sortConfig.direction : 'asc'}
+                    onClick={() => requestSort('submissionStatus')}
+                  >
+                    Status
+                  </TableSortLabel>
+                </TableCell>
+                {!isMobile && (
+                  <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                    Submit Time
+                  </TableCell>
+                )}
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                  <TableSortLabel
+                    active={sortConfig.key === 'duration'}
+                    direction={sortConfig.key === 'duration' ? sortConfig.direction : 'asc'}
+                    onClick={() => requestSort('duration')}
+                  >
+                    Duration
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Actions</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Reattempt</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Delete</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {sortedStudents.map((studentData) => (
-                <TableRow key={studentData.student._id}>
-                  <TableCell padding="checkbox">
-                    <Checkbox
-                      checked={selectedStudents.has(studentData.student._id)}
-                      onChange={() => handleSelectStudent(studentData.student._id)}
-                      disabled={!studentData.hasSubmitted}
-                    />
-                  </TableCell>
-                  <TableCell>{studentData.student.name}</TableCell>
-                  <TableCell>{studentData.student.admissionNumber}</TableCell>
-                  <TableCell>{studentData.student.department}</TableCell>
-                  <TableCell>{studentData.student.year}</TableCell>
-                  <TableCell>{studentData.student.section}</TableCell>
-                  <TableCell>
-                    {studentData.hasSubmitted ? (
-                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                        <Typography>
-                          {studentData.totalMarks} / {quiz?.totalMarks}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
-                          ({calculateScorePercentage(studentData.totalMarks, quiz?.totalMarks).toFixed(1)}%)
-                        </Typography>
-                      </Box>
-                    ) : (
-                      'Not submitted'
+              {(() => {
+                console.log('🎯 Rendering table with students:', {
+                  sortedStudentsLength: sortedStudents.length,
+                  students: sortedStudents.map(s => ({
+                    id: s.student._id,
+                    name: s.student.name,
+                    hasSubmitted: s.hasSubmitted,
+                    status: s.submissionStatus,
+                    score: s.totalMarks
+                  }))
+                });
+                return sortedStudents.map((studentData) => (
+                  <TableRow key={studentData.student._id}>
+                    <TableCell padding="checkbox">
+                      <Checkbox
+                        checked={selectedStudents.has(studentData.student._id)}
+                        onChange={() => handleSelectStudent(studentData.student._id)}
+                        disabled={!studentData.hasSubmitted}
+                        size={isMobile ? "small" : "medium"}
+                      />
+                    </TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                      {studentData.student.name}
+                    </TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                      {studentData.student.admissionNumber}
+                    </TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                      {studentData.student.department}
+                    </TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                      {studentData.student.year}
+                    </TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                      {studentData.student.section}
+                    </TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                      {studentData.hasSubmitted ? (
+                        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'flex-start', sm: 'center' } }}>
+                          <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                            {studentData.totalMarks} / {quiz?.totalMarks}
+                          </Typography>
+                          <Typography 
+                            variant="body2" 
+                            color="text.secondary" 
+                            sx={{ 
+                              ml: { xs: 0, sm: 1 },
+                              fontSize: { xs: '0.625rem', sm: '0.75rem' }
+                            }}
+                          >
+                            ({calculateScorePercentage(studentData.totalMarks, quiz?.totalMarks).toFixed(1)}%)
+                          </Typography>
+                        </Box>
+                      ) : (
+                        'Not submitted'
+                      )}
+                    </TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                      <Chip
+                        label={studentData.submissionStatus}
+                        color={
+                          studentData.submissionStatus === 'evaluated' ? 'success' :
+                          studentData.submissionStatus === 'submitted' ? 'primary' :
+                          studentData.submissionStatus === 'started' ? 'warning' : 'default'
+                        }
+                        size="small"
+                        sx={{ fontSize: { xs: '0.625rem', sm: '0.75rem' } }}
+                      />
+                    </TableCell>
+                    {!isMobile && (
+                      <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                        {studentData.submitTime ? new Date(studentData.submitTime).toLocaleString() : 'N/A'}
+                      </TableCell>
                     )}
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={studentData.submissionStatus}
-                      color={
-                        studentData.submissionStatus === 'evaluated' ? 'success' :
-                        studentData.submissionStatus === 'submitted' ? 'primary' :
-                        studentData.submissionStatus === 'started' ? 'warning' : 'default'
-                      }
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    {studentData.submitTime ? new Date(studentData.submitTime).toLocaleString() : 'N/A'}
-                  </TableCell>
-                  <TableCell>
-                    {formatDuration(studentData.duration)}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={() => navigate(getSubmissionDetailsPath(studentData.student._id))}
-                      disabled={!studentData.hasSubmitted}
-                    >
-                      View Details
-                    </Button>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      size="small"
-                      variant="contained"
-                      color="warning"
-                      onClick={() => handleReattempt(studentData)}
-                      disabled={!studentData.hasSubmitted}
-                    >
-                      Reattempt
-                    </Button>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      color="error"
-                      startIcon={<DeleteIcon />}
-                      onClick={() => handleDeleteSubmission(studentData)}
-                      disabled={!studentData.hasSubmitted}
-                    >
-                      Delete
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                      {formatDuration(studentData.duration)}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        size={isMobile ? "small" : "small"}
+                        variant="outlined"
+                        onClick={() => navigate(getSubmissionDetailsPath(studentData.student._id))}
+                        disabled={!studentData.hasSubmitted}
+                        sx={{ 
+                          fontSize: { xs: '0.625rem', sm: '0.75rem' },
+                          px: { xs: 1, sm: 2 },
+                          py: { xs: 0.5, sm: 1 }
+                        }}
+                      >
+                        {isMobile ? 'View' : 'View Details'}
+                      </Button>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        size={isMobile ? "small" : "small"}
+                        variant="contained"
+                        color="warning"
+                        onClick={() => handleReattempt(studentData)}
+                        disabled={!studentData.hasSubmitted}
+                        sx={{ 
+                          fontSize: { xs: '0.625rem', sm: '0.75rem' },
+                          px: { xs: 1, sm: 2 },
+                          py: { xs: 0.5, sm: 1 }
+                        }}
+                      >
+                        {isMobile ? 'Retry' : 'Reattempt'}
+                      </Button>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        size={isMobile ? "small" : "small"}
+                        variant="outlined"
+                        color="error"
+                        startIcon={!isMobile ? <DeleteIcon /> : null}
+                        onClick={() => handleDeleteSubmission(studentData)}
+                        disabled={!studentData.hasSubmitted}
+                        sx={{ 
+                          fontSize: { xs: '0.625rem', sm: '0.75rem' },
+                          px: { xs: 1, sm: 2 },
+                          py: { xs: 0.5, sm: 1 }
+                        }}
+                      >
+                        {isMobile ? 'Del' : 'Delete'}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ));
+              })()}
               {sortedStudents.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={12} align="center">
-                    No submissions found
+                  <TableCell colSpan={isMobile ? 10 : 12} align="center">
+                    <Typography 
+                      variant="h6" 
+                      color="text.secondary"
+                      sx={{ fontSize: { xs: '1rem', sm: '1.25rem' } }}
+                    >
+                      No submissions found
+                    </Typography>
                   </TableCell>
                 </TableRow>
               )}

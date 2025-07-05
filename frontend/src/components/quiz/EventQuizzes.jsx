@@ -1049,7 +1049,7 @@ const EventQuizzes = () => {
                 </Typography>
               </Paper>
             ) : (
-              <Grid container spacing={3}>
+              <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ width: '100%', margin: 0 }}>
                 {getFilteredQuizzes(activeQuizzes).map((quiz) => (
                   <Grid item xs={12} sm={6} md={4} key={quiz._id}>
                     <QuizCard quiz={quiz} isActive={true} />
@@ -1080,7 +1080,7 @@ const EventQuizzes = () => {
                 </Typography>
               </Paper>
             ) : (
-              <Grid container spacing={3}>
+              <Grid container spacing={{ xs: 2, sm: 3 }} sx={{ width: '100%', margin: 0, overflow: 'hidden' }}>
                 {getFilteredQuizzes(upcomingQuizzes).map((quiz) => (
                   <Grid item xs={12} sm={6} md={4} key={quiz._id}>
                     <QuizCard quiz={quiz} />

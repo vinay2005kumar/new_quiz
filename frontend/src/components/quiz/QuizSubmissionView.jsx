@@ -16,7 +16,9 @@ import {
   Divider,
   RadioGroup,
   FormControlLabel,
-  Radio
+  Radio,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import api from '../../config/axios';
@@ -24,6 +26,9 @@ import api from '../../config/axios';
 const QuizSubmissionView = () => {
   const { id: quizId, studentId } = useParams();
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [submission, setSubmission] = useState(null);
@@ -89,45 +94,74 @@ const QuizSubmissionView = () => {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Paper sx={{ p: 3 }}>
-        <Box sx={{ mb: 3 }}>
+    <Container 
+      maxWidth="lg" 
+      sx={{ 
+        mt: { xs: 2, sm: 3, md: 4 }, 
+        mb: { xs: 2, sm: 3, md: 4 },
+        px: { xs: 1, sm: 2, md: 3 }
+      }}
+    >
+      <Paper sx={{ 
+        p: { xs: 2, sm: 3 },
+        borderRadius: { xs: 1, sm: 2 }
+      }}>
+        <Box sx={{ mb: { xs: 2, sm: 3 } }}>
           <Button
             startIcon={<ArrowBackIcon />}
             onClick={() => navigate(-1)}
             sx={{ mb: 2 }}
+            size={isMobile ? "small" : "medium"}
           >
             Back
           </Button>
 
-          <Typography variant="h4" gutterBottom>
+          <Typography 
+            variant={isMobile ? "h5" : "h4"} 
+            gutterBottom
+            sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
+          >
             {submission.quiz?.title} - Submission Details
           </Typography>
         </Box>
 
-        <Grid container spacing={3}>
+        <Grid container spacing={isMobile ? 2 : 3}>
           {/* Student Information */}
           <Grid item xs={12}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
+            <Card sx={{ borderRadius: { xs: 1, sm: 2 } }}>
+              <CardContent sx={{ p: { xs: 1.5, sm: 2 } }}>
+                <Typography 
+                  variant="h6" 
+                  gutterBottom
+                  sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}
+                >
                   Student Information
                 </Typography>
-                <Grid container spacing={2}>
+                <Grid container spacing={isMobile ? 1 : 2}>
                   <Grid item xs={12} sm={6} md={4}>
-                    <Typography><strong>Name:</strong> {submission.student?.name}</Typography>
+                    <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+                      <strong>Name:</strong> {submission.student?.name}
+                    </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6} md={4}>
-                    <Typography><strong>Admission Number:</strong> {submission.student?.admissionNumber}</Typography>
+                    <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+                      <strong>Admission Number:</strong> {submission.student?.admissionNumber}
+                    </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6} md={4}>
-                    <Typography><strong>Department:</strong> {submission.student?.department}</Typography>
+                    <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+                      <strong>Department:</strong> {submission.student?.department}
+                    </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6} md={4}>
-                    <Typography><strong>Year:</strong> {submission.student?.year}</Typography>
+                    <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+                      <strong>Year:</strong> {submission.student?.year}
+                    </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6} md={4}>
-                    <Typography><strong>Section:</strong> {submission.student?.section}</Typography>
+                    <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
+                      <strong>Section:</strong> {submission.student?.section}
+                    </Typography>
                   </Grid>
                 </Grid>
               </CardContent>
@@ -136,30 +170,34 @@ const QuizSubmissionView = () => {
 
           {/* Submission Statistics */}
           <Grid item xs={12}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
+            <Card sx={{ borderRadius: { xs: 1, sm: 2 } }}>
+              <CardContent sx={{ p: { xs: 1.5, sm: 2 } }}>
+                <Typography 
+                  variant="h6" 
+                  gutterBottom
+                  sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}
+                >
                   Submission Statistics
                 </Typography>
-                <Grid container spacing={2}>
+                <Grid container spacing={isMobile ? 1 : 2}>
                   <Grid item xs={12} sm={6} md={3}>
-                    <Typography>
+                    <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                       <strong>Score:</strong> {submission.totalMarks}/{submission.quiz?.totalMarks}
                       {' '}({Math.round((submission.totalMarks / submission.quiz?.totalMarks) * 100)}%)
                     </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6} md={3}>
-                    <Typography>
+                    <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                       <strong>Duration:</strong> {formatDuration(submission.duration)}
                     </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6} md={3}>
-                    <Typography>
+                    <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                       <strong>Start Time:</strong> {formatDateTime(submission.startTime)}
                     </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6} md={3}>
-                    <Typography>
+                    <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
                       <strong>Submit Time:</strong> {formatDateTime(submission.submitTime)}
                     </Typography>
                   </Grid>
@@ -170,12 +208,16 @@ const QuizSubmissionView = () => {
 
           {/* Questions and Answers */}
           <Grid item xs={12}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
+            <Card sx={{ borderRadius: { xs: 1, sm: 2 } }}>
+              <CardContent sx={{ p: { xs: 1.5, sm: 2 } }}>
+                <Typography 
+                  variant="h6" 
+                  gutterBottom
+                  sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}
+                >
                   Questions and Answers
                 </Typography>
-                <List>
+                <List sx={{ p: 0 }}>
                   {submission.quiz?.questions?.map((question, index) => {
                     // Get the student's answer for this question
                     const answerObj = submission.answers?.find(ans => ans.questionId === question._id);
@@ -183,66 +225,89 @@ const QuizSubmissionView = () => {
 
                     return (
                       <React.Fragment key={question._id}>
-                        <ListItem>
+                        <ListItem sx={{ 
+                          flexDirection: 'column', 
+                          alignItems: 'flex-start',
+                          p: { xs: 1, sm: 2 }
+                        }}>
                           <Box sx={{ width: '100%' }}>
-                            <Typography variant="subtitle1" gutterBottom>
+                            <Typography 
+                              variant="subtitle1" 
+                              gutterBottom
+                              sx={{ fontSize: { xs: '1rem', sm: '1.125rem' } }}
+                            >
                               <strong>Question {index + 1}:</strong> ({question.marks || 1} marks)
                             </Typography>
 
                             {/* Question Text with UNIVERSAL Formatting Preservation */}
                             <Box sx={{
-                              p: 2,
+                              p: { xs: 1.5, sm: 2 },
                               mb: 2,
                               bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
                               borderRadius: 1,
                               border: '1px solid',
                               borderColor: 'divider',
-                              fontSize: '0.9rem',
-                              lineHeight: 1.5,
-                              overflow: 'auto'
-                            }}
-                            dangerouslySetInnerHTML={{ __html: question.question }}
-                            />
-                            <RadioGroup
-                              value={studentAnswer !== null && studentAnswer !== undefined ? studentAnswer : ''}
-                              sx={{ ml: 2 }}
-                            >
-                              {question.options?.map((option, optIndex) => {
-                                const isCorrect = optIndex === question.correctAnswer;
-                                const isSelected = studentAnswer === optIndex;
+                              fontSize: { xs: '0.875rem', sm: '0.9rem' }
+                            }}>
+                              <div dangerouslySetInnerHTML={{ __html: question.text }} />
+                            </Box>
 
-                                return (
-                                  <FormControlLabel
-                                    key={optIndex}
-                                    value={optIndex}
-                                    control={<Radio />}
-                                    label={option}
-                                    sx={{
-                                      color: isCorrect ? 'success.main' :
-                                            isSelected ? 'error.main' : 'inherit',
-                                      fontWeight: isSelected ? 'bold' : 'normal'
-                                    }}
-                                    disabled
-                                  />
-                                );
-                              })}
+                            {/* Options */}
+                            <RadioGroup value={studentAnswer || ''} sx={{ mb: 2 }}>
+                              {question.options?.map((option, optionIndex) => (
+                                <FormControlLabel
+                                  key={optionIndex}
+                                  value={option}
+                                  control={<Radio />}
+                                  label={
+                                    <Box sx={{ 
+                                      fontSize: { xs: '0.875rem', sm: '1rem' },
+                                      wordBreak: 'break-word'
+                                    }}>
+                                      <div dangerouslySetInnerHTML={{ __html: option }} />
+                                    </Box>
+                                  }
+                                  sx={{
+                                    margin: 0,
+                                    padding: { xs: 0.5, sm: 1 },
+                                    borderRadius: 1,
+                                    backgroundColor: studentAnswer === option ? 'action.selected' : 'transparent',
+                                    border: studentAnswer === option ? '2px solid' : '1px solid',
+                                    borderColor: studentAnswer === option ? 'primary.main' : 'divider',
+                                    width: '100%',
+                                    '&:hover': {
+                                      backgroundColor: 'action.hover'
+                                    }
+                                  }}
+                                />
+                              ))}
                             </RadioGroup>
-                            <Box sx={{ mt: 1 }}>
-                              {studentAnswer !== null && studentAnswer !== undefined ? (
-                                <Typography color={studentAnswer === question.correctAnswer ? 'success.main' : 'error.main'}>
-                                  {studentAnswer === question.correctAnswer ?
-                                    '✓ Correct Answer' :
-                                    `✗ Incorrect Answer (Correct: ${question.options?.[question.correctAnswer]})`}
-                                </Typography>
-                              ) : (
-                                <Typography color="warning.main">
-                                  ⚠ No answer selected
-                                </Typography>
-                              )}
+
+                            {/* Answer Status */}
+                            <Box sx={{ 
+                              mt: 2, 
+                              p: { xs: 1, sm: 1.5 }, 
+                              borderRadius: 1,
+                              backgroundColor: answerObj?.isCorrect ? 'success.light' : 'error.light',
+                              color: answerObj?.isCorrect ? 'success.dark' : 'error.dark'
+                            }}>
+                              <Typography 
+                                variant="body2"
+                                sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                              >
+                                <strong>
+                                  {answerObj?.isCorrect ? '✓ Correct' : '✗ Incorrect'}
+                                </strong>
+                                {answerObj?.marks !== undefined && (
+                                  <span> - {answerObj.marks} mark{answerObj.marks !== 1 ? 's' : ''} awarded</span>
+                                )}
+                              </Typography>
                             </Box>
                           </Box>
                         </ListItem>
-                        {index < submission.quiz.questions.length - 1 && <Divider />}
+                        {index < submission.quiz.questions.length - 1 && (
+                          <Divider sx={{ mx: { xs: 1, sm: 2 } }} />
+                        )}
                       </React.Fragment>
                     );
                   })}

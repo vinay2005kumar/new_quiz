@@ -10,7 +10,9 @@ import {
   Box,
   Typography,
   Chip,
-  Button
+  Button,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import {
   FilterList as FilterListIcon,
@@ -36,6 +38,8 @@ const AcademicFilter = ({
   sx = {}
 }) => {
   const { user } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [academicData, setAcademicData] = useState({
     departments: [],
     years: [],
@@ -489,25 +493,45 @@ const AcademicFilter = ({
               />
             )}
           </Box>
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{
+            display: 'flex',
+            gap: { xs: 0.5, sm: 1 },
+            flexDirection: { xs: 'column', sm: 'row' },
+            width: { xs: '100%', sm: 'auto' }
+          }}>
             {showRefreshButton && (
               <Button
                 size="small"
-                startIcon={<RefreshIcon />}
+                startIcon={isMobile ? null : <RefreshIcon />}
                 onClick={handleRefresh}
                 disabled={loading}
+                fullWidth={isMobile}
+                sx={{
+                  fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                  py: { xs: 0.5, sm: 1 },
+                  px: { xs: 1, sm: 1.5 },
+                  minWidth: { xs: 'auto', sm: 'auto' }
+                }}
               >
-                Refresh
+                {isMobile ? 'Refresh' : 'Refresh'}
               </Button>
             )}
             {showClearButton && getActiveFiltersCount() > 0 && (
               <Button
                 size="small"
-                startIcon={<ClearIcon />}
+                startIcon={isMobile ? null : <ClearIcon />}
                 onClick={handleClearFilters}
                 color="secondary"
+                fullWidth={isMobile}
+                sx={{
+                  fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                  py: { xs: 0.5, sm: 1 },
+                  px: { xs: 1, sm: 1.5 },
+                  minWidth: { xs: 'auto', sm: 'auto' },
+                  whiteSpace: 'nowrap'
+                }}
               >
-                Clear All
+                {isMobile ? 'Clear' : 'Clear All'}
               </Button>
             )}
           </Box>

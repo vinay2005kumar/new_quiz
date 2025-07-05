@@ -18,7 +18,9 @@ import {
   Card,
   CardContent,
   CardActions,
-  Chip
+  Chip,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../config/axios';
@@ -29,6 +31,8 @@ const EventPage = () => {
   const [quizzes, setQuizzes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   useEffect(() => {
     // Check if user exists and has event role
@@ -106,12 +110,27 @@ const EventPage = () => {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom>
+    <Container 
+      maxWidth="lg" 
+      sx={{ 
+        mt: { xs: 2, sm: 3, md: 4 }, 
+        mb: { xs: 2, sm: 3, md: 4 },
+        px: { xs: 1, sm: 2, md: 3 }
+      }}
+    >
+      <Box sx={{ mb: { xs: 2, sm: 3, md: 4 } }}>
+        <Typography 
+          variant={isMobile ? "h5" : "h4"} 
+          gutterBottom
+          sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
+        >
           Event Quiz Dashboard
         </Typography>
-        <Typography variant="subtitle1" color="text.secondary">
+        <Typography 
+          variant="subtitle1" 
+          color="text.secondary"
+          sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+        >
           {user?.department ? `Department: ${user.department}` : 'Organization Events'}
         </Typography>
       </Box>
@@ -122,51 +141,87 @@ const EventPage = () => {
         </Alert>
       )}
 
-      <Grid container spacing={3}>
+      <Grid container spacing={isMobile ? 2 : 3}>
         {quizzes.map((quiz) => (
           <Grid item xs={12} md={6} lg={4} key={quiz._id}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>
+            <Card sx={{ 
+              height: '100%',
+              borderRadius: { xs: 1, sm: 2 }
+            }}>
+              <CardContent sx={{ 
+                p: { xs: 1.5, sm: 2 },
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column'
+              }}>
+                <Typography 
+                  variant={isMobile ? "h6" : "h6"} 
+                  gutterBottom
+                  sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}
+                >
                   {quiz.title}
                 </Typography>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
+                <Typography 
+                  variant="body2" 
+                  color="text.secondary" 
+                  gutterBottom
+                  sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
+                >
                   Subject: {quiz.subject}
                 </Typography>
                 <Box sx={{ mt: 2 }}>
                   <Chip 
                     label={getStatusText(quiz)}
                     color={getStatusColor(quiz)}
-                    size="small"
-                    sx={{ mr: 1 }}
+                    size={isMobile ? "small" : "small"}
+                    sx={{ mr: 1, mb: 1 }}
                   />
                   <Chip 
                     label={`Duration: ${quiz.duration} mins`}
                     variant="outlined"
-                    size="small"
+                    size={isMobile ? "small" : "small"}
+                    sx={{ mb: 1 }}
                   />
                 </Box>
                 <Box sx={{ mt: 2 }}>
-                  <Typography variant="body2">
+                  <Typography 
+                    variant="body2"
+                    sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
+                  >
                     Start: {new Date(quiz.startTime).toLocaleString()}
                   </Typography>
-                  <Typography variant="body2">
+                  <Typography 
+                    variant="body2"
+                    sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
+                  >
                     End: {new Date(quiz.endTime).toLocaleString()}
                   </Typography>
                 </Box>
               </CardContent>
-              <CardActions>
+              <CardActions sx={{ 
+                p: { xs: 1, sm: 2 },
+                pt: 0
+              }}>
                 <Button 
-                  size="small" 
+                  size={isMobile ? "small" : "small"} 
                   color="primary"
                   onClick={() => {/* TODO: Add view results handler */}}
+                  fullWidth={isMobile}
+                  sx={{ 
+                    fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                    mr: isMobile ? 0 : 1
+                  }}
                 >
                   View Results
                 </Button>
                 <Button 
-                  size="small" 
+                  size={isMobile ? "small" : "small"} 
                   color="primary"
                   onClick={() => {/* TODO: Add view details handler */}}
+                  fullWidth={isMobile}
+                  sx={{ 
+                    fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                  }}
                 >
                   View Details
                 </Button>
@@ -174,19 +229,6 @@ const EventPage = () => {
             </Card>
           </Grid>
         ))}
-
-        {quizzes.length === 0 && !loading && (
-          <Grid item xs={12}>
-            <Paper sx={{ p: 3, textAlign: 'center' }}>
-              <Typography variant="h6" color="text.secondary">
-                No quizzes found
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                There are currently no quizzes assigned to your event.
-              </Typography>
-            </Paper>
-          </Grid>
-        )}
       </Grid>
     </Container>
   );

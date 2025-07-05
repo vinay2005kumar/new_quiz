@@ -20,14 +20,22 @@ import {
   DialogContent,
   DialogActions,
   Chip,
-  Divider
+  Divider,
+  useTheme,
+  useMediaQuery,
+  Drawer,
+  IconButton
 } from '@mui/material';
 import {
   Timer as TimerIcon,
   Send as SendIcon,
   Warning as WarningIcon,
   Person as PersonIcon,
-  Group as GroupIcon
+  Group as GroupIcon,
+  Close as CloseIcon,
+  ArrowBack as ArrowBackIcon,
+  ArrowForward as ArrowForwardIcon,
+  Clear as ClearIcon
 } from '@mui/icons-material';
 import api from '../../config/axios';
 import QuizSecurity from './QuizSecurity';
@@ -36,7 +44,9 @@ const AuthenticatedQuizTake = () => {
   const { quizId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
   const [quiz, setQuiz] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
@@ -48,6 +58,9 @@ const AuthenticatedQuizTake = () => {
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
   const [showFullscreenDialog, setShowFullscreenDialog] = useState(false);
   const [fullscreenWarnings, setFullscreenWarnings] = useState(0);
+  // Mobile sidebar states
+  const [showDetailsSidebar, setShowDetailsSidebar] = useState(false);
+  const [showQuestionsSidebar, setShowQuestionsSidebar] = useState(false);
   const [startTime, setStartTime] = useState(null);
   const [participant, setParticipant] = useState(null);
   const [sessionToken, setSessionToken] = useState(null);
@@ -404,6 +417,30 @@ const AuthenticatedQuizTake = () => {
     return (answeredQuestions / questions.length) * 100;
   };
 
+  // Clear current question answer
+  const handleClearAnswer = () => {
+    if (questions && questions[currentQuestion]) {
+      setAnswers(prev => {
+        const newAnswers = { ...prev };
+        delete newAnswers[currentQuestion];
+        return newAnswers;
+      });
+    }
+  };
+
+  // Mobile navigation functions
+  const handlePreviousQuestion = () => {
+    if (currentQuestion > 0) {
+      setCurrentQuestion(currentQuestion - 1);
+    }
+  };
+
+  const handleNextQuestion = () => {
+    if (questions && currentQuestion < questions.length - 1) {
+      setCurrentQuestion(currentQuestion + 1);
+    }
+  };
+
   const handleContinueFullscreen = () => {
     setShowFullscreenDialog(false);
     // Re-enter fullscreen
@@ -483,163 +520,419 @@ const AuthenticatedQuizTake = () => {
       }}>
       {/* Top Header Bar */}
       <Paper sx={{
-        p: 2,
+        p: { xs: 1, sm: 2 },
         borderRadius: 0,
         borderBottom: 1,
         borderColor: 'divider',
         zIndex: 1000
       }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h5" component="h1" sx={{ fontWeight: 'bold' }}>
+        <Box sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          justifyContent: 'space-between',
+          alignItems: { xs: 'stretch', sm: 'center' },
+          gap: { xs: 1, sm: 0 }
+        }}>
+          <Typography
+            variant={isMobile ? "h6" : "h5"}
+            component="h1"
+            sx={{
+              fontWeight: 'bold',
+              fontSize: { xs: '1.25rem', sm: '1.5rem' }
+            }}
+          >
             {quiz?.title}
           </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+
+          <Box sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: { xs: 1, sm: 2 },
+            justifyContent: { xs: 'space-between', sm: 'flex-end' },
+            width: { xs: '100%', sm: 'auto' }
+          }}>
+            {/* Mobile Navigation Buttons */}
+            {isMobile && (
+              <Box sx={{ display: 'flex', gap: 0.5 }}>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => setShowDetailsSidebar(true)}
+                  sx={{ minWidth: 'auto', px: 1, fontSize: '0.75rem' }}
+                >
+                  📋
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => setShowQuestionsSidebar(true)}
+                  sx={{ minWidth: 'auto', px: 1, fontSize: '0.75rem' }}
+                >
+                  📝
+                </Button>
+              </Box>
+            )}
+
             <Chip
-              icon={<TimerIcon />}
+              icon={<TimerIcon sx={{ fontSize: { xs: '1rem', sm: '1.2rem' } }} />}
               label={formatTime(timeRemaining)}
               color={timeRemaining < 300000 ? 'error' : 'primary'}
               variant="filled"
-              size="medium"
-              sx={{ fontSize: '1rem', fontWeight: 'bold' }}
+              size={isMobile ? "small" : "medium"}
+              sx={{ fontSize: { xs: '0.875rem', sm: '1rem' }, fontWeight: 'bold' }}
             />
             <Button
               variant="contained"
               color="success"
               onClick={handleSubmit}
               disabled={submitting}
-              startIcon={submitting ? <CircularProgress size={20} /> : <SendIcon />}
+              startIcon={submitting ? <CircularProgress size={20} /> : <SendIcon sx={{ fontSize: { xs: '1rem', sm: '1.2rem' } }} />}
+              size={isMobile ? "small" : "medium"}
+              sx={{ fontSize: { xs: '0.875rem', sm: '1rem' }, py: { xs: 0.75, sm: 1 } }}
             >
-              {submitting ? 'Submitting...' : 'Submit Quiz'}
+              {submitting ? 'Submitting...' : (isMobile ? 'Submit' : 'Submit Quiz')}
             </Button>
           </Box>
         </Box>
       </Paper>
 
-      {/* Main Content Area - 3 Column Layout */}
+      {/* Main Content Area - Responsive Layout */}
       <Box sx={{
         flex: 1,
         display: 'flex',
         height: 'calc(100vh - 80px)',
         overflow: 'hidden'
       }}>
-        {/* Left Sidebar - Team/Quiz Details */}
-        <Paper sx={{
-          width: '300px',
-          borderRadius: 0,
-          borderRight: 1,
-          borderColor: 'divider',
-          overflow: 'auto',
-          p: 2
-        }}>
-          {/* Quiz Information */}
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', fontWeight: 'bold' }}>
-              📋 Quiz Details
-            </Typography>
-            <Divider sx={{ mb: 2 }} />
-            <Typography variant="body2" gutterBottom>
-              <strong>Duration:</strong> {quiz?.duration} minutes
-            </Typography>
-            <Typography variant="body2" gutterBottom>
-              <strong>Total Questions:</strong> {questions.length}
-            </Typography>
-            <Typography variant="body2" gutterBottom>
-              <strong>Total Marks:</strong> {questions.reduce((sum, q) => sum + (q.marks || 1), 0)}
-            </Typography>
-            {quiz?.instructions && (
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
-                  Instructions:
-                </Typography>
-                <Typography variant="body2" sx={{
-                  bgcolor: 'info.light',
-                  p: 1,
-                  borderRadius: 1,
-                  fontSize: '0.85rem'
-                }}>
-                  {quiz.instructions}
-                </Typography>
-              </Box>
-            )}
-          </Box>
-
-          {/* Participant Information */}
-          {participant && (
-            <Box>
-              <Typography variant="h6" gutterBottom sx={{
-                color: 'secondary.main',
-                fontWeight: 'bold',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1
-              }}>
-                {participant.isTeam ? <GroupIcon /> : <PersonIcon />}
-                {participant.isTeam ? 'Team Details' : 'Participant Details'}
+        {/* Desktop Left Sidebar - Team/Quiz Details */}
+        {!isMobile && (
+          <Paper sx={{
+            width: '300px',
+            borderRadius: 0,
+            borderRight: 1,
+            borderColor: 'divider',
+            overflow: 'auto',
+            p: 2
+          }}>
+            {/* Quiz Information */}
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', fontWeight: 'bold' }}>
+                📋 Quiz Details
               </Typography>
               <Divider sx={{ mb: 2 }} />
-
-              {participant.isTeam ? (
-                <Box>
-                  <Typography variant="body2" gutterBottom sx={{
-                    bgcolor: 'success.light',
+              <Typography variant="body2" gutterBottom>
+                <strong>Duration:</strong> {quiz?.duration} minutes
+              </Typography>
+              <Typography variant="body2" gutterBottom>
+                <strong>Total Questions:</strong> {questions.length}
+              </Typography>
+              <Typography variant="body2" gutterBottom>
+                <strong>Total Marks:</strong> {questions.reduce((sum, q) => sum + (q.marks || 1), 0)}
+              </Typography>
+              {quiz?.instructions && (
+                <Box sx={{ mt: 2 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
+                    Instructions:
+                  </Typography>
+                  <Typography variant="body2" sx={{
+                    bgcolor: 'info.light',
                     p: 1,
                     borderRadius: 1,
-                    fontWeight: 'bold'
+                    fontSize: '0.85rem'
                   }}>
-                    🏆 Team: {participant.teamName}
-                  </Typography>
-                  <Typography variant="body2" gutterBottom sx={{ mt: 1 }}>
-                    <strong>Team Leader:</strong><br />
-                    {participant.participantDetails.name}<br />
-                    {participant.participantDetails.email}
-                  </Typography>
-                  <Typography variant="body2" gutterBottom>
-                    <strong>College:</strong> {participant.participantDetails.college}
-                  </Typography>
-                  {participant.teamMembers && participant.teamMembers.length > 0 && (
-                    <Box sx={{ mt: 2 }}>
-                      <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
-                        Team Members:
-                      </Typography>
-                      {participant.teamMembers.map((member, index) => (
-                        <Typography key={index} variant="body2" sx={{
-                          ml: 1,
-                          mb: 1,
-                          p: 1,
-                          bgcolor: 'grey.100',
-                          borderRadius: 1,
-                          fontSize: '0.8rem'
-                        }}>
-                          • {member.name}<br />
-                          &nbsp;&nbsp;{member.email}<br />
-                          &nbsp;&nbsp;{member.college}
-                        </Typography>
-                      ))}
-                    </Box>
-                  )}
-                </Box>
-              ) : (
-                <Box>
-                  <Typography variant="body2" gutterBottom>
-                    <strong>Name:</strong> {participant.participantDetails.name}
-                  </Typography>
-                  <Typography variant="body2" gutterBottom>
-                    <strong>Email:</strong> {participant.participantDetails.email}
-                  </Typography>
-                  <Typography variant="body2" gutterBottom>
-                    <strong>College:</strong> {participant.participantDetails.college}
+                    {quiz.instructions}
                   </Typography>
                 </Box>
               )}
             </Box>
-          )}
-        </Paper>
+
+            {/* Participant Information */}
+            {participant && (
+              <Box>
+                <Typography variant="h6" gutterBottom sx={{
+                  color: 'secondary.main',
+                  fontWeight: 'bold',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1
+                }}>
+                  {participant.participantDetails?.isTeamRegistration ? <GroupIcon /> : <PersonIcon />}
+                  {participant.participantDetails?.isTeamRegistration ? 'Team Details' : 'Participant Details'}
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+
+                {participant.participantDetails?.isTeamRegistration ? (
+                  <Box>
+                    <Typography variant="body2" gutterBottom>
+                      <strong>Team Name:</strong> {participant.participantDetails?.teamName}
+                    </Typography>
+                    <Typography variant="body2" gutterBottom>
+                      <strong>Team Leader:</strong> {participant.participantDetails?.teamLeader?.name}
+                    </Typography>
+                    <Typography variant="body2" gutterBottom>
+                      <strong>Email:</strong> {participant.participantDetails?.teamLeader?.email}
+                    </Typography>
+                    <Typography variant="body2" gutterBottom>
+                      <strong>College:</strong> {participant.participantDetails?.teamLeader?.college}
+                    </Typography>
+                    <Typography variant="body2" gutterBottom>
+                      <strong>Members:</strong> {participant.participantDetails?.teamMembers?.length || 0} + 1 (Leader)
+                    </Typography>
+                  </Box>
+                ) : (
+                  <Box>
+                    <Typography variant="body2" gutterBottom>
+                      <strong>Name:</strong> {participant.participantDetails?.name}
+                    </Typography>
+                    <Typography variant="body2" gutterBottom>
+                      <strong>Email:</strong> {participant.participantDetails?.email}
+                    </Typography>
+                    <Typography variant="body2" gutterBottom>
+                      <strong>College:</strong> {participant.participantDetails?.college}
+                    </Typography>
+                    <Typography variant="body2" gutterBottom>
+                      <strong>Department:</strong> {participant.participantDetails?.department}
+                    </Typography>
+                    <Typography variant="body2" gutterBottom>
+                      <strong>Year:</strong> {participant.participantDetails?.year}
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+            )}
+          </Paper>
+        )}
+
+        {/* Mobile Drawers */}
+        {isMobile && (
+          <>
+            {/* Details Sidebar Drawer */}
+            <Drawer
+              anchor="left"
+              open={showDetailsSidebar}
+              onClose={() => setShowDetailsSidebar(false)}
+              sx={{
+                '& .MuiDrawer-paper': {
+                  width: '280px',
+                  p: 2,
+                  bgcolor: 'background.paper',
+                  color: 'text.primary'
+                }
+              }}
+            >
+              <Box sx={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                mb: 2,
+                width: '100%'
+              }}>
+                <Typography
+                  variant="h6"
+                  sx={{
+                    color: 'primary.main',
+                    fontWeight: 'bold',
+                    fontSize: '1.1rem'
+                  }}
+                >
+                  📋 Details
+                </Typography>
+                <IconButton
+                  onClick={() => setShowDetailsSidebar(false)}
+                  size="small"
+                  sx={{
+                    color: 'text.primary',
+                    p: 0.5
+                  }}
+                >
+                  <CloseIcon fontSize="small" />
+                </IconButton>
+              </Box>
+              <Divider sx={{ mb: 2 }} />
+
+              {/* Quiz Information */}
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="body2" gutterBottom sx={{ color: 'text.primary' }}>
+                  <strong>Duration:</strong> {quiz?.duration} minutes
+                </Typography>
+                <Typography variant="body2" gutterBottom sx={{ color: 'text.primary' }}>
+                  <strong>Total Questions:</strong> {questions.length}
+                </Typography>
+                <Typography variant="body2" gutterBottom sx={{ color: 'text.primary' }}>
+                  <strong>Total Marks:</strong> {questions.reduce((sum, q) => sum + (q.marks || 1), 0)}
+                </Typography>
+                {quiz?.instructions && (
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1, color: 'text.primary' }}>
+                      Instructions:
+                    </Typography>
+                    <Typography variant="body2" sx={{
+                      bgcolor: 'info.light',
+                      p: 1,
+                      borderRadius: 1,
+                      fontSize: '0.85rem',
+                      color: 'text.primary'
+                    }}>
+                      {quiz.instructions}
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+
+              {/* Participant Information */}
+              {participant && (
+                <Box>
+                  <Typography variant="h6" gutterBottom sx={{
+                    color: 'secondary.main',
+                    fontWeight: 'bold',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1
+                  }}>
+                    {participant.participantDetails?.isTeamRegistration ? <GroupIcon /> : <PersonIcon />}
+                    {participant.participantDetails?.isTeamRegistration ? 'Team Details' : 'Participant Details'}
+                  </Typography>
+                  <Divider sx={{ mb: 2 }} />
+
+                  {participant.participantDetails?.isTeamRegistration ? (
+                    <Box>
+                      <Typography variant="body2" gutterBottom sx={{ color: 'text.primary' }}>
+                        <strong>Team Name:</strong> {participant.participantDetails?.teamName}
+                      </Typography>
+                      <Typography variant="body2" gutterBottom sx={{ color: 'text.primary' }}>
+                        <strong>Team Leader:</strong> {participant.participantDetails?.teamLeader?.name}
+                      </Typography>
+                      <Typography variant="body2" gutterBottom sx={{ color: 'text.primary' }}>
+                        <strong>Email:</strong> {participant.participantDetails?.teamLeader?.email}
+                      </Typography>
+                      <Typography variant="body2" gutterBottom sx={{ color: 'text.primary' }}>
+                        <strong>College:</strong> {participant.participantDetails?.teamLeader?.college}
+                      </Typography>
+                      <Typography variant="body2" gutterBottom sx={{ color: 'text.primary' }}>
+                        <strong>Members:</strong> {participant.participantDetails?.teamMembers?.length || 0} + 1 (Leader)
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <Box>
+                      <Typography variant="body2" gutterBottom sx={{ color: 'text.primary' }}>
+                        <strong>Name:</strong> {participant.participantDetails?.name}
+                      </Typography>
+                      <Typography variant="body2" gutterBottom sx={{ color: 'text.primary' }}>
+                        <strong>Email:</strong> {participant.participantDetails?.email}
+                      </Typography>
+                      <Typography variant="body2" gutterBottom sx={{ color: 'text.primary' }}>
+                        <strong>College:</strong> {participant.participantDetails?.college}
+                      </Typography>
+                      <Typography variant="body2" gutterBottom sx={{ color: 'text.primary' }}>
+                        <strong>Department:</strong> {participant.participantDetails?.department}
+                      </Typography>
+                      <Typography variant="body2" gutterBottom sx={{ color: 'text.primary' }}>
+                        <strong>Year:</strong> {participant.participantDetails?.year}
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+              )}
+            </Drawer>
+
+            {/* Questions Navigation Drawer */}
+            <Drawer
+              anchor="right"
+              open={showQuestionsSidebar}
+              onClose={() => setShowQuestionsSidebar(false)}
+              sx={{
+                '& .MuiDrawer-paper': {
+                  width: '280px',
+                  p: 2,
+                  bgcolor: 'background.paper',
+                  color: 'text.primary'
+                }
+              }}
+            >
+              <Box sx={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                mb: 2,
+                width: '100%'
+              }}>
+                <Typography
+                  variant="h6"
+                  sx={{
+                    color: 'primary.main',
+                    fontWeight: 'bold',
+                    fontSize: '1.1rem'
+                  }}
+                >
+                  📝 Questions
+                </Typography>
+                <IconButton
+                  onClick={() => setShowQuestionsSidebar(false)}
+                  size="small"
+                  sx={{
+                    color: 'text.primary',
+                    p: 0.5
+                  }}
+                >
+                  <CloseIcon fontSize="small" />
+                </IconButton>
+              </Box>
+              <Divider sx={{ mb: 2 }} />
+
+              {/* Question Grid */}
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 1, mb: 2 }}>
+                {questions?.map((question, index) => {
+                  const isAnswered = answers[index] !== undefined && answers[index] !== null;
+                  const isCurrent = index === currentQuestion;
+
+                  return (
+                    <Button
+                      key={index}
+                      variant={isCurrent ? 'contained' : isAnswered ? 'outlined' : 'text'}
+                      color={isCurrent ? 'primary' : isAnswered ? 'success' : 'inherit'}
+                      size="small"
+                      onClick={() => {
+                        setCurrentQuestion(index);
+                        setShowQuestionsSidebar(false);
+                      }}
+                      sx={{
+                        minWidth: 'auto',
+                        aspectRatio: '1',
+                        fontSize: '0.75rem'
+                      }}
+                    >
+                      {index + 1}
+                    </Button>
+                  );
+                })}
+              </Box>
+
+              {/* Legend */}
+              <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold', color: 'text.primary' }}>
+                Legend:
+              </Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ width: 16, height: 16, bgcolor: 'success.main', borderRadius: 1 }} />
+                  <Typography variant="body2" sx={{ color: 'text.primary' }}>Answered</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ width: 16, height: 16, bgcolor: 'primary.main', borderRadius: 1 }} />
+                  <Typography variant="body2" sx={{ color: 'text.primary' }}>Current</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Box sx={{ width: 16, height: 16, border: 1, borderColor: 'grey.400', borderRadius: 1 }} />
+                  <Typography variant="body2" sx={{ color: 'text.primary' }}>Not Answered</Typography>
+                </Box>
+              </Box>
+            </Drawer>
+          </>
+        )}
 
         {/* Center - Questions Area */}
         <Box sx={{
           flex: 1,
           overflow: 'auto',
-          p: 3,
+          p: { xs: 1.5, sm: 3 },
           bgcolor: 'background.paper'
         }}>
           {error && (
@@ -648,463 +941,276 @@ const AuthenticatedQuizTake = () => {
             </Alert>
           )}
 
-          {/* Debug Information */}
-          {process.env.NODE_ENV === 'development' && (
-            <Box sx={{ mb: 2, p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
-              <Typography variant="body2">
-                Debug: Questions length: {questions.length}, Current: {currentQuestion}, Loading: {loading.toString()}
-              </Typography>
-              <Typography variant="body2">
-                Quiz Display Mode: {quiz?.questionDisplayMode || 'undefined'} | Quiz Data: {quiz ? 'Available' : 'Not Available'}
-              </Typography>
-            </Box>
-          )}
-
-          {/* Loading State */}
-          {loading && (
-            <Box sx={{ textAlign: 'center', py: 8 }}>
-              <CircularProgress size={60} />
-              <Typography variant="h6" sx={{ mt: 2 }}>
-                Loading Quiz Questions...
-              </Typography>
-            </Box>
-          )}
-
-          {/* No Questions State */}
-          {!loading && questions.length === 0 && (
-            <Box sx={{ textAlign: 'center', py: 8 }}>
-              <Alert severity="error" sx={{ mb: 2 }}>
-                Failed to load quiz questions
-              </Alert>
-              <Button variant="contained" onClick={fetchQuestions}>
-                Retry Loading Questions
-              </Button>
-            </Box>
-          )}
-
           {/* Questions Display */}
-          {!loading && questions.length > 0 && (
-            <>
-              {/* One-by-One Display Mode (default if no mode specified) */}
-              {(!quiz?.questionDisplayMode || quiz?.questionDisplayMode === 'one-by-one') && currentQuestion < questions.length && (
-                <Card sx={{
-                  minHeight: '400px',
-                  border: 2,
-                  borderColor: 'primary.light',
-                  boxShadow: 3
-                }}>
-                  <CardContent sx={{ p: 4 }}>
-                    <Typography variant="h4" gutterBottom sx={{
-                      color: 'primary.main',
-                      fontWeight: 'bold',
-                      mb: 3
-                    }}>
-                      Question {currentQuestion + 1} of {questions.length}
-                      <Chip
-                        label={`${questions[currentQuestion].marks} mark${questions[currentQuestion].marks !== 1 ? 's' : ''}`}
-                        color="primary"
-                        size="small"
-                        sx={{ ml: 2 }}
-                      />
-                      {quiz?.negativeMarkingEnabled && questions[currentQuestion].negativeMarks > 0 && (
-                        <Chip
-                          label={`-${questions[currentQuestion].negativeMarks} for wrong`}
-                          color="warning"
-                          size="small"
-                          sx={{ ml: 1 }}
-                        />
-                      )}
-                    </Typography>
-
-                    {/* Question Text with UNIVERSAL Formatting Preservation */}
-                    <Box sx={{
-                      p: 2,
-                      mb: 4,
-                      bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
-                      borderRadius: 1,
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      fontFamily: 'monospace',
-                      fontSize: '1.1rem',
-                      lineHeight: 1.6,
-                      whiteSpace: 'pre-wrap', // ALWAYS preserve all formatting
-                      overflow: 'auto'
-                    }}>
-                      {questions[currentQuestion].question}
-                    </Box>
-
-                    <FormControl component="fieldset" sx={{ width: '100%' }}>
-                      <RadioGroup
-                        value={answers[currentQuestion] || ''}
-                        onChange={(e) => handleAnswerChange(currentQuestion, e.target.value)}
-                      >
-                        {questions[currentQuestion].options.map((option, optionIndex) => (
-                          <FormControlLabel
-                            key={optionIndex}
-                            value={optionIndex}
-                            control={<Radio size="large" />}
-                            label={
-                              <Typography variant="body1" sx={{ fontSize: '1.1rem', ml: 1 }}>
-                                {String.fromCharCode(65 + optionIndex)}. {option}
-                              </Typography>
-                            }
-                            sx={{
-                              mb: 2,
-                              p: 2,
-                              border: 1,
-                              borderColor: answers[currentQuestion] === optionIndex ? 'primary.main' : 'grey.300',
-                              borderRadius: 2,
-                              bgcolor: answers[currentQuestion] === optionIndex ? 'primary.light' : 'transparent',
-                              '&:hover': {
-                                bgcolor: answers[currentQuestion] === optionIndex ? 'primary.light' : 'action.hover'
-                              }
-                            }}
-                          />
-                        ))}
-                      </RadioGroup>
-                    </FormControl>
-
-                    {/* Navigation Buttons */}
-                    <Box sx={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      mt: 4,
-                      pt: 3,
-                      borderTop: 1,
-                      borderColor: 'divider'
-                    }}>
-                      <Button
-                        variant="outlined"
-                        onClick={() => setCurrentQuestion(Math.max(0, currentQuestion - 1))}
-                        disabled={currentQuestion === 0}
-                        size="large"
-                      >
-                        Previous
-                      </Button>
-                      <Button
-                        variant="contained"
-                        onClick={() => setCurrentQuestion(Math.min(questions.length - 1, currentQuestion + 1))}
-                        disabled={currentQuestion === questions.length - 1}
-                        size="large"
-                      >
-                        Next
-                      </Button>
-                    </Box>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* All-at-Once Display Mode */}
-              {quiz?.questionDisplayMode === 'all-at-once' && (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  {questions.map((question, index) => (
-                    <Card key={index} sx={{
-                      border: 1,
-                      borderColor: answers[index] !== null && answers[index] !== undefined ? 'success.main' : 'grey.300',
-                      boxShadow: 2,
-                      '&:hover': {
-                        boxShadow: 4
-                      }
-                    }}>
-                      <CardContent sx={{ p: 3 }}>
-                        <Typography variant="h6" gutterBottom sx={{
+          {questions && questions.length > 0 && (
+            <Box>
+              {/* Mobile: One-by-One Display Mode */}
+              {currentQuestion < questions.length && (
+                <Box>
+                  <Card sx={{
+                    minHeight: { xs: 'auto', sm: '400px' },
+                    border: 2,
+                    borderColor: 'primary.light',
+                    boxShadow: 3,
+                    borderRadius: isMobile ? 1 : 2
+                  }}>
+                    <CardContent sx={{ p: { xs: 2, sm: 4 } }}>
+                      <Typography
+                        variant={isMobile ? "h6" : "h4"}
+                        gutterBottom
+                        sx={{
                           color: 'primary.main',
                           fontWeight: 'bold',
-                          mb: 2
-                        }}>
-                          Question {index + 1}
+                          mb: { xs: 2, sm: 3 },
+                          fontSize: { xs: '1.25rem', sm: '2rem' }
+                        }}
+                      >
+                        Question {currentQuestion + 1} of {questions.length}
+                        {questions[currentQuestion]?.marks && (
                           <Chip
-                            label={`${question.marks} mark${question.marks !== 1 ? 's' : ''}`}
+                            label={`${questions[currentQuestion].marks} mark${questions[currentQuestion].marks !== 1 ? 's' : ''}`}
                             color="primary"
                             size="small"
                             sx={{ ml: 2 }}
                           />
-                          {answers[index] !== null && answers[index] !== undefined && (
-                            <Chip
-                              label="Answered"
-                              color="success"
-                              size="small"
-                              sx={{ ml: 1 }}
-                            />
-                          )}
-                        </Typography>
+                        )}
+                      </Typography>
 
-                        {/* Question Text with UNIVERSAL Formatting Preservation */}
+                      {/* Question Text */}
+                      <Box sx={{ mb: { xs: 3, sm: 4 } }}>
+                        <Typography
+                          variant="body1"
+                          sx={{
+                            fontSize: { xs: '1rem', sm: '1.1rem' },
+                            lineHeight: 1.6,
+                            mb: 2,
+                            whiteSpace: 'pre-wrap'
+                          }}
+                        >
+                          {questions[currentQuestion]?.question}
+                        </Typography>
+                      </Box>
+
+                      <FormControl component="fieldset" sx={{ width: '100%' }}>
+                        <RadioGroup
+                          value={answers[currentQuestion] || ''}
+                          onChange={(e) => setAnswers(prev => ({
+                            ...prev,
+                            [currentQuestion]: parseInt(e.target.value)
+                          }))}
+                        >
+                          {questions[currentQuestion]?.options?.map((option, optionIndex) => (
+                            <FormControlLabel
+                              key={optionIndex}
+                              value={optionIndex}
+                              control={<Radio size={isMobile ? "medium" : "large"} />}
+                              label={
+                                <Typography
+                                  variant="body1"
+                                  sx={{
+                                    fontSize: { xs: '1rem', sm: '1.1rem' },
+                                    ml: 1,
+                                    wordBreak: 'break-word'
+                                  }}
+                                >
+                                  {String.fromCharCode(65 + optionIndex)}. {option}
+                                </Typography>
+                              }
+                              sx={{
+                                mb: { xs: 1.5, sm: 2 },
+                                p: { xs: 1.5, sm: 2 },
+                                border: 1,
+                                borderColor: answers[currentQuestion] === optionIndex ? 'primary.main' : 'grey.300',
+                                borderRadius: 2,
+                                bgcolor: answers[currentQuestion] === optionIndex ? 'primary.light' : 'transparent',
+                                width: '100%',
+                                margin: 0,
+                                marginBottom: { xs: 1.5, sm: 2 },
+                                '&:hover': {
+                                  bgcolor: answers[currentQuestion] === optionIndex ? 'primary.light' : 'action.hover'
+                                }
+                              }}
+                            />
+                          ))}
+                        </RadioGroup>
+                      </FormControl>
+
+                      {/* Navigation Buttons */}
+                      <Box sx={{
+                        display: 'flex',
+                        flexDirection: { xs: 'column', sm: 'row' },
+                        justifyContent: 'space-between',
+                        alignItems: { xs: 'stretch', sm: 'center' },
+                        mt: { xs: 3, sm: 4 },
+                        pt: { xs: 2, sm: 3 },
+                        borderTop: 1,
+                        borderColor: 'divider',
+                        gap: { xs: 1, sm: 0 }
+                      }}>
                         <Box sx={{
-                          p: 2,
-                          mb: 3,
-                          bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
-                          borderRadius: 1,
-                          border: '1px solid',
-                          borderColor: 'divider',
-                          fontFamily: 'monospace',
-                          fontSize: '0.9rem',
-                          lineHeight: 1.5,
-                          whiteSpace: 'pre-wrap', // ALWAYS preserve all formatting
-                          overflow: 'auto'
+                          display: 'flex',
+                          gap: 1,
+                          justifyContent: { xs: 'space-between', sm: 'flex-start' }
                         }}>
-                          {question.question}
+                          <Button
+                            variant="outlined"
+                            onClick={handlePreviousQuestion}
+                            disabled={currentQuestion === 0}
+                            size={isMobile ? "medium" : "large"}
+                            startIcon={<ArrowBackIcon />}
+                            sx={{
+                              fontSize: { xs: '0.875rem', sm: '1rem' },
+                              flex: { xs: 1, sm: 'none' }
+                            }}
+                          >
+                            Previous
+                          </Button>
+
+                          <Button
+                            variant="outlined"
+                            color="warning"
+                            onClick={handleClearAnswer}
+                            size={isMobile ? "medium" : "large"}
+                            startIcon={<ClearIcon />}
+                            sx={{
+                              fontSize: { xs: '0.875rem', sm: '1rem' },
+                              flex: { xs: 1, sm: 'none' }
+                            }}
+                          >
+                            Clear
+                          </Button>
                         </Box>
 
-                        <FormControl component="fieldset" sx={{ width: '100%' }}>
-                          <RadioGroup
-                            value={answers[index] || ''}
-                            onChange={(e) => handleAnswerChange(index, e.target.value)}
-                          >
-                            {question.options.map((option, optionIndex) => (
-                              <FormControlLabel
-                                key={optionIndex}
-                                value={optionIndex}
-                                control={<Radio />}
-                                label={
-                                  <Typography variant="body1" sx={{ ml: 1 }}>
-                                    {String.fromCharCode(65 + optionIndex)}. {option}
-                                  </Typography>
-                                }
-                                sx={{
-                                  mb: 1,
-                                  p: 1.5,
-                                  border: 1,
-                                  borderColor: answers[index] === optionIndex ? 'primary.main' : 'grey.300',
-                                  borderRadius: 1,
-                                  bgcolor: answers[index] === optionIndex ? 'primary.light' : 'transparent',
-                                  '&:hover': {
-                                    bgcolor: answers[index] === optionIndex ? 'primary.light' : 'action.hover'
-                                  }
-                                }}
-                              />
-                            ))}
-                          </RadioGroup>
-                        </FormControl>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        <Button
+                          variant="contained"
+                          onClick={handleNextQuestion}
+                          disabled={currentQuestion === questions.length - 1}
+                          size={isMobile ? "medium" : "large"}
+                          endIcon={<ArrowForwardIcon />}
+                          sx={{
+                            fontSize: { xs: '0.875rem', sm: '1rem' }
+                          }}
+                        >
+                          Next
+                        </Button>
+                      </Box>
+                    </CardContent>
+                  </Card>
                 </Box>
               )}
-            </>
+            </Box>
           )}
         </Box>
 
-        {/* Right Sidebar - Timer and Question Navigation */}
-        <Paper sx={{
-          width: '280px',
-          borderRadius: 0,
-          borderLeft: 1,
-          borderColor: 'divider',
-          overflow: 'auto',
-          p: 2
-        }}>
-          {/* Timer Section */}
-          <Box sx={{ mb: 3, textAlign: 'center' }}>
-            <Typography variant="h6" gutterBottom sx={{ color: 'error.main', fontWeight: 'bold' }}>
-              ⏰ Time Remaining
-            </Typography>
-            <Box sx={{
-              p: 2,
-              bgcolor: timeRemaining < 300000 ? 'error.light' : 'success.light',
-              borderRadius: 2,
-              border: 2,
-              borderColor: timeRemaining < 300000 ? 'error.main' : 'success.main'
-            }}>
-              <Typography variant="h4" sx={{
-                fontWeight: 'bold',
-                color: timeRemaining < 300000 ? 'error.dark' : 'success.dark',
-                fontFamily: 'monospace'
+        {/* Desktop Right Sidebar - Timer and Question Navigation */}
+        {!isMobile && (
+          <Paper sx={{
+            width: '280px',
+            borderRadius: 0,
+            borderLeft: 1,
+            borderColor: 'divider',
+            overflow: 'auto',
+            p: 2
+          }}>
+            {/* Progress Section */}
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="h6" gutterBottom sx={{ color: 'info.main', fontWeight: 'bold' }}>
+                📊 Progress
+              </Typography>
+              <Typography variant="body2" gutterBottom>
+                Answered: {Object.values(answers).filter(a => a !== null && a !== undefined).length} / {questions?.length || 0}
+              </Typography>
+              <LinearProgress
+                variant="determinate"
+                value={getProgress()}
+                sx={{
+                  height: 8,
+                  borderRadius: 4,
+                  mb: 1
+                }}
+              />
+              <Typography variant="body2" color="text.secondary">
+                {getProgress().toFixed(1)}% Complete
+              </Typography>
+            </Box>
+
+            {/* Question Navigation Grid */}
+            <Box>
+              <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', fontWeight: 'bold' }}>
+                🔢 Questions
+              </Typography>
+              <Box sx={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: 1,
+                mb: 2
               }}>
-                {formatTime(timeRemaining)}
-              </Typography>
-            </Box>
-          </Box>
+                {questions?.map((question, index) => (
+                  <Button
+                    key={index}
+                    variant={currentQuestion === index ? "contained" : "outlined"}
+                    color={
+                      answers[index] !== null && answers[index] !== undefined
+                        ? "success"
+                        : currentQuestion === index
+                          ? "primary"
+                          : "inherit"
+                    }
+                    size="small"
+                    onClick={() => setCurrentQuestion(index)}
+                    sx={{
+                      minWidth: 'auto',
+                      aspectRatio: '1',
+                      fontSize: '0.75rem',
+                      fontWeight: 'bold',
+                      border: currentQuestion === index ? 2 : 1,
+                      borderColor: currentQuestion === index ? 'primary.main' : 'inherit'
+                    }}
+                  >
+                    {index + 1}
+                  </Button>
+                ))}
+              </Box>
 
-          {/* Progress Section */}
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="h6" gutterBottom sx={{ color: 'info.main', fontWeight: 'bold' }}>
-              📊 Progress
-            </Typography>
-            <Typography variant="body2" gutterBottom>
-              Answered: {Object.values(answers).filter(a => a !== null).length} / {questions.length}
-            </Typography>
-            <LinearProgress
-              variant="determinate"
-              value={getProgress()}
-              sx={{
-                height: 8,
-                borderRadius: 4,
-                mb: 1
-              }}
-            />
-            <Typography variant="body2" color="text.secondary">
-              {getProgress().toFixed(1)}% Complete
-            </Typography>
-          </Box>
-
-          {/* Question Navigation Grid */}
-          <Box>
-            <Typography variant="h6" gutterBottom sx={{ color: 'primary.main', fontWeight: 'bold' }}>
-              🔢 Questions
-            </Typography>
-            <Box sx={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
-              gap: 1,
-              mb: 2
-            }}>
-              {questions.map((_, index) => (
-                <Button
-                  key={index}
-                  variant={currentQuestion === index ? "contained" : "outlined"}
-                  color={
-                    answers[index] !== null && answers[index] !== undefined
-                      ? "success"
-                      : currentQuestion === index
-                        ? "primary"
-                        : "inherit"
-                  }
-                  onClick={() => setCurrentQuestion(index)}
-                  sx={{
-                    minWidth: '40px',
-                    height: '40px',
-                    fontSize: '0.9rem',
-                    fontWeight: 'bold',
-                    border: currentQuestion === index ? 2 : 1,
-                    borderColor: currentQuestion === index ? 'primary.main' : 'inherit'
-                  }}
-                >
-                  {index + 1}
-                </Button>
-              ))}
-            </Box>
-
-            {/* Legend */}
-            <Box sx={{ mt: 2 }}>
-              <Typography variant="body2" sx={{ mb: 1, fontWeight: 'bold' }}>
-                Legend:
-              </Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Box sx={{
-                    width: 16,
-                    height: 16,
-                    bgcolor: 'success.main',
-                    borderRadius: 1
-                  }} />
-                  <Typography variant="body2">Answered</Typography>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Box sx={{
-                    width: 16,
-                    height: 16,
-                    bgcolor: 'primary.main',
-                    borderRadius: 1
-                  }} />
-                  <Typography variant="body2">Current</Typography>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Box sx={{
-                    width: 16,
-                    height: 16,
-                    border: 1,
-                    borderColor: 'grey.400',
-                    borderRadius: 1
-                  }} />
-                  <Typography variant="body2">Not Answered</Typography>
+              {/* Legend */}
+              <Box sx={{ mt: 2 }}>
+                <Typography variant="body2" sx={{ mb: 1, fontWeight: 'bold' }}>
+                  Legend:
+                </Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ width: 16, height: 16, bgcolor: 'success.main', borderRadius: 1 }} />
+                    <Typography variant="body2">Answered</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ width: 16, height: 16, bgcolor: 'primary.main', borderRadius: 1 }} />
+                    <Typography variant="body2">Current</Typography>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Box sx={{ width: 16, height: 16, border: 1, borderColor: 'grey.400', borderRadius: 1 }} />
+                    <Typography variant="body2">Not Answered</Typography>
+                  </Box>
                 </Box>
               </Box>
             </Box>
-          </Box>
-        </Paper>
+          </Paper>
+        )}
       </Box>
 
-      {/* Fullscreen Warning Dialog - TEMPORARILY DISABLED FOR TESTING */}
-      {/*
-      <Dialog
-        open={showFullscreenDialog}
-        onClose={() => {}} // Prevent closing by clicking outside
-        disableEscapeKeyDown // Prevent closing with Escape key
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle sx={{ bgcolor: 'error.light', color: 'error.contrastText' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <WarningIcon />
-            ⚠️ FULL-SCREEN MODE REQUIRED!
-          </Box>
-        </DialogTitle>
-        <DialogContent sx={{ pt: 3 }}>
-          <Alert severity="error" sx={{ mb: 2 }}>
-            <Typography variant="h6" gutterBottom>
-              You have exited full-screen mode!
-            </Typography>
-          </Alert>
-
-          <Typography paragraph>
-            The quiz requires full-screen mode to maintain integrity and prevent cheating.
-          </Typography>
-
-          <Box sx={{
-            bgcolor: 'warning.light',
-            p: 2,
-            borderRadius: 1,
-            mb: 2,
-            border: 2,
-            borderColor: 'warning.main'
-          }}>
-            <Typography variant="h6" color="warning.dark" gutterBottom>
-              Warning {fullscreenWarnings}/2
-            </Typography>
-            <Typography variant="body2" color="warning.dark">
-              After 2 warnings, the quiz will be automatically terminated and you will not be able to submit your answers.
-            </Typography>
-          </Box>
-
-          <Typography paragraph>
-            <strong>Choose an option:</strong>
-          </Typography>
-
-          <Typography variant="body2" paragraph>
-            • <strong>Continue Quiz:</strong> Re-enter full-screen mode and continue with your quiz
-          </Typography>
-          <Typography variant="body2" paragraph>
-            • <strong>Exit Quiz:</strong> Leave the quiz (your progress will be lost)
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ p: 3, gap: 2 }}>
-          <Button
-            onClick={handleExitQuiz}
-            variant="outlined"
-            color="error"
-            size="large"
-          >
-            Exit Quiz
-          </Button>
-          <Button
-            onClick={handleContinueFullscreen}
-            variant="contained"
-            color="primary"
-            size="large"
-            startIcon={<TimerIcon />}
-          >
-            Continue Quiz (Full-Screen)
-          </Button>
-        </DialogActions>
-      </Dialog>
-      */}
-
       {/* Submit Confirmation Dialog */}
-      <Dialog open={showSubmitDialog} onClose={() => !submitting && setShowSubmitDialog(false)}>
+      <Dialog open={showSubmitDialog} onClose={() => setShowSubmitDialog(false)}>
         <DialogTitle>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <WarningIcon color="warning" />
-            Confirm Submission
+            Confirm Quiz Submission
           </Box>
         </DialogTitle>
         <DialogContent>
-          <Typography paragraph>
-            Are you sure you want to submit your quiz? You have answered{' '}
-            {Object.values(answers).filter(a => a !== null).length} out of {questions.length} questions.
+          <Typography variant="body1" paragraph>
+            Are you sure you want to submit your quiz? Once submitted, you cannot make any changes.
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Once submitted, you cannot change your answers.
+            Answered Questions: {Object.values(answers).filter(a => a !== null && a !== undefined).length} / {questions.length}
           </Typography>
         </DialogContent>
         <DialogActions>
@@ -1114,14 +1220,15 @@ const AuthenticatedQuizTake = () => {
           <Button
             onClick={confirmSubmit}
             variant="contained"
+            color="primary"
             disabled={submitting}
-            startIcon={submitting ? <CircularProgress size={20} /> : null}
+            startIcon={submitting ? <CircularProgress size={20} /> : <SendIcon />}
           >
-            {submitting ? 'Submitting...' : 'Submit'}
+            {submitting ? 'Submitting...' : 'Submit Quiz'}
           </Button>
         </DialogActions>
       </Dialog>
-    </Box>
+      </Box>
     </QuizSecurity>
   );
 };

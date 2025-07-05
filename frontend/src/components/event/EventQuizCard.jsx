@@ -24,7 +24,9 @@ import {
   TableRow,
   Paper,
   CircularProgress,
-  Alert
+  Alert,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import {
   Event as EventIcon,
@@ -58,6 +60,8 @@ const EventQuizCard = ({
 }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [registrationOpen, setRegistrationOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [registrations, setRegistrations] = useState([]);
@@ -327,10 +331,12 @@ const EventQuizCard = ({
     return parts.length > 0 ? parts.join(' • ') : 'Open to All';
   };
 
-  const formatDateTime = (dateString) => {
+  const formatDateTime = (dateString, isMobileFormat = false) => {
     if (!dateString) return 'Not set';
     try {
-      return format(new Date(dateString), 'MMM dd, yyyy HH:mm');
+      // Use shorter format for mobile to prevent overflow
+      const formatString = isMobileFormat ? 'MMM dd HH:mm' : 'MMM dd, yyyy HH:mm';
+      return format(new Date(dateString), formatString);
     } catch (error) {
       console.error('Date formatting error:', error);
       return 'Invalid date';
@@ -339,21 +345,23 @@ const EventQuizCard = ({
 
   return (
     <>
-      <Card sx={{ 
-        height: '100%', 
-        display: 'flex', 
+      <Card sx={{
+        height: '100%',
+        display: 'flex',
         flexDirection: 'column',
         width: '100%',
-        '& .MuiCardContent-root': {
-          padding: 2
-        }
+        maxWidth: '100%',
+        minWidth: 0,
+        overflow: 'hidden',
+        borderRadius: isMobile ? 1 : 2,
+        position: 'relative'
       }}>
-        <CardContent sx={{ 
-          flexGrow: 1, 
-          p: '16px !important',
-          '& .MuiTypography-root': {
-            wordBreak: 'break-word'
-          }
+        <CardContent sx={{
+          flexGrow: 1,
+          p: isMobile ? 1.5 : 2,
+          overflow: 'hidden',
+          width: '100%',
+          boxSizing: 'border-box'
         }}>
           {error && (
             <Alert severity="error" sx={{ mb: 2 }}>
@@ -361,20 +369,17 @@ const EventQuizCard = ({
             </Alert>
           )}
 
-          <Box sx={{ 
-            mb: 1.5,
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'flex-start',
-            gap: 1
-          }}>
-            <Typography 
-              variant="h6" 
-              component="div" 
-              sx={{ 
-                fontSize: '1.1rem',
+          {/* Title and Status */}
+          <Box sx={{ mb: 1.5 }}>
+            <Typography
+              variant={isMobile ? "subtitle1" : "h6"}
+              component="div"
+              sx={{
+                fontSize: { xs: '1rem', sm: '1.1rem' },
+                fontWeight: 'bold',
                 mb: 0.5,
-                flexGrow: 1
+                wordWrap: 'break-word',
+                hyphens: 'auto'
               }}
             >
               {quiz?.title || 'Untitled Quiz'}
@@ -383,206 +388,136 @@ const EventQuizCard = ({
               label={currentStatus ? (currentStatus.charAt(0).toUpperCase() + currentStatus.slice(1)) : 'Draft'}
               color={getStatusColor(currentStatus)}
               size="small"
-              sx={{ flexShrink: 0 }}
+              sx={{ fontSize: '0.75rem' }}
             />
           </Box>
 
-          <Typography 
-            variant="body2" 
-            color="text.secondary" 
-            sx={{ mb: 1.5 }}
+          {/* Description */}
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{
+              mb: 1.5,
+              fontSize: '0.875rem',
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              wordWrap: 'break-word',
+              hyphens: 'auto'
+            }}
           >
             {quiz?.description || 'No description provided'}
           </Typography>
 
-          <Grid container spacing={1}>
-            <Grid item xs={12}>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <TimeIcon fontSize="small" color="action" />
-                <Typography variant="body2">
-                  Duration: {quiz?.duration || 0} minutes
-                </Typography>
-              </Stack>
-            </Grid>
+          {/* Quiz Details - Simple List */}
+          <Box sx={{ '& > *': { mb: 0.75 } }}>
+            <Typography variant="body2" sx={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center' }}>
+              <TimeIcon fontSize="small" sx={{ mr: 1, color: 'action.active' }} />
+              Duration: {quiz?.duration || 0} minutes
+            </Typography>
 
-            <Grid item xs={12}>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <EventIcon fontSize="small" color="action" />
-                <Typography variant="body2">
-                  {formatDateTime(quiz?.startTime)} - {formatDateTime(quiz?.endTime)}
-                </Typography>
-              </Stack>
-            </Grid>
+            <Typography variant="body2" sx={{ fontSize: '0.75rem', wordWrap: 'break-word', hyphens: 'auto' }}>
+              <EventIcon fontSize="small" sx={{ mr: 1, color: 'action.active', verticalAlign: 'middle' }} />
+              {isMobile
+                ? `${formatDateTime(quiz?.startTime, true)} - ${formatDateTime(quiz?.endTime, true)}`
+                : `${formatDateTime(quiz?.startTime)} - ${formatDateTime(quiz?.endTime)}`
+              }
+            </Typography>
 
-            <Grid item xs={12}>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <GroupIcon fontSize="small" color="action" />
-                <Typography variant="body2">
-                  For: {formatParticipantTypes(quiz)}
-                </Typography>
-              </Stack>
-            </Grid>
+            <Typography variant="body2" sx={{ fontSize: '0.75rem', wordWrap: 'break-word', hyphens: 'auto' }}>
+              <GroupIcon fontSize="small" sx={{ mr: 1, color: 'action.active', verticalAlign: 'middle' }} />
+              For: {formatParticipantTypes(quiz)}
+            </Typography>
 
-              <Grid item xs={12}>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <SchoolIcon fontSize="small" color="action" />
-                  <Typography variant="body2">
-                    {formatEligibility(quiz)}
-                  </Typography>
-                </Stack>
-              </Grid>
+            <Typography variant="body2" sx={{ fontSize: '0.75rem', wordWrap: 'break-word', hyphens: 'auto' }}>
+              <SchoolIcon fontSize="small" sx={{ mr: 1, color: 'action.active', verticalAlign: 'middle' }} />
+              {formatEligibility(quiz)}
+            </Typography>
 
-            <Grid item xs={12}>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <ClassIcon fontSize="small" color="action" />
-                <Typography variant="body2">
-                  Questions: {Array.isArray(quiz?.questions) ? quiz.questions.length : 0} •
-                  Total Marks: {quiz?.totalMarks || 0}
-                </Typography>
-              </Stack>
-            </Grid>
+            <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+              <ClassIcon fontSize="small" sx={{ mr: 1, color: 'action.active', verticalAlign: 'middle' }} />
+              Questions: {Array.isArray(quiz?.questions) ? quiz.questions.length : 0} •
+              Total Marks: {quiz?.totalMarks || 0}
+            </Typography>
 
-            {/* Negative Marking Indicator */}
-            <Grid item xs={12}>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Typography variant="body2" sx={{
-                  color: quiz?.negativeMarkingEnabled ? 'warning.main' : 'success.main',
-                  fontWeight: 'medium',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 0.5
-                }}>
-                  {quiz?.negativeMarkingEnabled ? '⚠️' : '✅'}
-                  Negative Marking: {quiz?.negativeMarkingEnabled ? 'Enabled' : 'Disabled'}
-                </Typography>
-              </Stack>
-            </Grid>
+            <Typography
+              variant="body2"
+              sx={{
+                fontSize: '0.75rem',
+                color: quiz?.negativeMarkingEnabled ? 'warning.main' : 'success.main',
+                fontWeight: 'medium'
+              }}
+            >
+              {quiz?.negativeMarkingEnabled ? '⚠️' : '✅'}
+              Negative Marking: {quiz?.negativeMarkingEnabled ? 'Enabled' : 'Disabled'}
+            </Typography>
+          </Box>
 
-            {/* Security Settings - Only show for faculty */}
-            {user?.role === 'faculty' && quiz?.securitySettings && (
-              <Grid item xs={12}>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5, fontWeight: 'medium' }}>
-                  🔒 Security Features:
-                </Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                  {quiz.securitySettings.enableFullscreen && (
-                    <Chip
-                      label="Fullscreen"
-                      size="small"
-                      color="error"
-                      variant="outlined"
-                      icon={<span>🖥️</span>}
-                    />
-                  )}
-                  {quiz.securitySettings.disableRightClick && (
-                    <Chip
-                      label="No Right-Click"
-                      size="small"
-                      color="error"
-                      variant="outlined"
-                      icon={<span>🚫</span>}
-                    />
-                  )}
-                  {quiz.securitySettings.disableCopyPaste && (
-                    <Chip
-                      label="No Copy/Paste"
-                      size="small"
-                      color="error"
-                      variant="outlined"
-                      icon={<span>📋</span>}
-                    />
-                  )}
-                  {quiz.securitySettings.disableTabSwitch && (
-                    <Chip
-                      label="Tab Monitor"
-                      size="small"
-                      color="warning"
-                      variant="outlined"
-                      icon={<span>👁️</span>}
-                    />
-                  )}
-                  {quiz.securitySettings.enableProctoringMode && (
-                    <Chip
-                      label="Proctoring Mode"
-                      size="small"
-                      color="error"
-                      variant="filled"
-                      icon={<span>🛡️</span>}
-                    />
-                  )}
-                  {!Object.values(quiz.securitySettings || {}).some(Boolean) && (
-                    <Chip
-                      label="No Security"
-                      size="small"
-                      color="success"
-                      variant="outlined"
-                      icon={<span>🔓</span>}
-                    />
-                  )}
-                </Box>
-              </Grid>
-            )}
-
+          {/* Additional Information */}
+          <Box sx={{ mt: 1, '& > *': { mb: 0.5 } }}>
             {(quiz?.maxParticipants || 0) > 0 && (
-              <Grid item xs={12}>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <CalendarIcon fontSize="small" color="action" />
-                  <Typography variant="body2">
-                    Max Participants: {quiz.maxParticipants}
-                  </Typography>
-                </Stack>
-              </Grid>
+              <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                <CalendarIcon fontSize="small" sx={{ mr: 1, color: 'action.active', verticalAlign: 'middle' }} />
+                Max Participants: {quiz.maxParticipants}
+              </Typography>
             )}
 
-            <Grid item xs={12}>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <RegisterIcon fontSize="small" color="action" />
-                <Typography variant="body2">
-                  Registration: {quiz?.registrationEnabled ? 'Enabled' : 'Disabled'} •
-                  Spot Registration: {quiz?.spotRegistrationEnabled ? 'Enabled' : 'Disabled'}
-                </Typography>
-              </Stack>
-            </Grid>
+            <Typography variant="body2" sx={{ fontSize: '0.75rem', wordWrap: 'break-word', hyphens: 'auto' }}>
+              <RegisterIcon fontSize="small" sx={{ mr: 1, color: 'action.active', verticalAlign: 'middle' }} />
+              Registration: {quiz?.registrationEnabled ? 'Enabled' : 'Disabled'} •
+              Spot: {quiz?.spotRegistrationEnabled ? 'Enabled' : 'Disabled'}
+            </Typography>
 
-            {/* Team/Individual Mode Display */}
-            <Grid item xs={12}>
-              <Stack direction="row" spacing={1} alignItems="center">
-                {quiz?.participationMode === 'team' ? (
-                  <GroupIcon fontSize="small" color="action" />
-                ) : (
-                  <PeopleIcon fontSize="small" color="action" />
-                )}
-                <Typography variant="body2">
-                  {quiz?.participationMode === 'team'
-                    ? `Team Mode (${quiz?.teamSize || 1} members per team)`
-                    : 'Individual Mode'
-                  }
-                </Typography>
-              </Stack>
-            </Grid>
+            <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+              {quiz?.participationMode === 'team' ? (
+                <GroupIcon fontSize="small" sx={{ mr: 1, color: 'action.active', verticalAlign: 'middle' }} />
+              ) : (
+                <PeopleIcon fontSize="small" sx={{ mr: 1, color: 'action.active', verticalAlign: 'middle' }} />
+              )}
+              {quiz?.participationMode === 'team'
+                ? `Team Mode (${quiz?.teamSize || 1} members)`
+                : 'Individual Mode'
+              }
+            </Typography>
 
-            {/* Question Display Mode */}
-            <Grid item xs={12}>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <QuizIcon fontSize="small" color="action" />
-                <Typography variant="body2">
-                  Questions: {quiz?.questionDisplayMode === 'all-at-once'
-                    ? 'All questions on one page'
-                    : 'One question at a time'
-                  }
-                </Typography>
-              </Stack>
-            </Grid>
-
-          </Grid>
+            <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+              <QuizIcon fontSize="small" sx={{ mr: 1, color: 'action.active', verticalAlign: 'middle' }} />
+              Questions: {quiz?.questionDisplayMode === 'all-at-once'
+                ? 'All on one page'
+                : 'One at a time'
+              }
+            </Typography>
+          </Box>
         </CardContent>
 
-        <CardActions sx={{ p: 2, pt: 0 }}>
-          <Stack direction="row" spacing={1} sx={{ width: '100%' }}>
+        <CardActions sx={{
+          p: { xs: 1, sm: 2 },
+          pt: 0,
+          overflow: 'hidden'
+        }}>
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              gap: { xs: 0.5, sm: 1 },
+              width: '100%',
+              '& .MuiButton-root': {
+                fontSize: { xs: '0.7rem', sm: '0.875rem' },
+                px: { xs: 0.75, sm: 1.5 },
+                py: { xs: 0.4, sm: 0.75 },
+                minWidth: { xs: 'auto', sm: 'auto' },
+                whiteSpace: 'nowrap',
+                flex: { xs: '1 1 auto', sm: '0 0 auto' },
+                maxWidth: { xs: 'calc(50% - 2px)', sm: 'none' }
+              }
+            }}
+          >
             {user?.role === 'event' && (
               <>
                 <Button
-                  startIcon={<EditIcon />}
+                  startIcon={isMobile ? null : <EditIcon />}
                   onClick={handleEdit}
                   size="small"
                   variant="outlined"
@@ -590,7 +525,7 @@ const EventQuizCard = ({
                   Edit
                 </Button>
                 <Button
-                  startIcon={<DeleteIcon />}
+                  startIcon={isMobile ? null : <DeleteIcon />}
                   onClick={handleDeleteClick}
                   size="small"
                   disabled={loading}
@@ -604,19 +539,19 @@ const EventQuizCard = ({
 
               {showViewDetails && user?.role === 'event' && (
               <Button
-                startIcon={<PeopleIcon />}
+                startIcon={isMobile ? null : <PeopleIcon />}
                 onClick={handleViewDetails}
                 color="primary"
                 size="small"
                 variant="outlined"
               >
-                View Registrations
+                {isMobile ? 'Registrations' : 'View Registrations'}
               </Button>
               )}
 
               {showRegistration && !isRegistered && (
                 <Button
-                  startIcon={<RegisterIcon />}
+                  startIcon={isMobile ? null : <RegisterIcon />}
                   variant="contained"
                   color="primary"
                   size="small"
@@ -628,7 +563,7 @@ const EventQuizCard = ({
 
               {showStart && isRegistered && currentStatus === 'active' && (
                 <Button
-                  startIcon={<StartIcon />}
+                  startIcon={isMobile ? null : <StartIcon />}
                   variant="contained"
                   color="success"
                   size="small"
@@ -640,16 +575,16 @@ const EventQuizCard = ({
 
               {user?.role === 'event' && (
                 <Button
-                  startIcon={<AssessmentIcon />}
+                  startIcon={isMobile ? null : <AssessmentIcon />}
                   onClick={handleResults}
                   color="primary"
                   size="small"
                   variant="outlined"
                 >
-                  View Results
+                  {isMobile ? 'Results' : 'View Results'}
                 </Button>
               )}
-          </Stack>
+          </Box>
         </CardActions>
       </Card>
 

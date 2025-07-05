@@ -1319,12 +1319,18 @@ router.post('/:quizId/restore-submission/:studentId', auth, authorize('faculty',
       return res.status(404).json({ message: 'Deleted submission not found' });
     }
 
-    // Restore the submission
-    submission.isDeleted = false;
-    submission.deletedAt = null;
-    submission.deletedBy = null;
-    submission.deletionReason = null;
-    await submission.save();
+    // Restore the submission by updating the fields using updateOne
+    await QuizSubmission.updateOne(
+      { _id: submission._id },
+      {
+        $set: { isDeleted: false },
+        $unset: {
+          deletedAt: 1,
+          deletedBy: 1,
+          deletionReason: 1
+        }
+      }
+    );
 
     res.json({
       message: 'Submission restored successfully',
