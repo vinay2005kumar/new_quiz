@@ -6,9 +6,9 @@ import {
   Typography,
   TextField,
   Button,
-  Alert,
   Paper,
-  CircularProgress
+  CircularProgress,
+  Link
 } from '@mui/material';
 import { useAuth } from '../../context/AuthContext';
 import { useCollegeInfo } from '../../hooks/useCollegeInfo';
@@ -33,7 +33,6 @@ const getDashboardPath = (role) => {
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { login, user } = useAuth();
   const { name: collegeName, email: collegeEmail, phone: collegePhone, address: collegeAddress } = useCollegeInfo();
@@ -50,7 +49,6 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
     setIsLoading(true);
 
     try {
@@ -59,11 +57,11 @@ const Login = () => {
         // Get the return path from location state, or use role-based dashboard
         const returnPath = location.state?.from || getDashboardPath(result.user?.role);
         navigate(returnPath, { replace: true });
-      } else {
-        setError(result.error);
       }
+      // Error handling is now done in AuthContext with toast notifications
     } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
+      // Additional error handling if needed
+      console.error('Login error:', err);
     } finally {
       setIsLoading(false);
     }
@@ -106,11 +104,6 @@ const Login = () => {
           </Typography>
 
           <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
-            {error && (
-              <Alert severity="error" sx={{ mb: 2 }}>
-                {error}
-              </Alert>
-            )}
             <TextField
               margin="normal"
               required
@@ -153,6 +146,28 @@ const Login = () => {
                 'Sign In'
               )}
             </Button>
+
+            {/* Forgot Password Link */}
+            <Box sx={{ textAlign: 'center', mt: 2 }}>
+              <Link
+                component="button"
+                variant="body2"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate('/forgot-password');
+                }}
+                sx={{
+                  textDecoration: 'none',
+                  color: 'primary.main',
+                  '&:hover': {
+                    textDecoration: 'underline'
+                  }
+                }}
+              >
+                Forgot your password?
+              </Link>
+            </Box>
+
             {/* <Button
               fullWidth
               variant="text"

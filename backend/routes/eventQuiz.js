@@ -3966,6 +3966,74 @@ router.post('/:id/reattempt', auth, authorize('event', 'admin'), async (req, res
     const participantType = isTeamRegistration ? 'team' : 'individual';
     const participantName = isTeamRegistration ? `team "${teamName}"` : `student "${email}"`;
 
+    // Send email notification to student/team
+    try {
+      const { sendReattemptNotificationEmail } = require('../services/emailService');
+
+      const quizData = {
+        title: quiz.title,
+        type: 'event',
+        duration: quiz.duration,
+        endTime: quiz.endTime
+      };
+
+      const senderInfo = {
+        name: req.user.name,
+        role: req.user.role === 'event' ? 'Event Manager' : 'Administrator',
+        email: req.user.email
+      };
+
+      if (isTeamRegistration) {
+        // For team registration, send email to team leader
+        const teamRegistration = await EventQuizRegistration.findOne({
+          quiz: req.params.id,
+          teamName: teamName,
+          isTeamRegistration: true
+        });
+
+        if (teamRegistration && teamRegistration.teamLeader) {
+          const studentData = {
+            name: `${teamRegistration.teamLeader.name} (Team Leader - ${teamName})`,
+            email: teamRegistration.teamLeader.email
+          };
+
+          sendReattemptNotificationEmail(studentData, quizData, senderInfo)
+            .then(() => {
+              console.log(`✅ Team reattempt notification email sent to: ${studentData.email} (${teamName})`);
+            })
+            .catch(error => {
+              console.error(`❌ Error sending team reattempt notification email:`, error);
+            });
+        }
+      } else {
+        // For individual registration
+        const individualRegistration = await EventQuizRegistration.findOne({
+          quiz: req.params.id,
+          email: email,
+          isTeamRegistration: false
+        });
+
+        if (individualRegistration) {
+          const studentData = {
+            name: individualRegistration.name,
+            email: individualRegistration.email
+          };
+
+          sendReattemptNotificationEmail(studentData, quizData, senderInfo)
+            .then(() => {
+              console.log(`✅ Individual reattempt notification email sent to: ${studentData.email} (${studentData.name})`);
+            })
+            .catch(error => {
+              console.error(`❌ Error sending individual reattempt notification email:`, error);
+            });
+        }
+      }
+
+    } catch (error) {
+      console.error('Error sending reattempt notification email:', error);
+      // Don't fail the reattempt process if email fails
+    }
+
     res.json({
       message: `Reattempt enabled successfully for ${participantName}`,
       deletedSubmissions: deletedSubmissions.deletedCount,
@@ -4038,6 +4106,74 @@ router.post('/:id/bulk-reattempt', auth, authorize('event', 'admin'), async (req
           deletedCredentials: deletedCredentials.deletedCount,
           deletedSubmissions: deletedSubmissions.deletedCount
         });
+
+        // Send email notification for successful reattempt
+        try {
+          const { sendReattemptNotificationEmail } = require('../services/emailService');
+
+          const quizData = {
+            title: quiz.title,
+            type: 'event',
+            duration: quiz.duration,
+            endTime: quiz.endTime
+          };
+
+          const senderInfo = {
+            name: req.user.name,
+            role: req.user.role === 'event' ? 'Event Manager' : 'Administrator',
+            email: req.user.email
+          };
+
+          if (isTeamRegistration) {
+            // For team registration, send email to team leader
+            const teamRegistration = await EventQuizRegistration.findOne({
+              quiz: req.params.id,
+              teamName: teamName,
+              isTeamRegistration: true
+            });
+
+            if (teamRegistration && teamRegistration.teamLeader) {
+              const studentData = {
+                name: `${teamRegistration.teamLeader.name} (Team Leader - ${teamName})`,
+                email: teamRegistration.teamLeader.email
+              };
+
+              sendReattemptNotificationEmail(studentData, quizData, senderInfo)
+                .then(() => {
+                  console.log(`✅ Bulk team reattempt notification email sent to: ${studentData.email} (${teamName})`);
+                })
+                .catch(error => {
+                  console.error(`❌ Error sending bulk team reattempt notification email:`, error);
+                });
+            }
+          } else {
+            // For individual registration
+            const individualRegistration = await EventQuizRegistration.findOne({
+              quiz: req.params.id,
+              email: email,
+              isTeamRegistration: false
+            });
+
+            if (individualRegistration) {
+              const studentData = {
+                name: individualRegistration.name,
+                email: individualRegistration.email
+              };
+
+              sendReattemptNotificationEmail(studentData, quizData, senderInfo)
+                .then(() => {
+                  console.log(`✅ Bulk individual reattempt notification email sent to: ${studentData.email} (${studentData.name})`);
+                })
+                .catch(error => {
+                  console.error(`❌ Error sending bulk individual reattempt notification email:`, error);
+                });
+            }
+          }
+
+        } catch (error) {
+          console.error('Error sending bulk reattempt notification email:', error);
+          // Don't fail the reattempt process if email fails
+        }
 
       } catch (error) {
         console.error(`Error processing reattempt for ${email}:`, error);

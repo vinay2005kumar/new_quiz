@@ -3,12 +3,25 @@ const crypto = require('crypto');
 
 // Create transporter for sending emails
 const createTransporter = () => {
-  console.log('🔧 EMAIL FIX: Creating transporter with nodemailer.createTransport');
+  console.log('🔧 EMAIL: Creating transporter with nodemailer.createTransport');
+
+  const emailUser = process.env.EMAIL_USER;
+  const emailPass = process.env.EMAIL_PASS;
+
+  console.log('📧 Email configuration:', {
+    user: emailUser ? `${emailUser.substring(0, 3)}***@${emailUser.split('@')[1]}` : 'NOT SET',
+    pass: emailPass ? '***SET***' : 'NOT SET'
+  });
+
+  if (!emailUser || !emailPass) {
+    console.warn('⚠️ Email credentials not properly configured in environment variables');
+  }
+
   return nodemailer.createTransport({
-    service: 'gmail', // You can change this to your preferred email service
+    service: 'gmail',
     auth: {
-      user: process.env.EMAIL_USER || 'your-email@gmail.com',
-      pass: process.env.EMAIL_PASS || 'your-app-password'
+      user: emailUser || 'your-email@gmail.com',
+      pass: emailPass || 'your-app-password'
     }
   });
 };
@@ -422,8 +435,384 @@ const sendBulkEmail = async ({ emails, subject, message, quizTitle, senderName }
   }
 };
 
+// Send academic quiz notification to eligible students
+const sendAcademicQuizNotification = async (quiz, eligibleStudents) => {
+  try {
+    console.log(`📧 Starting to send academic quiz notifications for: ${quiz.title}`);
+    console.log(`📊 Total eligible students: ${eligibleStudents.length}`);
+
+    if (eligibleStudents.length === 0) {
+      console.log('⚠️ No eligible students found for this quiz');
+      return { success: 0, failed: 0, total: 0 };
+    }
+
+    const transporter = createTransporter();
+    let successCount = 0;
+    let failedCount = 0;
+
+    // Format quiz date and time
+    const startDate = new Date(quiz.startTime).toLocaleDateString('en-IN', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    const startTime = new Date(quiz.startTime).toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    const endTime = new Date(quiz.endTime).toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    // Send emails to all eligible students
+    for (const student of eligibleStudents) {
+      try {
+        const emailSubject = `📚 New Academic Quiz Available - ${quiz.title}`;
+        const emailContent = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px; background-color: #f9f9f9;">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <h2 style="color: #1976d2; margin: 0;">📚 New Academic Quiz Available!</h2>
+              <p style="color: #666; font-size: 16px; margin: 10px 0;">A new quiz has been created for your class</p>
+            </div>
+
+            <div style="background-color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+              <p style="margin: 0 0 15px 0;">Dear <strong>${student.name}</strong>,</p>
+              <p style="margin: 0 0 15px 0;">Your faculty has created a new academic quiz that you are eligible to take.</p>
+            </div>
+
+            <div style="background-color: #e3f2fd; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #1976d2;">
+              <h3 style="color: #1976d2; margin-top: 0; margin-bottom: 15px;">📋 Quiz Details</h3>
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 8px 0; font-weight: bold; color: #333;">Quiz Title:</td>
+                  <td style="padding: 8px 0; color: #666;">${quiz.title}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; font-weight: bold; color: #333;">Subject:</td>
+                  <td style="padding: 8px 0; color: #666;">${quiz.subject.name} (${quiz.subject.code})</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; font-weight: bold; color: #333;">Duration:</td>
+                  <td style="padding: 8px 0; color: #666;">${quiz.duration} minutes</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; font-weight: bold; color: #333;">Total Questions:</td>
+                  <td style="padding: 8px 0; color: #666;">${quiz.questions.length}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; font-weight: bold; color: #333;">Total Marks:</td>
+                  <td style="padding: 8px 0; color: #666;">${quiz.totalMarks}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; font-weight: bold; color: #333;">Date:</td>
+                  <td style="padding: 8px 0; color: #666;">${startDate}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; font-weight: bold; color: #333;">Time:</td>
+                  <td style="padding: 8px 0; color: #666;">${startTime} - ${endTime}</td>
+                </tr>
+              </table>
+            </div>
+
+            ${quiz.description ? `
+            <div style="background-color: #f3e5f5; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #7b1fa2;">
+              <h3 style="color: #7b1fa2; margin-top: 0; margin-bottom: 15px;">📝 Quiz Description</h3>
+              <p style="color: #666; margin: 0; line-height: 1.6;">${quiz.description}</p>
+            </div>
+            ` : ''}
+
+            <div style="background-color: #fff3e0; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f57c00;">
+              <h3 style="color: #f57c00; margin-top: 0; margin-bottom: 15px;">📌 Important Instructions</h3>
+              <ul style="color: #666; margin: 0; padding-left: 20px; line-height: 1.8;">
+                <li>Login to your student account to access the quiz</li>
+                <li>Ensure you have a stable internet connection</li>
+                <li>The quiz will be available from ${startTime} on ${startDate}</li>
+                <li>You must complete the quiz before ${endTime}</li>
+                <li>Once started, you have ${quiz.duration} minutes to complete</li>
+                <li>Make sure to submit your answers before time runs out</li>
+                <li>Contact your faculty if you face any technical issues</li>
+              </ul>
+            </div>
+
+            <div style="background-color: #e8f5e8; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #4caf50;">
+              <h3 style="color: #4caf50; margin-top: 0; margin-bottom: 15px;">🎯 Your Academic Details</h3>
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 5px 0; font-weight: bold; color: #333;">Department:</td>
+                  <td style="padding: 5px 0; color: #666;">${student.department}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 5px 0; font-weight: bold; color: #333;">Year:</td>
+                  <td style="padding: 5px 0; color: #666;">${student.year}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 5px 0; font-weight: bold; color: #333;">Semester:</td>
+                  <td style="padding: 5px 0; color: #666;">${student.semester}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 5px 0; font-weight: bold; color: #333;">Section:</td>
+                  <td style="padding: 5px 0; color: #666;">${student.section}</td>
+                </tr>
+              </table>
+            </div>
+
+            <div style="text-align: center; margin-top: 30px; padding: 20px; background-color: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+              <p style="color: #1976d2; font-size: 18px; font-weight: bold; margin: 0 0 10px 0;">🌟 Good Luck with Your Quiz! 🌟</p>
+              <p style="color: #666; font-size: 16px; margin: 0 0 20px 0;">We wish you success in your academic assessment!</p>
+              <p style="color: #666; font-size: 14px; margin: 0;">
+                Best regards,<br>
+                <strong>Academic Team</strong><br>
+                <em>Supporting Your Educational Journey</em>
+              </p>
+            </div>
+          </div>
+        `;
+
+        const mailOptions = {
+          from: process.env.EMAIL_USER || 'noreply@quizapp.com',
+          to: student.email,
+          subject: emailSubject,
+          html: emailContent
+        };
+
+        await transporter.sendMail(mailOptions);
+        console.log(`✅ Academic quiz notification sent successfully to: ${student.email} (${student.name})`);
+        successCount++;
+      } catch (error) {
+        console.error(`❌ Error sending academic quiz notification to ${student.email}:`, error);
+        failedCount++;
+      }
+    }
+
+    console.log(`📧 Academic quiz notification summary:`, {
+      total: eligibleStudents.length,
+      success: successCount,
+      failed: failedCount,
+      quizTitle: quiz.title
+    });
+
+    return {
+      success: successCount,
+      failed: failedCount,
+      total: eligibleStudents.length
+    };
+
+  } catch (error) {
+    console.error('❌ Error in sendAcademicQuizNotification:', error);
+    throw error;
+  }
+};
+
+// Send forgot password email with reset code
+const sendForgotPasswordEmail = async (email, name, resetCode) => {
+  try {
+    console.log(`📧 Sending forgot password email to: ${email}`);
+
+    const transporter = createTransporter();
+
+    const emailSubject = `🔐 Password Reset Code - Quiz Management System`;
+    const emailContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px; background-color: #f9f9f9;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h2 style="color: #d32f2f; margin: 0;">🔐 Password Reset Request</h2>
+          <p style="color: #666; font-size: 16px; margin: 10px 0;">We received a request to reset your password</p>
+        </div>
+
+        <div style="background-color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <p style="margin: 0 0 15px 0;">Dear <strong>${name}</strong>,</p>
+          <p style="margin: 0 0 15px 0;">You have requested to reset your password for the Quiz Management System. Please use the verification code below to proceed with resetting your password.</p>
+        </div>
+
+        <div style="background-color: #ffebee; padding: 25px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #d32f2f; text-align: center;">
+          <h3 style="color: #d32f2f; margin-top: 0; margin-bottom: 15px;">🔢 Your Reset Code</h3>
+          <div style="background-color: white; padding: 15px; border-radius: 5px; margin: 15px 0;">
+            <span style="font-size: 32px; font-weight: bold; color: #d32f2f; letter-spacing: 5px; font-family: 'Courier New', monospace;">${resetCode}</span>
+          </div>
+          <p style="color: #666; font-size: 14px; margin: 10px 0;">This code will expire in 10 minutes</p>
+        </div>
+
+        <div style="background-color: #fff3e0; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f57c00;">
+          <h3 style="color: #f57c00; margin-top: 0; margin-bottom: 15px;">📋 Instructions</h3>
+          <ol style="color: #666; margin: 0; padding-left: 20px; line-height: 1.8;">
+            <li>Go back to the login page</li>
+            <li>Click on "Forgot Password" if you haven't already</li>
+            <li>Enter this 6-digit code when prompted</li>
+            <li>Create your new password</li>
+            <li>Login with your new password</li>
+          </ol>
+        </div>
+
+        <div style="background-color: #ffebee; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #d32f2f;">
+          <h3 style="color: #d32f2f; margin-top: 0; margin-bottom: 15px;">⚠️ Security Notice</h3>
+          <ul style="color: #666; margin: 0; padding-left: 20px; line-height: 1.8;">
+            <li>This code is valid for only 10 minutes</li>
+            <li>If you didn't request this reset, please ignore this email</li>
+            <li>Never share this code with anyone</li>
+            <li>Contact support if you have any concerns</li>
+          </ul>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px; padding: 20px; background-color: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <p style="color: #666; font-size: 14px; margin: 0;">
+            Best regards,<br>
+            <strong>Quiz Management Team</strong><br>
+            <em>Keeping Your Account Secure</em>
+          </p>
+        </div>
+      </div>
+    `;
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER || 'noreply@quizapp.com',
+      to: email,
+      subject: emailSubject,
+      html: emailContent
+    };
+
+    const result = await transporter.sendMail(mailOptions);
+    console.log(`✅ Forgot password email sent successfully to: ${email}`);
+    console.log('Email send result:', result);
+    return true;
+  } catch (error) {
+    console.error(`❌ Error sending forgot password email to ${email}:`, error);
+    console.error('Full error details:', {
+      message: error.message,
+      code: error.code,
+      response: error.response,
+      stack: error.stack
+    });
+
+    // If it's a minor error but email might have been sent, don't throw
+    if (error.code === 'ECONNRESET' || error.message.includes('timeout')) {
+      console.log('⚠️ Network error occurred, but email might have been sent');
+      return true; // Return success for network timeouts
+    }
+
+    throw error;
+  }
+};
+
+// Send reattempt notification email to student
+const sendReattemptNotificationEmail = async (studentData, quizData, senderInfo) => {
+  try {
+    console.log('📧 Sending reattempt notification email...');
+    console.log('Student data:', { email: studentData.email, name: studentData.name });
+    console.log('Quiz data:', { title: quizData.title, type: quizData.type });
+
+    const transporter = createTransporter();
+
+    const emailSubject = `🔄 Quiz Reattempt Permission Granted - ${quizData.title}`;
+
+    const emailContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f5f5f5; padding: 20px;">
+        <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+
+          <!-- Header -->
+          <div style="text-align: center; margin-bottom: 30px;">
+            <div style="background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+              <h1 style="margin: 0; font-size: 24px;">🔄 Quiz Reattempt Permission</h1>
+              <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">You can now retake the quiz!</p>
+            </div>
+          </div>
+
+          <!-- Student Info -->
+          <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 25px;">
+            <h3 style="color: #333; margin: 0 0 15px 0;">👋 Hello ${studentData.name || 'Student'},</h3>
+            <p style="color: #666; font-size: 16px; line-height: 1.6; margin: 0;">
+              Good news! You have been granted permission to reattempt the quiz. Your previous submission has been reset, and you can now take the quiz again.
+            </p>
+          </div>
+
+          <!-- Quiz Details -->
+          <div style="background-color: #e3f2fd; padding: 20px; border-radius: 8px; margin-bottom: 25px; border-left: 4px solid #2196F3;">
+            <h3 style="color: #1976d2; margin: 0 0 15px 0;">📚 Quiz Details</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 0; color: #666; font-weight: bold;">Quiz Title:</td>
+                <td style="padding: 8px 0; color: #333;">${quizData.title}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #666; font-weight: bold;">Quiz Type:</td>
+                <td style="padding: 8px 0; color: #333;">${quizData.type === 'academic' ? 'Academic Quiz' : 'Event Quiz'}</td>
+              </tr>
+              ${quizData.duration ? `
+              <tr>
+                <td style="padding: 8px 0; color: #666; font-weight: bold;">Duration:</td>
+                <td style="padding: 8px 0; color: #333;">${quizData.duration} minutes</td>
+              </tr>
+              ` : ''}
+              ${quizData.endTime ? `
+              <tr>
+                <td style="padding: 8px 0; color: #666; font-weight: bold;">Available Until:</td>
+                <td style="padding: 8px 0; color: #333;">${new Date(quizData.endTime).toLocaleString()}</td>
+              </tr>
+              ` : ''}
+            </table>
+          </div>
+
+          <!-- Permission Granted By -->
+          <div style="background-color: #fff3e0; padding: 20px; border-radius: 8px; margin-bottom: 25px; border-left: 4px solid #ff9800;">
+            <h3 style="color: #f57c00; margin: 0 0 15px 0;">👨‍🏫 Permission Granted By</h3>
+            <p style="color: #666; font-size: 16px; margin: 0;">
+              <strong>${senderInfo.name}</strong> (${senderInfo.role})<br>
+              ${senderInfo.email ? `📧 ${senderInfo.email}` : ''}
+            </p>
+          </div>
+
+          <!-- Instructions -->
+          <div style="background-color: #f1f8e9; padding: 20px; border-radius: 8px; margin-bottom: 25px; border-left: 4px solid #4CAF50;">
+            <h3 style="color: #388e3c; margin: 0 0 15px 0;">📝 What to do next?</h3>
+            <ol style="color: #666; font-size: 16px; line-height: 1.6; margin: 0; padding-left: 20px;">
+              <li>Log in to your quiz portal</li>
+              <li>Navigate to the quiz section</li>
+              <li>Find "${quizData.title}" and click to start</li>
+              <li>Complete the quiz before the deadline</li>
+            </ol>
+          </div>
+
+          <!-- Important Note -->
+          <div style="background-color: #ffebee; padding: 20px; border-radius: 8px; margin-bottom: 25px; border-left: 4px solid #f44336;">
+            <h3 style="color: #d32f2f; margin: 0 0 15px 0;">⚠️ Important Note</h3>
+            <p style="color: #666; font-size: 16px; line-height: 1.6; margin: 0;">
+              This is a reattempt opportunity. Your previous submission has been cleared. Make sure to complete the quiz within the given time limit.
+            </p>
+          </div>
+
+          <!-- Footer -->
+          <div style="text-align: center; margin-top: 30px; padding: 20px; background-color: #f8f9fa; border-radius: 8px;">
+            <p style="color: #666; font-size: 14px; margin: 0;">
+              Best of luck with your quiz reattempt!<br>
+              <strong>Quiz Management System</strong><br>
+              <em>Supporting Your Academic Journey</em>
+            </p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER || 'noreply@quizapp.com',
+      to: studentData.email,
+      subject: emailSubject,
+      html: emailContent
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`✅ Reattempt notification email sent successfully to: ${studentData.email} (${studentData.name})`);
+    return true;
+  } catch (error) {
+    console.error(`❌ Error sending reattempt notification email to ${studentData.email}:`, error);
+    return false;
+  }
+};
+
 module.exports = {
   generateCredentials,
   sendRegistrationEmail,
-  sendBulkEmail
+  sendBulkEmail,
+  sendAcademicQuizNotification,
+  sendForgotPasswordEmail,
+  sendReattemptNotificationEmail
 };

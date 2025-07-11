@@ -277,6 +277,17 @@ router.post('/', auth, authorize('faculty', 'admin'), async (req, res) => {
     }
 
     console.log('Creating new Quiz document...');
+    console.log('Quiz data to save:', {
+      title: req.body.title,
+      subject: req.body.subject,
+      duration: req.body.duration,
+      startTime: req.body.startTime,
+      endTime: req.body.endTime,
+      allowedGroups: req.body.allowedGroups,
+      questionsCount: processedQuestions.length,
+      createdBy: req.user._id
+    });
+
     const quiz = new Quiz({
       ...req.body,
       questions: processedQuestions, // Use processed questions with HTML formatting
@@ -285,13 +296,69 @@ router.post('/', auth, authorize('faculty', 'admin'), async (req, res) => {
     });
 
     console.log('Saving quiz...');
-    await quiz.save();
-    console.log('Quiz saved successfully');
+    try {
+      await quiz.save();
+      console.log('✅ Quiz saved successfully with ID:', quiz._id);
+    } catch (saveError) {
+      console.error('❌ Error saving quiz:', saveError);
+      console.error('❌ Validation errors:', saveError.errors);
+      throw saveError; // Re-throw to be caught by outer catch
+    }
+
+    // Declare eligibleStudents outside the try block so it's accessible in the response
+    let eligibleStudents = [];
+
+    // Send email notifications to eligible students
+    try {
+      console.log('📧 Starting email notification process for academic quiz...');
+
+      // Find all students who match the allowedGroups criteria
+      eligibleStudents = await User.find({
+        role: 'student',
+        $or: quiz.allowedGroups.map(group => ({
+          department: group.department,
+          year: group.year,
+          semester: group.semester,
+          section: group.section
+        }))
+      }).select('name email department year semester section');
+
+      console.log(`📊 Found ${eligibleStudents.length} eligible students for quiz: ${quiz.title}`);
+
+      if (eligibleStudents.length > 0) {
+        // Import email service
+        const { sendAcademicQuizNotification } = require('../services/emailService');
+
+        // Send notifications asynchronously (don't wait for completion)
+        sendAcademicQuizNotification(quiz, eligibleStudents)
+          .then(result => {
+            console.log(`📧 Email notification completed for quiz "${quiz.title}":`, result);
+          })
+          .catch(error => {
+            console.error(`❌ Email notification failed for quiz "${quiz.title}":`, error);
+          });
+      }
+    } catch (emailError) {
+      console.error('❌ Error in email notification process:', emailError);
+      // Don't fail the quiz creation if email fails
+    }
 
     // Send success response
+    console.log('📤 Sending success response to frontend...');
     return res.status(201).json({
       success: true,
-      message: 'Quiz created successfully'
+      message: 'Quiz created successfully',
+      quiz: {
+        id: quiz._id,
+        title: quiz.title,
+        subject: quiz.subject,
+        duration: quiz.duration,
+        totalMarks: quiz.totalMarks,
+        questionsCount: quiz.questions.length
+      },
+      emailNotification: eligibleStudents.length > 0 ?
+        `Email notifications will be sent to ${eligibleStudents.length} eligible students` :
+        'No eligible students found for email notification'
     });
   } catch (error) {
     console.error('Error creating quiz:', error);
@@ -1730,6 +1797,30 @@ router.post('/excel', auth, authorize('faculty', 'admin', 'event'), upload.singl
     const quiz = new Quiz(quizData);
     await quiz.save();
 
+    // Send email notifications for academic quizzes
+    if (quiz.type === 'academic' && quiz.allowedGroups && quiz.allowedGroups.length > 0) {
+      try {
+        const eligibleStudents = await User.find({
+          role: 'student',
+          $or: quiz.allowedGroups.map(group => ({
+            department: group.department,
+            year: group.year,
+            semester: group.semester,
+            section: group.section
+          }))
+        }).select('name email department year semester section');
+
+        if (eligibleStudents.length > 0) {
+          const { sendAcademicQuizNotification } = require('../services/emailService');
+          sendAcademicQuizNotification(quiz, eligibleStudents)
+            .then(result => console.log(`📧 Excel quiz email notifications sent:`, result))
+            .catch(error => console.error(`❌ Excel quiz email error:`, error));
+        }
+      } catch (emailError) {
+        console.error('❌ Email notification error for Excel quiz:', emailError);
+      }
+    }
+
     res.status(201).json(quiz);
   } catch (error) {
     console.error('Error processing Excel quiz:', error);
@@ -1988,6 +2079,30 @@ router.post('/word', auth, authorize('faculty', 'admin', 'event'), upload.single
 
     const quiz = new Quiz(quizData);
     await quiz.save();
+
+    // Send email notifications for academic quizzes
+    if (quiz.type === 'academic' && quiz.allowedGroups && quiz.allowedGroups.length > 0) {
+      try {
+        const eligibleStudents = await User.find({
+          role: 'student',
+          $or: quiz.allowedGroups.map(group => ({
+            department: group.department,
+            year: group.year,
+            semester: group.semester,
+            section: group.section
+          }))
+        }).select('name email department year semester section');
+
+        if (eligibleStudents.length > 0) {
+          const { sendAcademicQuizNotification } = require('../services/emailService');
+          sendAcademicQuizNotification(quiz, eligibleStudents)
+            .then(result => console.log(`📧 Word quiz email notifications sent:`, result))
+            .catch(error => console.error(`❌ Word quiz email error:`, error));
+        }
+      } catch (emailError) {
+        console.error('❌ Email notification error for Word quiz:', emailError);
+      }
+    }
 
     res.status(201).json(quiz);
   } catch (error) {
@@ -2447,6 +2562,30 @@ router.post('/image', auth, authorize('faculty', 'admin', 'event'), upload.array
     const quiz = new Quiz(quizData);
     await quiz.save();
 
+    // Send email notifications for academic quizzes
+    if (quiz.type === 'academic' && quiz.allowedGroups && quiz.allowedGroups.length > 0) {
+      try {
+        const eligibleStudents = await User.find({
+          role: 'student',
+          $or: quiz.allowedGroups.map(group => ({
+            department: group.department,
+            year: group.year,
+            semester: group.semester,
+            section: group.section
+          }))
+        }).select('name email department year semester section');
+
+        if (eligibleStudents.length > 0) {
+          const { sendAcademicQuizNotification } = require('../services/emailService');
+          sendAcademicQuizNotification(quiz, eligibleStudents)
+            .then(result => console.log(`📧 Image quiz email notifications sent:`, result))
+            .catch(error => console.error(`❌ Image quiz email error:`, error));
+        }
+      } catch (emailError) {
+        console.error('❌ Email notification error for Image quiz:', emailError);
+      }
+    }
+
     res.status(201).json(quiz);
   } catch (error) {
     console.error('Error processing image quiz:', error);
@@ -2540,6 +2679,48 @@ router.post('/:quizId/reattempt', auth, authorize('faculty', 'admin'), async (re
     existingSubmission.deletionReason = 'Submission deleted by faculty';
     await existingSubmission.save();
 
+    // Get student details for email notification
+    const student = await User.findById(studentId).select('name email');
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    // Send email notification to student
+    try {
+      const { sendReattemptNotificationEmail } = require('../services/emailService');
+
+      const studentData = {
+        name: student.name,
+        email: student.email || email // Use provided email as fallback
+      };
+
+      const quizData = {
+        title: quiz.title,
+        type: 'academic',
+        duration: quiz.duration,
+        endTime: quiz.endTime
+      };
+
+      const senderInfo = {
+        name: req.user.name,
+        role: req.user.role === 'faculty' ? 'Faculty' : 'Administrator',
+        email: req.user.email
+      };
+
+      // Send email asynchronously (don't wait for completion)
+      sendReattemptNotificationEmail(studentData, quizData, senderInfo)
+        .then(() => {
+          console.log(`✅ Reattempt notification email sent to: ${studentData.email} (${studentData.name})`);
+        })
+        .catch(error => {
+          console.error(`❌ Error sending reattempt notification email:`, error);
+        });
+
+    } catch (error) {
+      console.error('Error sending reattempt notification email:', error);
+      // Don't fail the reattempt process if email fails
+    }
+
     res.json({
       message: 'Reattempt enabled successfully',
       studentId,
@@ -2586,6 +2767,47 @@ router.post('/:quizId/bulk-reattempt', auth, authorize('faculty', 'admin'), asyn
         deletionReason: 'Submission deleted by faculty'
       }
     );
+
+    // Get student details for email notifications
+    const students = await User.find({ _id: { $in: studentIds } }).select('name email');
+
+    // Send email notifications to all students
+    try {
+      const { sendReattemptNotificationEmail } = require('../services/emailService');
+
+      const quizData = {
+        title: quiz.title,
+        type: 'academic',
+        duration: quiz.duration,
+        endTime: quiz.endTime
+      };
+
+      const senderInfo = {
+        name: req.user.name,
+        role: req.user.role === 'faculty' ? 'Faculty' : 'Administrator',
+        email: req.user.email
+      };
+
+      // Send emails asynchronously to all students
+      students.forEach((student, index) => {
+        const studentData = {
+          name: student.name,
+          email: student.email || (emails && emails[index]) // Use provided email as fallback
+        };
+
+        sendReattemptNotificationEmail(studentData, quizData, senderInfo)
+          .then(() => {
+            console.log(`✅ Bulk reattempt notification email sent to: ${studentData.email} (${studentData.name})`);
+          })
+          .catch(error => {
+            console.error(`❌ Error sending bulk reattempt notification email to ${studentData.email}:`, error);
+          });
+      });
+
+    } catch (error) {
+      console.error('Error sending bulk reattempt notification emails:', error);
+      // Don't fail the reattempt process if email fails
+    }
 
     res.json({
       message: `Bulk reattempt enabled successfully for ${studentIds.length} students`,

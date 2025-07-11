@@ -1,5 +1,6 @@
 import { createContext, useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import api from '../config/axios';
 
 // Create the auth context
@@ -87,12 +88,14 @@ export const AuthProvider = ({ children }) => {
       });
       
       // Extract token and user data from response
-      const { token, user } = response.data || response;
-      
-      if (!token || !user) {
-        throw new Error('Invalid credentials');
+      const { token, user, success, message } = response.data || response;
+
+      if (!success || !token || !user) {
+        const errorMsg = message || 'Invalid credentials';
+        toast.error(errorMsg);
+        throw new Error(errorMsg);
       }
-      
+
       console.log('Login successful:', {
         userId: user.id,
         role: user.role,
@@ -100,11 +103,12 @@ export const AuthProvider = ({ children }) => {
         year: user.year,
         section: user.section
       });
-      
+
       // Store token and update user state
       localStorage.setItem('token', token);
       setUser(user);
-      
+
+      toast.success(message || 'Login successful!');
       return { success: true, user };
     } catch (error) {
       console.error('Login error:', {
@@ -112,8 +116,21 @@ export const AuthProvider = ({ children }) => {
         status: error.response?.status,
         data: error.response?.data
       });
+
       const errorMessage = error.response?.data?.message || error.message || 'Failed to login';
       setAuthError(errorMessage);
+
+      // Show toast notification for specific error types
+      if (error.response?.status === 404) {
+        toast.error('No account found with this email address');
+      } else if (error.response?.status === 401) {
+        toast.error('Incorrect password. Please try again.');
+      } else if (error.response?.status === 400) {
+        toast.error('Please provide both email and password');
+      } else {
+        toast.error(errorMessage);
+      }
+
       return { success: false, error: errorMessage };
     } finally {
       setLoading(false);

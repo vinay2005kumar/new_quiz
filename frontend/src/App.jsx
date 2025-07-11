@@ -8,12 +8,14 @@ import 'react-toastify/dist/ReactToastify.css';
 import { NavigationProvider } from './context/NavigationContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { LoadingProvider } from './context/LoadingContext';
 import Navigation from './components/common/Navigation';
 import PrivateRoute from './components/common/PrivateRoute';
 
 // Components
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
+import ForgotPassword from './components/auth/ForgotPassword';
 import Dashboard from './components/dashboard/Dashboard';
 import QuizList from './components/quiz/QuizList';
 import QuizCreate from './components/quiz/QuizCreate';
@@ -53,6 +55,7 @@ import CollegeSettings from './components/admin/CollegeSettings';
 import AdminQuizzes from './components/admin/AdminQuizzes';
 import QuizSubmissionView from './components/quiz/QuizSubmissionView';
 import ReviewQuizzes from './components/student/ReviewQuizzes';
+import LoadingDemo from './components/demo/LoadingDemo';
 
 
 
@@ -62,7 +65,14 @@ const AppRoutes = () => {
 
   // Show loading screen while checking auth status
   if (loading) {
-    return <LoadingScreen />;
+    return (
+      <LoadingScreen
+        message="Checking authentication..."
+        progress={50}
+        showProgress={false}
+        brandName="Quiz Management System"
+      />
+    );
   }
 
   return (
@@ -72,10 +82,14 @@ const AppRoutes = () => {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={user ? <RoleBasedRedirect /> : <Login />} />
         <Route path="/register" element={user ? <RoleBasedRedirect /> : <Register />} />
+        <Route path="/forgot-password" element={user ? <RoleBasedRedirect /> : <ForgotPassword />} />
         <Route path="/events" element={<PublicEventQuizzes />} />
         <Route path="/quiz/:quizId/login" element={<QuizLogin />} />
         <Route path="/quiz/:quizId/take-authenticated" element={<AuthenticatedQuizTake />} />
         <Route path="/quiz/:quizId/result" element={<QuizResult />} />
+
+        {/* Demo Routes */}
+        <Route path="/demo/loading" element={<LoadingDemo />} />
 
         {/* Event Routes */}
         <Route path="/event/*" element={
@@ -176,7 +190,8 @@ function App() {
         <CssBaseline />
         <Router>
           <AuthProvider>
-            <NavigationProvider>
+            <LoadingProvider>
+              <NavigationProvider>
               <AppRoutes />
               <ToastContainer
                 position="top-right"
@@ -190,7 +205,8 @@ function App() {
                 pauseOnHover
                 theme="light"
               />
-            </NavigationProvider>
+              </NavigationProvider>
+            </LoadingProvider>
           </AuthProvider>
         </Router>
       </LocalizationProvider>
