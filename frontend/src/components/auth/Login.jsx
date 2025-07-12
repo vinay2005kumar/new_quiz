@@ -10,6 +10,7 @@ import {
   CircularProgress,
   Link
 } from '@mui/material';
+import { toast } from 'react-toastify';
 import { useAuth } from '../../context/AuthContext';
 import { useCollegeInfo } from '../../hooks/useCollegeInfo';
 import HomeIcon from '@mui/icons-material/Home';
@@ -145,6 +146,21 @@ const Login = () => {
               ) : (
                 'Sign In'
               )}
+            </Button>
+
+            {/* Test Toast Button - Remove after testing */}
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={() => {
+                console.log('Test toast button clicked');
+                toast.error('Test error toast - this should appear!');
+                toast.success('Test success toast - this should also appear!');
+                toast.info('Test info toast - this should appear too!');
+              }}
+              sx={{ mt: 1, fontSize: '0.75rem' }}
+            >
+              Test Toast (Remove Later)
             </Button>
 
             {/* Forgot Password Link */}

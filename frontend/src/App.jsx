@@ -192,22 +192,27 @@ function App() {
           <AuthProvider>
             <LoadingProvider>
               <NavigationProvider>
-              <AppRoutes />
-              <ToastContainer
-                position="top-right"
-                autoClose={3000}
-                hideProgressBar={false}
-                newestOnTop={false}
-                closeOnClick
-                rtl={false}
-                pauseOnFocusLoss
-                draggable
-                pauseOnHover
-                theme="light"
-              />
+                <AppRoutes />
               </NavigationProvider>
             </LoadingProvider>
           </AuthProvider>
+          <ToastContainer
+            position="top-center"
+            autoClose={5000}
+            hideProgressBar={false}
+            newestOnTop={true}
+            closeOnClick
+            rtl={false}
+            pauseOnFocusLoss
+            draggable
+            pauseOnHover
+            theme="colored"
+            style={{ zIndex: 9999 }}
+            toastStyle={{
+              fontSize: '16px',
+              fontWeight: 'bold'
+            }}
+          />
         </Router>
       </LocalizationProvider>
     </ThemeProvider>

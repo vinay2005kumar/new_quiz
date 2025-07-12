@@ -21,7 +21,8 @@ import {
   Alert,
   useTheme,
   useMediaQuery,
-  Stack
+  Stack,
+  Chip
 } from '@mui/material';
 import {
   People as PeopleIcon,
@@ -31,7 +32,11 @@ import {
   Assignment as AssignmentIcon,
   TrendingUp as TrendingUpIcon,
   Dashboard as DashboardIcon,
-  Groups as GroupsIcon
+  Groups as GroupsIcon,
+  CheckCircle as CheckCircleIcon,
+  Pending as PendingIcon,
+  PlayCircle as PlayCircleIcon,
+  Info as InfoIcon
 } from '@mui/icons-material';
 
 import api from '../../config/axios';
@@ -52,7 +57,12 @@ const Dashboard = () => {
     completedQuizzes: 0,
     activeQuizzes: 0,
     averageScore: 0,
-    submissions: []
+    submissions: [],
+    recentQuizzes: [],
+    totalStudents: 0,
+    totalSubmissions: 0,
+    totalRegistrations: 0,
+    pendingQuizzes: 0
   });
   const [adminStats, setAdminStats] = useState({
     totalUsers: 0,
@@ -172,23 +182,39 @@ const Dashboard = () => {
           }
         }
 
+        // Create recent quizzes data from submissions
+        const recentQuizzes = submissions.slice(0, 3).map(sub => ({
+          title: sub.quiz?.title || 'Quiz',
+          subject: typeof sub.quiz?.subject === 'object'
+            ? sub.quiz?.subject?.name || sub.quiz?.subject?.code || 'General'
+            : sub.quiz?.subject || 'General',
+          duration: sub.quiz?.duration || 30,
+          status: sub.status === 'evaluated' ? 'Completed' : 'Pending',
+          score: sub.status === 'evaluated' ? sub.totalScore : null
+        }));
+
         // Calculate statistics
         const now = new Date();
         const stats = {
           totalQuizzes: quizzes.length,
           upcomingQuizzes: quizzes.filter(quiz => new Date(quiz.startTime) > now).length,
-          activeQuizzes: quizzes.filter(quiz => 
+          activeQuizzes: quizzes.filter(quiz =>
             new Date(quiz.startTime) <= now && new Date(quiz.endTime) >= now
           ).length,
           completedQuizzes: submissions.filter(sub => sub.status === 'evaluated').length,
-          averageScore: submissions.filter(sub => sub.status === 'evaluated').length > 0 
+          pendingQuizzes: quizzes.length - submissions.filter(sub => sub.status === 'evaluated').length,
+          averageScore: submissions.filter(sub => sub.status === 'evaluated').length > 0
             ? (submissions
                 .filter(sub => sub.status === 'evaluated')
-                .reduce((sum, sub) => sum + (sub.totalScore || 0), 0) / 
+                .reduce((sum, sub) => sum + (sub.totalScore || 0), 0) /
                 submissions.filter(sub => sub.status === 'evaluated').length
               ).toFixed(2)
             : 0,
-          submissions: submissions
+          submissions: submissions,
+          recentQuizzes: recentQuizzes,
+          totalStudents: 0, // Will be populated for faculty/event dashboards
+          totalSubmissions: submissions.length,
+          totalRegistrations: 0 // Will be populated for event dashboard
         };
 
         setStats(stats);
@@ -327,366 +353,22 @@ const Dashboard = () => {
     logout();
   };
 
-  const StudentDashboard = () => {
-    if (!user) return null;
-    return (
-      <Grid container spacing={isMobile ? 2 : 3}>
-        <Grid item xs={12}>
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-            </Alert>
-          )}
-          <Paper sx={{ 
-            p: isMobile ? 2 : 3, 
-            mb: isMobile ? 2 : 3,
-            borderRadius: isMobile ? 1 : 2
-          }}>
-            <Typography 
-              variant={isMobile ? "h6" : "h6"} 
-              gutterBottom
-              sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}
-            >
-              Welcome, {user.name}!
-            </Typography>
-            <Typography 
-              variant="body1" 
-              color="text.secondary"
-              sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
-            >
-              {user.department} - Year {user.year}
-            </Typography>
-            <Typography 
-              variant="body2" 
-              color="text.secondary"
-              sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
-            >
-              Admission Number: {user.admissionNumber}
-            </Typography>
-          </Paper>
-        </Grid>
-        
-        {/* Stats Cards - Mobile optimized */}
-        <Grid item xs={6} sm={6} md={3}>
-          <Card sx={{ 
-            height: '100%',
-            minHeight: isMobile ? 80 : 120,
-            borderRadius: isMobile ? 1 : 2
-          }}>
-            <CardContent sx={{ 
-              p: isMobile ? 1.5 : 2,
-              textAlign: 'center'
-            }}>
-              <Typography 
-                variant={isMobile ? "body2" : "h6"}
-                sx={{ 
-                  fontSize: { xs: '0.75rem', sm: '1rem' },
-                  mb: isMobile ? 0.5 : 1
-                }}
-              >
-                Total Quizzes
-              </Typography>
-              <Typography 
-                variant={isMobile ? "h5" : "h4"}
-                sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
-              >
-                {stats.totalQuizzes}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        <Grid item xs={6} sm={6} md={3}>
-          <Card sx={{ 
-            height: '100%',
-            minHeight: isMobile ? 80 : 120,
-            borderRadius: isMobile ? 1 : 2
-          }}>
-            <CardContent sx={{ 
-              p: isMobile ? 1.5 : 2,
-              textAlign: 'center'
-            }}>
-              <Typography 
-                variant={isMobile ? "body2" : "h6"}
-                sx={{ 
-                  fontSize: { xs: '0.75rem', sm: '1rem' },
-                  mb: isMobile ? 0.5 : 1
-                }}
-              >
-                Upcoming
-              </Typography>
-              <Typography 
-                variant={isMobile ? "h5" : "h4"}
-                sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
-              >
-                {stats.upcomingQuizzes}
-              </Typography>
-              {stats.upcomingQuizzes > 0 && (
-                <Typography 
-                  variant="caption" 
-                  color="text.secondary" 
-                  sx={{ 
-                    mt: isMobile ? 0.5 : 1,
-                    fontSize: { xs: '0.625rem', sm: '0.75rem' },
-                    display: 'block'
-                  }}
-                >
-                  Next quiz starts in {getNextQuizTime()}
-                </Typography>
-              )}
-            </CardContent>
-            <CardActions sx={{ 
-              p: isMobile ? 1 : 2,
-              justifyContent: 'center'
-            }}>
-              <Button 
-                size={isMobile ? "small" : "small"}
-                onClick={() => navigate('/student/upcoming-quizzes')}
-                sx={{ 
-                  fontSize: { xs: '0.625rem', sm: '0.75rem' },
-                  px: { xs: 1, sm: 1.5 }
-                }}
-              >
-                View All
-              </Button>
-            </CardActions>
-          </Card>
-        </Grid>
-        
-        <Grid item xs={6} sm={6} md={3}>
-          <Card sx={{ 
-            height: '100%',
-            minHeight: isMobile ? 80 : 120,
-            borderRadius: isMobile ? 1 : 2
-          }}>
-            <CardContent sx={{ 
-              p: isMobile ? 1.5 : 2,
-              textAlign: 'center'
-            }}>
-              <Typography 
-                variant={isMobile ? "body2" : "h6"}
-                sx={{ 
-                  fontSize: { xs: '0.75rem', sm: '1rem' },
-                  mb: isMobile ? 0.5 : 1
-                }}
-              >
-                Completed
-              </Typography>
-              <Typography 
-                variant={isMobile ? "h5" : "h4"}
-                sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
-              >
-                {stats.completedQuizzes}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        <Grid item xs={6} sm={6} md={3}>
-          <Card sx={{ 
-            height: '100%',
-            minHeight: isMobile ? 80 : 120,
-            borderRadius: isMobile ? 1 : 2
-          }}>
-            <CardContent sx={{ 
-              p: isMobile ? 1.5 : 2,
-              textAlign: 'center'
-            }}>
-              <Typography 
-                variant={isMobile ? "body2" : "h6"}
-                sx={{ 
-                  fontSize: { xs: '0.75rem', sm: '1rem' },
-                  mb: isMobile ? 0.5 : 1
-                }}
-              >
-                Average Score
-              </Typography>
-              <Typography 
-                variant={isMobile ? "h5" : "h4"}
-                sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
-              >
-                {Math.round(stats.averageScore)}%
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-    );
-  };
-
-  const FacultyDashboard = () => {
-    if (!user) return null;
-    return (
-      <Grid container spacing={isMobile ? 2 : 3}>
-        <Grid item xs={12}>
-          <Paper sx={{ 
-            p: isMobile ? 2 : 3, 
-            mb: isMobile ? 2 : 3,
-            borderRadius: isMobile ? 1 : 2
-          }}>
-            <Typography 
-              variant={isMobile ? "h6" : "h6"} 
-              gutterBottom
-              sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}
-            >
-              Welcome, {user.name}!
-            </Typography>
-            <Typography 
-              variant="body1" 
-              color="text.secondary"
-              sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
-            >
-              {user.department} - Faculty
-            </Typography>
-          </Paper>
-        </Grid>
-        
-        {/* Stats Cards - Mobile optimized */}
-        <Grid item xs={6} sm={6} md={3}>
-          <Card sx={{ 
-            height: '100%',
-            minHeight: isMobile ? 80 : 120,
-            borderRadius: isMobile ? 1 : 2
-          }}>
-            <CardContent sx={{ 
-              p: isMobile ? 1.5 : 2,
-              textAlign: 'center'
-            }}>
-              <Typography 
-                variant={isMobile ? "body2" : "h6"}
-                sx={{ 
-                  fontSize: { xs: '0.75rem', sm: '1rem' },
-                  mb: isMobile ? 0.5 : 1
-                }}
-              >
-                Total Quizzes
-              </Typography>
-              <Typography 
-                variant={isMobile ? "h5" : "h4"}
-                sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
-              >
-                {stats.totalQuizzes}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        <Grid item xs={6} sm={6} md={3}>
-          <Card sx={{ 
-            height: '100%',
-            minHeight: isMobile ? 80 : 120,
-            borderRadius: isMobile ? 1 : 2
-          }}>
-            <CardContent sx={{ 
-              p: isMobile ? 1.5 : 2,
-              textAlign: 'center'
-            }}>
-              <Typography 
-                variant={isMobile ? "body2" : "h6"}
-                sx={{ 
-                  fontSize: { xs: '0.75rem', sm: '1rem' },
-                  mb: isMobile ? 0.5 : 1
-                }}
-              >
-                Active
-              </Typography>
-              <Typography 
-                variant={isMobile ? "h5" : "h4"}
-                sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
-              >
-                {stats.activeQuizzes}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        <Grid item xs={6} sm={6} md={3}>
-          <Card sx={{ 
-            height: '100%',
-            minHeight: isMobile ? 80 : 120,
-            borderRadius: isMobile ? 1 : 2
-          }}>
-            <CardContent sx={{ 
-              p: isMobile ? 1.5 : 2,
-              textAlign: 'center'
-            }}>
-              <Typography 
-                variant={isMobile ? "body2" : "h6"}
-                sx={{ 
-                  fontSize: { xs: '0.75rem', sm: '1rem' },
-                  mb: isMobile ? 0.5 : 1
-                }}
-              >
-                Completed
-              </Typography>
-              <Typography 
-                variant={isMobile ? "h5" : "h4"}
-                sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
-              >
-                {stats.completedQuizzes}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        {/* Action Buttons - Mobile optimized */}
-        <Grid item xs={12}>
-          <Stack 
-            direction={isMobile ? "column" : "row"} 
-            spacing={isMobile ? 1 : 2}
-            sx={{ mt: isMobile ? 1 : 2 }}
-          >
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={() => navigate('/quizzes/create')}
-              fullWidth={isMobile}
-              sx={{ 
-                fontSize: { xs: '0.875rem', sm: '1rem' },
-                py: { xs: 1, sm: 1.5 }
-              }}
-            >
-              Create New Quiz
-            </Button>
-            <Button
-              variant="outlined"
-              color="primary"
-              onClick={() => navigate('/quizzes')}
-              fullWidth={isMobile}
-              sx={{ 
-                fontSize: { xs: '0.875rem', sm: '1rem' },
-                py: { xs: 1, sm: 1.5 }
-              }}
-            >
-              View My Quizzes
-            </Button>
-          </Stack>
-        </Grid>
-      </Grid>
-    );
-  };
-
-  // Professional StatCard component for admin dashboard
-  const StatCard = ({ title, value, icon, color = 'primary', subtitle }) => (
+  // Professional StatCard component
+  const StatCard = ({ title, value, icon, color = 'primary', trend, subtitle }) => (
     <Card
       elevation={0}
       sx={{
-        height: { xs: '120px', sm: '100%' }, // Fixed equal height for mobile
-        width: '100%',
-        minHeight: { xs: '120px', sm: 'auto' },
-        maxHeight: { xs: '120px', sm: 'none' },
+        height: '100%',
         background: `linear-gradient(135deg, ${theme.palette[color].main}15 0%, ${theme.palette[color].main}05 100%)`,
         border: `1px solid ${theme.palette[color].main}20`,
-        borderRadius: { xs: 2, sm: 3 },
+        borderRadius: 3,
         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         position: 'relative',
         overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
         '&:hover': {
-          transform: { xs: 'none', sm: 'translateY(-8px)' }, // Disable hover on mobile
-          boxShadow: { xs: 'none', sm: `0 20px 40px ${theme.palette[color].main}20` },
-          border: { xs: `1px solid ${theme.palette[color].main}20`, sm: `1px solid ${theme.palette[color].main}40` },
+          transform: 'translateY(-8px)',
+          boxShadow: `0 20px 40px ${theme.palette[color].main}20`,
+          border: `1px solid ${theme.palette[color].main}40`,
         },
         '&::before': {
           content: '""',
@@ -694,42 +376,21 @@ const Dashboard = () => {
           top: 0,
           left: 0,
           right: 0,
-          height: { xs: '3px', sm: '4px' },
+          height: '4px',
           background: `linear-gradient(90deg, ${theme.palette[color].main}, ${theme.palette[color].light})`,
         }
       }}
     >
-      <CardContent
-        sx={{
-          p: { xs: 0.75, sm: 2, md: 2.5 },
-          flex: 1,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          height: { xs: '100%', sm: 'auto' },
-          minHeight: { xs: '117px', sm: 'auto' }, // Account for padding
-          '&:last-child': { pb: { xs: 0.75, sm: 2, md: 2.5 } }
-        }}
-      >
-        <Box sx={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          mb: { xs: 0.25, sm: 1.5 },
-          minHeight: { xs: '35px', sm: 'auto' }
-        }}>
-          <Box sx={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+      <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 2 }}>
+          <Box sx={{ flex: 1 }}>
             <Typography
               variant="body2"
               color="text.secondary"
               sx={{
                 fontWeight: 500,
-                fontSize: { xs: '0.6rem', sm: '0.875rem', md: '1rem' },
-                mb: { xs: 0.1, sm: 0.25 },
-                lineHeight: { xs: 1.1, sm: 1.2 },
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: { xs: 'nowrap', sm: 'normal' }
+                fontSize: { xs: '0.875rem', sm: '1rem' },
+                mb: 0.5
               }}
             >
               {title}
@@ -738,14 +399,7 @@ const Dashboard = () => {
               <Typography
                 variant="caption"
                 color="text.secondary"
-                sx={{
-                  fontSize: { xs: '0.5rem', sm: '0.7rem', md: '0.75rem' },
-                  lineHeight: { xs: 1, sm: 1.1 },
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: { xs: 'nowrap', sm: 'normal' },
-                  display: 'block'
-                }}
+                sx={{ fontSize: '0.75rem' }}
               >
                 {subtitle}
               </Typography>
@@ -755,10 +409,8 @@ const Dashboard = () => {
             sx={{
               bgcolor: `${theme.palette[color].main}20`,
               color: theme.palette[color].main,
-              width: { xs: 22, sm: 40, md: 48 },
-              height: { xs: 22, sm: 40, md: 48 },
-              flexShrink: 0,
-              ml: { xs: 0.5, sm: 1 }
+              width: { xs: 40, sm: 48 },
+              height: { xs: 40, sm: 48 },
             }}
           >
             {icon}
@@ -771,18 +423,374 @@ const Dashboard = () => {
           sx={{
             fontWeight: 700,
             color: theme.palette[color].main,
-            fontSize: { xs: '1rem', sm: '2rem', md: '2.5rem' },
+            fontSize: { xs: '2rem', sm: '2.5rem' },
             lineHeight: 1,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap'
+            mb: 1
           }}
         >
-          {typeof value === 'string' ? value : value.toLocaleString()}
+          {typeof value === 'number' ? value.toLocaleString() : value}
         </Typography>
+
+        {trend && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <TrendingUpIcon sx={{ fontSize: 16, color: 'success.main' }} />
+            <Typography variant="caption" color="success.main" sx={{ fontWeight: 600 }}>
+              +{trend}% this month
+            </Typography>
+          </Box>
+        )}
       </CardContent>
     </Card>
   );
+
+  const StudentDashboard = () => {
+    if (!user) return null;
+    return (
+      <Container maxWidth="xl" sx={{ mt: { xs: 2, sm: 4 }, mb: 4 }}>
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
+          </Alert>
+        )}
+
+        {/* Header Section */}
+        <Box sx={{ mb: { xs: 3, sm: 4 } }}>
+          <Typography
+            variant="h3"
+            component="h1"
+            sx={{
+              fontWeight: 700,
+              fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' },
+              background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+              backgroundClip: 'text',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              mb: 1
+            }}
+          >
+            Welcome, {user.name}!
+          </Typography>
+          <Typography
+            variant="h6"
+            color="text.secondary"
+            sx={{
+              fontSize: { xs: '1rem', sm: '1.25rem' },
+              fontWeight: 400,
+              mb: 1
+            }}
+          >
+            {typeof user.department === 'object' ? user.department?.name || user.department?.code || 'Department' : user.department} - Year {user.year}
+          </Typography>
+          <Typography
+            variant="body1"
+            color="text.secondary"
+            sx={{
+              fontSize: { xs: '0.875rem', sm: '1rem' },
+              fontWeight: 400
+            }}
+          >
+            Admission Number: {user.admissionNumber}
+          </Typography>
+        </Box>
+
+        {/* Quiz Statistics */}
+        <Box sx={{ mb: 4 }}>
+          <Typography
+            variant="h5"
+            sx={{
+              fontWeight: 600,
+              mb: 3,
+              color: 'text.primary',
+              fontSize: { xs: '1.25rem', sm: '1.5rem' }
+            }}
+          >
+            📊 Your Quiz Statistics
+          </Typography>
+          <Grid container spacing={{ xs: 2, sm: 3 }}>
+            <Grid item xs={12} sm={6} lg={3}>
+              <StatCard
+                title="Total Quizzes"
+                value={stats.totalQuizzes}
+                icon={<QuizIcon />}
+                color="primary"
+                subtitle="Available to attempt"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} lg={3}>
+              <StatCard
+                title="Completed"
+                value={stats.completedQuizzes}
+                icon={<CheckCircleIcon />}
+                color="success"
+                subtitle="Successfully finished"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} lg={3}>
+              <StatCard
+                title="Pending"
+                value={stats.pendingQuizzes}
+                icon={<PendingIcon />}
+                color="warning"
+                subtitle="Awaiting attempt"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} lg={3}>
+              <StatCard
+                title="Average Score"
+                value={`${stats.averageScore}%`}
+                icon={<TrendingUpIcon />}
+                color="info"
+                subtitle="Overall performance"
+              />
+            </Grid>
+          </Grid>
+        </Box>
+
+        {/* Recent Quizzes Section */}
+        <Box sx={{ mb: 4 }}>
+          <Typography
+            variant="h5"
+            sx={{
+              fontWeight: 600,
+              mb: 3,
+              color: 'text.primary',
+              fontSize: { xs: '1.25rem', sm: '1.5rem' }
+            }}
+          >
+            📚 Recent Quizzes
+          </Typography>
+          <Card
+            elevation={0}
+            sx={{
+              background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.grey[50]} 100%)`,
+              border: `1px solid ${theme.palette.divider}`,
+              borderRadius: 3,
+            }}
+          >
+            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+              {stats.recentQuizzes && stats.recentQuizzes.length > 0 ? (
+                <Grid container spacing={2}>
+                  {stats.recentQuizzes.slice(0, 3).map((quiz, index) => (
+                    <Grid item xs={12} sm={6} md={4} key={index}>
+                      <Card
+                        elevation={0}
+                        sx={{
+                          height: '100%',
+                          background: 'background.paper',
+                          border: `1px solid ${theme.palette.divider}`,
+                          borderRadius: 2,
+                          transition: 'all 0.3s ease',
+                          '&:hover': {
+                            transform: 'translateY(-4px)',
+                            boxShadow: theme.shadows[8],
+                          }
+                        }}
+                      >
+                        <CardContent sx={{ p: 2 }}>
+                          <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, fontSize: '1rem' }}>
+                            {quiz.title}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                            {typeof quiz.subject === 'object' ? quiz.subject?.name || quiz.subject?.code || 'Subject' : quiz.subject} • {quiz.duration} mins
+                          </Typography>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Chip
+                              label={quiz.status}
+                              size="small"
+                              color={quiz.status === 'Completed' ? 'success' : 'warning'}
+                              variant="outlined"
+                            />
+                            {quiz.score && (
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                Score: {quiz.score}%
+                              </Typography>
+                            )}
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+              ) : (
+                <Box sx={{ textAlign: 'center', py: 4 }}>
+                  <Typography variant="body1" color="text.secondary">
+                    No recent quizzes available
+                  </Typography>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        </Box>
+      </Container>
+    );
+  };
+
+  const FacultyDashboard = () => {
+    if (!user) return null;
+    return (
+      <Container maxWidth="xl" sx={{ mt: { xs: 2, sm: 4 }, mb: 4 }}>
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
+          </Alert>
+        )}
+
+        {/* Header Section */}
+        <Box sx={{ mb: { xs: 3, sm: 4 } }}>
+          <Typography
+            variant="h3"
+            component="h1"
+            sx={{
+              fontWeight: 700,
+              fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' },
+              background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+              backgroundClip: 'text',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              mb: 1
+            }}
+          >
+            Welcome, {user.name}!
+          </Typography>
+          <Typography
+            variant="h6"
+            color="text.secondary"
+            sx={{
+              fontSize: { xs: '1rem', sm: '1.25rem' },
+              fontWeight: 400
+            }}
+          >
+            {typeof user.department === 'object' ? user.department?.name || user.department?.code || 'Department' : user.department} - Faculty Dashboard
+          </Typography>
+        </Box>
+
+        {/* Quiz Management Statistics */}
+        <Box sx={{ mb: 4 }}>
+          <Typography
+            variant="h5"
+            sx={{
+              fontWeight: 600,
+              mb: 3,
+              color: 'text.primary',
+              fontSize: { xs: '1.25rem', sm: '1.5rem' }
+            }}
+          >
+            📊 Quiz Management Overview
+          </Typography>
+          <Grid container spacing={{ xs: 2, sm: 3 }}>
+            <Grid item xs={12} sm={6} lg={3}>
+              <StatCard
+                title="Total Quizzes"
+                value={stats.totalQuizzes}
+                icon={<QuizIcon />}
+                color="primary"
+                subtitle="Created by you"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} lg={3}>
+              <StatCard
+                title="Active Quizzes"
+                value={stats.activeQuizzes}
+                icon={<PlayCircleIcon />}
+                color="success"
+                subtitle="Currently running"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} lg={3}>
+              <StatCard
+                title="Total Students"
+                value={stats.totalStudents}
+                icon={<PeopleIcon />}
+                color="info"
+                subtitle="Enrolled students"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} lg={3}>
+              <StatCard
+                title="Submissions"
+                value={stats.totalSubmissions}
+                icon={<AssignmentIcon />}
+                color="warning"
+                subtitle="Total responses"
+              />
+            </Grid>
+          </Grid>
+        </Box>
+
+        {/* Recent Quiz Management */}
+        <Box sx={{ mb: 4 }}>
+          <Typography
+            variant="h5"
+            sx={{
+              fontWeight: 600,
+              mb: 3,
+              color: 'text.primary',
+              fontSize: { xs: '1.25rem', sm: '1.5rem' }
+            }}
+          >
+            🎯 Recent Quiz Activity
+          </Typography>
+          <Card
+            elevation={0}
+            sx={{
+              background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.grey[50]} 100%)`,
+              border: `1px solid ${theme.palette.divider}`,
+              borderRadius: 3,
+            }}
+          >
+            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                      📈 Performance Overview
+                    </Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="body2">Average Score:</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {Math.round(stats.averageScore)}%
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="body2">Completion Rate:</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {Math.round((stats.completedQuizzes / stats.totalQuizzes) * 100)}%
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                      🚀 Quick Actions
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => navigate('/faculty/create-quiz')}
+                        sx={{ justifyContent: 'flex-start' }}
+                      >
+                        ➕ Create New Quiz
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => navigate('/faculty/quiz-submissions')}
+                        sx={{ justifyContent: 'flex-start' }}
+                      >
+                        📊 View Submissions
+                      </Button>
+                    </Box>
+                  </Box>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        </Box>
+      </Container>
+    );
+  };
 
   const AdminDashboard = () => {
     if (!user) return null;
@@ -1078,206 +1086,197 @@ const Dashboard = () => {
   const EventDashboard = () => {
     if (!user) return null;
     return (
-      <Grid container spacing={isMobile ? 2 : 3}>
-        <Grid item xs={12}>
-          <Paper sx={{ 
-            p: isMobile ? 2 : 3, 
-            mb: isMobile ? 2 : 3,
-            borderRadius: isMobile ? 1 : 2
-          }}>
-            <Typography 
-              variant={isMobile ? "h6" : "h6"} 
-              gutterBottom
-              sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}
-            >
-              Welcome, {user.name}!
-            </Typography>
-            <Typography 
-              variant="body1" 
-              color="text.secondary"
-              sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
-            >
-              {user.department} - Event Quiz Account
-            </Typography>
-            <Typography 
-              variant="body2" 
-              color="text.secondary"
-              sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
-            >
-              Event Type: {user.eventType}
-            </Typography>
-          </Paper>
-        </Grid>
-        
-        {/* Stats Cards - Mobile optimized */}
-        <Grid item xs={6} sm={6} md={3}>
-          <Card sx={{ 
-            height: '100%',
-            minHeight: isMobile ? 80 : 120,
-            borderRadius: isMobile ? 1 : 2
-          }}>
-            <CardContent sx={{ 
-              p: isMobile ? 1.5 : 2,
-              textAlign: 'center'
-            }}>
-              <Typography 
-                variant={isMobile ? "body2" : "h6"}
-                sx={{ 
-                  fontSize: { xs: '0.75rem', sm: '1rem' },
-                  mb: isMobile ? 0.5 : 1
-                }}
-              >
-                Total Quizzes
-              </Typography>
-              <Typography 
-                variant={isMobile ? "h5" : "h4"}
-                sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
-              >
-                {stats.totalQuizzes}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        <Grid item xs={6} sm={6} md={3}>
-          <Card sx={{ 
-            height: '100%',
-            minHeight: isMobile ? 80 : 120,
-            borderRadius: isMobile ? 1 : 2
-          }}>
-            <CardContent sx={{ 
-              p: isMobile ? 1.5 : 2,
-              textAlign: 'center'
-            }}>
-              <Typography 
-                variant={isMobile ? "body2" : "h6"}
-                sx={{ 
-                  fontSize: { xs: '0.75rem', sm: '1rem' },
-                  mb: isMobile ? 0.5 : 1
-                }}
-              >
-                Upcoming
-              </Typography>
-              <Typography 
-                variant={isMobile ? "h5" : "h4"}
-                sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
-              >
-                {stats.upcomingQuizzes}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        <Grid item xs={6} sm={6} md={3}>
-          <Card sx={{ 
-            height: '100%',
-            minHeight: isMobile ? 80 : 120,
-            borderRadius: isMobile ? 1 : 2
-          }}>
-            <CardContent sx={{ 
-              p: isMobile ? 1.5 : 2,
-              textAlign: 'center'
-            }}>
-              <Typography 
-                variant={isMobile ? "body2" : "h6"}
-                sx={{ 
-                  fontSize: { xs: '0.75rem', sm: '1rem' },
-                  mb: isMobile ? 0.5 : 1
-                }}
-              >
-                Active
-              </Typography>
-              <Typography 
-                variant={isMobile ? "h5" : "h4"}
-                sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
-              >
-                {stats.activeQuizzes}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        <Grid item xs={6} sm={6} md={3}>
-          <Card sx={{ 
-            height: '100%',
-            minHeight: isMobile ? 80 : 120,
-            borderRadius: isMobile ? 1 : 2
-          }}>
-            <CardContent sx={{ 
-              p: isMobile ? 1.5 : 2,
-              textAlign: 'center'
-            }}>
-              <Typography 
-                variant={isMobile ? "body2" : "h6"}
-                sx={{ 
-                  fontSize: { xs: '0.75rem', sm: '1rem' },
-                  mb: isMobile ? 0.5 : 1
-                }}
-              >
-                Completed
-              </Typography>
-              <Typography 
-                variant={isMobile ? "h5" : "h4"}
-                sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
-              >
-                {stats.completedQuizzes}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        
-        {/* Action Buttons - Mobile optimized */}
-        <Grid item xs={12}>
-          <Stack 
-            direction={isMobile ? "column" : "row"} 
-            spacing={isMobile ? 1 : 2}
-            sx={{ mt: isMobile ? 1 : 2 }}
+      <Container maxWidth="xl" sx={{ mt: { xs: 2, sm: 4 }, mb: 4 }}>
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
+          </Alert>
+        )}
+
+        {/* Header Section */}
+        <Box sx={{ mb: { xs: 3, sm: 4 } }}>
+          <Typography
+            variant="h3"
+            component="h1"
+            sx={{
+              fontWeight: 700,
+              fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' },
+              background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+              backgroundClip: 'text',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              mb: 1
+            }}
           >
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={() => navigate('/event/quiz/create')}
-              fullWidth={isMobile}
-              sx={{ 
-                fontSize: { xs: '0.875rem', sm: '1rem' },
-                py: { xs: 1, sm: 1.5 }
-              }}
-            >
-              Create New Event Quiz
-            </Button>
-            <Button
-              variant="outlined"
-              color="primary"
-              onClick={() => navigate('/event/quizzes')}
-              fullWidth={isMobile}
-              sx={{ 
-                fontSize: { xs: '0.875rem', sm: '1rem' },
-                py: { xs: 1, sm: 1.5 }
-              }}
-            >
-              View My Quizzes
-            </Button>
-          </Stack>
-        </Grid>
-      </Grid>
+            Welcome, {user.name}!
+          </Typography>
+          <Typography
+            variant="h6"
+            color="text.secondary"
+            sx={{
+              fontSize: { xs: '1rem', sm: '1.25rem' },
+              fontWeight: 400,
+              mb: 1
+            }}
+          >
+            {typeof user.department === 'object' ? user.department?.name || user.department?.code || 'Department' : user.department} - Event Manager Dashboard
+          </Typography>
+          <Typography
+            variant="body1"
+            color="text.secondary"
+            sx={{
+              fontSize: { xs: '0.875rem', sm: '1rem' },
+              fontWeight: 400
+            }}
+          >
+            Event Type: {typeof user.eventType === 'object' ? user.eventType?.name || user.eventType?.code || 'Event' : user.eventType}
+          </Typography>
+        </Box>
+
+        {/* Event Management Statistics */}
+        <Box sx={{ mb: 4 }}>
+          <Typography
+            variant="h5"
+            sx={{
+              fontWeight: 600,
+              mb: 3,
+              color: 'text.primary',
+              fontSize: { xs: '1.25rem', sm: '1.5rem' }
+            }}
+          >
+            🎯 Event Quiz Management
+          </Typography>
+          <Grid container spacing={{ xs: 2, sm: 3 }}>
+            <Grid item xs={12} sm={6} lg={3}>
+              <StatCard
+                title="Total Events"
+                value={stats.totalQuizzes}
+                icon={<EventIcon />}
+                color="primary"
+                subtitle="Created events"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} lg={3}>
+              <StatCard
+                title="Active Events"
+                value={stats.activeQuizzes}
+                icon={<PlayCircleIcon />}
+                color="success"
+                subtitle="Currently running"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} lg={3}>
+              <StatCard
+                title="Registrations"
+                value={stats.totalRegistrations}
+                icon={<PeopleIcon />}
+                color="info"
+                subtitle="Total participants"
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} lg={3}>
+              <StatCard
+                title="Submissions"
+                value={stats.totalSubmissions}
+                icon={<AssignmentIcon />}
+                color="warning"
+                subtitle="Quiz attempts"
+              />
+            </Grid>
+          </Grid>
+        </Box>
+
+        {/* Event Management Tools */}
+        <Box sx={{ mb: 4 }}>
+          <Typography
+            variant="h5"
+            sx={{
+              fontWeight: 600,
+              mb: 3,
+              color: 'text.primary',
+              fontSize: { xs: '1.25rem', sm: '1.5rem' }
+            }}
+          >
+            🚀 Event Management Tools
+          </Typography>
+          <Card
+            elevation={0}
+            sx={{
+              background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.grey[50]} 100%)`,
+              border: `1px solid ${theme.palette.divider}`,
+              borderRadius: 3,
+            }}
+          >
+            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                      📈 Event Performance
+                    </Typography>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="body2">Average Participation:</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {Math.round((stats.totalRegistrations / stats.totalQuizzes) || 0)} per event
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="body2">Completion Rate:</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {Math.round((stats.totalSubmissions / stats.totalRegistrations) * 100 || 0)}%
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Box sx={{ p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+                      🎯 Quick Actions
+                    </Typography>
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => navigate('/event/create-quiz')}
+                        sx={{ justifyContent: 'flex-start' }}
+                      >
+                        ➕ Create New Event
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={() => navigate('/event/registrations')}
+                        sx={{ justifyContent: 'flex-start' }}
+                      >
+                        👥 Manage Registrations
+                      </Button>
+                    </Box>
+                  </Box>
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        </Box>
+      </Container>
     );
   };
 
+  // Helper function for next quiz time
   const getNextQuizTime = () => {
     if (!stats.submissions || stats.submissions.length === 0) return '';
-    
+
     const now = new Date();
     const upcomingQuizzes = stats.submissions
       .filter(sub => new Date(sub.quiz.startTime) > now)
       .sort((a, b) => new Date(a.quiz.startTime) - new Date(b.quiz.startTime));
-      
+
     if (upcomingQuizzes.length === 0) return '';
-    
+
     const nextQuiz = upcomingQuizzes[0];
     const timeUntilStart = new Date(nextQuiz.quiz.startTime) - now;
     const hoursUntilStart = Math.floor(timeUntilStart / (1000 * 60 * 60));
     const minutesUntilStart = Math.floor((timeUntilStart % (1000 * 60 * 60)) / (1000 * 60));
-    
+
     if (hoursUntilStart > 24) {
       const daysUntilStart = Math.floor(hoursUntilStart / 24);
       return `${daysUntilStart} days`;
@@ -1299,12 +1298,17 @@ const Dashboard = () => {
   }
 
   return (
-    <Box sx={{ flexGrow: 1 }}>
-      <Container 
-        maxWidth="lg" 
-        sx={{ 
-          mt: { xs: 2, sm: 3, md: 4 }, 
-          mb: { xs: 2, sm: 3, md: 4 },
+    <Box
+      sx={{
+        minHeight: '100vh',
+        backgroundColor: 'background.default',
+        pt: { xs: 2, sm: 3 },
+        pb: { xs: 2, sm: 4 }
+      }}
+    >
+      <Container
+        maxWidth="xl"
+        sx={{
           px: { xs: 1, sm: 2, md: 3 }
         }}
       >

@@ -296,7 +296,6 @@ const QuizAttempt = () => {
         }}>
           <Box sx={{
             display: 'flex',
-            alignItems: 'center',
             gap: { xs: 1, sm: 2 },
             flexDirection: { xs: 'column', sm: 'row' },
             alignItems: { xs: 'flex-start', sm: 'center' }
