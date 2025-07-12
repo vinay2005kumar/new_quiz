@@ -98,7 +98,6 @@ const Dashboard = () => {
         });
         setLoading(false);
       } catch (err) {
-        console.error('Error fetching admin stats:', err);
         setError('Failed to fetch dashboard statistics');
         setLoading(false);
       }

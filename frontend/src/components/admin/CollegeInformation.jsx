@@ -105,7 +105,6 @@ const CollegeInformation = () => {
       setCollegeInfo(response);
       setOriginalInfo(response);
     } catch (error) {
-      console.error('Error fetching college info:', error);
       setError('Failed to fetch college information');
     }
   };

@@ -63,13 +63,6 @@ const ForgotPassword = () => {
         toast.error(message || 'Failed to send reset code');
       }
     } catch (error) {
-      console.error('❌ Forgot password error:', error);
-      console.error('❌ Error details:', {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message
-      });
-
       const errorMessage = error.response?.data?.message || error.message || 'Failed to send reset code';
       setError(errorMessage);
       toast.error(errorMessage);

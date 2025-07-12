@@ -95,10 +95,8 @@ const QuizLogin = () => {
         state: navigationState
       });
 
-      console.log('🔑 Navigation completed');
+      // Navigation completed
     } catch (error) {
-      console.error('🔑 Login error:', error);
-      console.error('🔑 Error response:', error.response);
 
       // Check if it's an "already submitted" error with submission details
       if (error.response?.data?.submissionDetails) {

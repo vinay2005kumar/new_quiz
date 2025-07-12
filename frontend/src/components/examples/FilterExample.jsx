@@ -41,7 +41,6 @@ const FilterExample = () => {
     try {
       // Simulate API call with filter parameters
       const params = getFilterParams();
-      console.log('Fetching data with filters:', params);
       
       // Your API call would go here
       // const response = await api.get('/api/your-endpoint', { params });
@@ -56,7 +55,6 @@ const FilterExample = () => {
         setLoading(false);
       }, 1000);
     } catch (error) {
-      console.error('Error fetching data:', error);
       setLoading(false);
     }
   };

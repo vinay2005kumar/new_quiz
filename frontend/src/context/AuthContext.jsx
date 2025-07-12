@@ -82,21 +82,13 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       setAuthError(null);
-      setLoading(true);
+      // Don't set loading here as it causes UI flickering - let components manage their own loading
 
-      console.log('Attempting login for:', email);
-
-      // Test toast to ensure toast system is working
-      console.log('Testing toast system...');
-      // toast.info('Login attempt started...'); // Uncomment for testing
       // Make the API request
       const response = await api.post('/api/auth/login', {
         email,
         password
       });
-
-      console.log('Login API response:', response);
-      console.log('Response data:', response.data);
 
       // Extract token and user data from response
       const { token, user, success, message } = response.data || response;
@@ -122,55 +114,31 @@ export const AuthProvider = ({ children }) => {
       toast.success(message || 'Login successful!');
       return { success: true, user };
     } catch (error) {
-      console.error('Login error:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-        fullError: error
-      });
-
-      // Immediate test toast to verify toast system works
-      console.log('About to show test toast...');
-      console.log('Toast function:', typeof toast);
-      console.log('Toast.error function:', typeof toast.error);
-
-      try {
-        toast.error('Login failed - this is a test toast!');
-        console.log('Toast.error called successfully');
-      } catch (toastError) {
-        console.error('Error calling toast:', toastError);
-      }
+      console.error('Login failed:', error.response?.status, error.response?.data?.message || error.message);
 
       const errorMessage = error.response?.data?.message || error.message || 'Failed to login';
       setAuthError(errorMessage);
 
       // Show toast notification for specific error types
-      console.log('Showing toast for error status:', error.response?.status);
-      console.log('Error message:', errorMessage);
 
       // Check for specific error messages regardless of status code
       const lowerErrorMessage = errorMessage.toLowerCase();
 
       if (error.response?.status === 404 || lowerErrorMessage.includes('user not found') || lowerErrorMessage.includes('no account found') || lowerErrorMessage.includes('user does not exist')) {
-        console.log('Showing user not found toast');
         toast.error('No account found with this email address');
       } else if (error.response?.status === 401 || lowerErrorMessage.includes('incorrect password') || lowerErrorMessage.includes('invalid password') || lowerErrorMessage.includes('wrong password')) {
-        console.log('Showing incorrect password toast');
         toast.error('Incorrect password. Please try again.');
       } else if (error.response?.status === 400 || lowerErrorMessage.includes('email and password required') || lowerErrorMessage.includes('missing credentials')) {
-        console.log('Showing missing credentials toast');
         toast.error('Please provide both email and password');
       } else if (lowerErrorMessage.includes('invalid credentials') || lowerErrorMessage.includes('authentication failed')) {
-        console.log('Showing invalid credentials toast');
         toast.error('Invalid email or password. Please check your credentials and try again.');
       } else {
-        console.log('Showing generic toast:', errorMessage);
         toast.error(errorMessage);
       }
 
       return { success: false, error: errorMessage };
     } finally {
-      setLoading(false);
+      // Don't set loading here - let components manage their own loading state
     }
   };
 

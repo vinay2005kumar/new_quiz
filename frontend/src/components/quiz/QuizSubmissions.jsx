@@ -137,27 +137,11 @@ const QuizAuthorizedStudents = () => {
 
       setQuiz(quizResponse);
 
-      console.log('📊 Students Response:', studentsResponse);
-      console.log('📊 Students Array:', studentsResponse.students);
-      console.log('📊 Number of students:', studentsResponse.students?.length || 0);
-
       if (!studentsResponse || !studentsResponse.students) {
-        console.warn('⚠️ No students found or invalid response structure');
         setStudents([]);
         setLoading(false);
         return;
       }
-
-      // Log each student for debugging
-      studentsResponse.students.forEach((studentData, index) => {
-        console.log(`📊 Student ${index + 1}:`, {
-          studentId: studentData.student?._id,
-          studentName: studentData.student?.name,
-          hasSubmitted: studentData.hasSubmitted,
-          submissionStatus: studentData.submissionStatus,
-          totalMarks: studentData.totalMarks
-        });
-      });
 
       // The data is already in the correct format from the backend
       const transformedStudents = studentsResponse.students.map((studentData, index) => {
@@ -229,11 +213,9 @@ const QuizAuthorizedStudents = () => {
 
   const handleConfirmDelete = async () => {
     const studentData = deleteDialog.student;
-    console.log('🗑️ Deleting submission for student:', studentData);
 
     // Check if student has actually submitted
     if (!studentData.hasSubmitted) {
-      console.warn('⚠️ Cannot delete - student has not submitted');
       toast.error('Cannot delete - student has not submitted the quiz');
       setDeleteDialog({ open: false, student: null });
       return;

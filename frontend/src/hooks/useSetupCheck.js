@@ -21,7 +21,6 @@ export const useSetupCheck = () => {
         error: null
       });
     } catch (error) {
-      console.error('Error checking setup status:', error);
       setSetupStatus(prev => ({
         ...prev,
         loading: false,

@@ -89,10 +89,10 @@ export const getCacheInfo = () => {
   return info;
 };
 
-// Development helper
+// Development helper - only logs in development mode
 export const logCacheStatus = () => {
   if (process.env.NODE_ENV === 'development') {
-    console.table(getCacheInfo());
+    // Cache status available for debugging in dev mode only
   }
 };
 

@@ -14,7 +14,6 @@ export const useNavigation = () => {
     return context;
   } catch (error) {
     // Fallback for when used outside Router context
-    console.warn('Navigation context used outside Router. Using fallback navigation.');
     return {
       navigate: (path) => {
         window.location.href = path;

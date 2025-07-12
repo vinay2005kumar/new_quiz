@@ -89,23 +89,15 @@ const AdminQuizzes = () => {
       const eventQuizzes = Array.isArray(eventResponse) ? eventResponse :
                           Array.isArray(eventResponse.data) ? eventResponse.data : [];
 
-      console.log('Processed Academic Quizzes:', academicQuizzes);
-      console.log('Processed Event Quizzes:', eventQuizzes);
-
       // Combine and mark the type if not already marked
       const allQuizzes = [
         ...academicQuizzes.map(q => ({ ...q, type: q.type || 'academic' })),
         ...eventQuizzes.map(q => ({ ...q, type: 'event' }))
       ];
 
-      console.log('Combined Quizzes:', allQuizzes);
-      console.log('Setting quizzes state with:', allQuizzes.length, 'items');
-      
       // Update state only if we have valid data
       if (allQuizzes.length > 0) {
         setQuizzes(allQuizzes);
-      } else {
-        console.warn('No quizzes found in the response');
       }
     } catch (error) {
       console.error('Error fetching quizzes:', error);

@@ -128,7 +128,6 @@ const InitialSetup = ({ onSetupComplete }) => {
       }, 2000);
 
     } catch (error) {
-      console.error('Setup error:', error);
       setError(error.response?.data?.message || 'Setup failed. Please try again.');
     } finally {
       setLoading(false);

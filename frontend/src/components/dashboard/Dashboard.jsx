@@ -78,9 +78,9 @@ const Dashboard = () => {
   });
   const [anchorEl, setAnchorEl] = useState(null);
 
-  // Debug useEffect to track adminStats changes
+  // Track adminStats changes for admin dashboard
   useEffect(() => {
-    console.log('AdminStats updated:', adminStats);
+    // AdminStats updated
   }, [adminStats]);
 
   useEffect(() => {
@@ -98,7 +98,7 @@ const Dashboard = () => {
           quizzes = allEventQuizzes.filter(quiz =>
             quiz.createdBy?._id === user._id || quiz.createdBy === user._id
           );
-          console.log('Event manager quizzes:', quizzes.length, 'out of', allEventQuizzes.length, 'total');
+          // Filtered event manager quizzes
         } else {
           // For other roles, fetch academic quizzes
           const quizzesResponse = await api.get('/api/quiz');
@@ -278,16 +278,7 @@ const Dashboard = () => {
             // Calculate total users correctly
             const totalUsersCount = students.length + faculty.length + eventAccounts.length;
 
-            console.log('Admin Dashboard Data:', {
-              students: students.length,
-              faculty: faculty.length,
-              eventAccounts: eventAccounts.length,
-              totalUsersCount: totalUsersCount,
-              calculation: `${students.length} + ${faculty.length} + ${eventAccounts.length} = ${totalUsersCount}`,
-              studentsResponse,
-              facultyResponse,
-              eventAccountsResponse
-            });
+            // Admin dashboard data calculated
 
             const newAdminStats = {
               totalUsers: totalUsersCount, // Always use calculated count, not backend stats
@@ -306,7 +297,7 @@ const Dashboard = () => {
               recentActivity: submissions.slice(-5) || []
             };
 
-            console.log('Setting adminStats to:', newAdminStats);
+            // Setting admin stats
             setAdminStats(newAdminStats);
           } catch (adminError) {
             console.error('Error fetching admin stats:', adminError);

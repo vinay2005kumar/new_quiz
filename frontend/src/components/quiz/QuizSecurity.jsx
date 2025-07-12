@@ -259,7 +259,6 @@ const QuizSecurity = ({
     // Monitor window focus to detect tab switching attempts
     if (securitySettings.enableFullscreen || securitySettings.enableProctoringMode) {
       const handleWindowBlur = () => {
-        console.log('🖥️ Window lost focus - possible tab switch attempt');
         handleViolation('⚠️ Window Focus Lost!\n\nThe quiz window lost focus. This may indicate an attempt to switch to another tab or application.\n\nPlease keep the quiz window focused at all times.');
 
         // Try to regain focus
@@ -269,7 +268,7 @@ const QuizSecurity = ({
       };
 
       const handleWindowFocus = () => {
-        console.log('🖥️ Window regained focus');
+        // Window regained focus
       };
 
       window.addEventListener('blur', handleWindowBlur);
@@ -569,17 +568,13 @@ const QuizSecurity = ({
           setTimeout(() => {
             window.focus();
             if (document.hidden) {
-              console.log('🚨 Page still hidden after focus attempt');
               handleViolation('⚠️ Page Still Hidden!\n\nThe quiz page is still not visible. Please close any other tabs and return to the quiz.');
             }
           }, 1000);
-        } else {
-          console.log('✅ Page became visible again');
         }
       };
 
       const handleBlur = () => {
-        console.log('🚨 Window lost focus');
         handleViolation('⚠️ Window Focus Lost!\n\nThe quiz window lost focus. Please stay focused on the quiz at all times.');
 
         // Try to regain focus
@@ -589,7 +584,7 @@ const QuizSecurity = ({
       };
 
       const handleFocus = () => {
-        console.log('✅ Window regained focus');
+        // Window regained focus
       };
 
       // Monitor page visibility more aggressively
@@ -914,14 +909,12 @@ const QuizSecurity = ({
       );
 
       if (!isFullscreenSupported) {
-        console.warn('🖥️ Fullscreen API not supported');
         handleViolation('⚠️ Fullscreen Not Supported!\n\nYour browser does not support fullscreen mode. Please use a modern browser (Chrome, Firefox, Edge) to take this quiz.');
         return;
       }
 
       // Check if fullscreen is allowed
       if (document.fullscreenEnabled === false) {
-        console.warn('🖥️ Fullscreen is disabled');
         handleViolation('⚠️ Fullscreen Disabled!\n\nFullscreen mode is disabled in your browser. Please enable it in browser settings to continue.');
         return;
       }
