@@ -220,11 +220,9 @@ const QuizEdit = () => {
 
   const handleBackNavigation = () => {
     const backPath = getBackPath();
-    console.log('Navigating back to:', backPath);
     navigate(backPath);
   };
   const [subjects, setSubjects] = useState([]);
-  const [departments, setDepartments] = useState([]);
   const [academicStructure, setAcademicStructure] = useState(null);
   const [filters, setFilters] = useState({
     year: '',
@@ -266,21 +264,90 @@ const QuizEdit = () => {
   // Add Question Modal state
   const [addQuestionModalOpen, setAddQuestionModalOpen] = useState(false);
 
-  // Fetch faculty structure on mount
+  // Fetch academic structure on mount - EXACT COPY from QuizBasicDetails
   useEffect(() => {
-    const fetchFacultyStructure = async () => {
+    const fetchAcademicStructure = async () => {
       try {
-        const response = await api.get('/api/academic-details/faculty-structure');
-        console.log('Faculty structure:', response.data);
-        setAcademicStructure(response.data || {});
-        // Set available departments based on faculty permissions
-        const facultyDepts = Object.keys(response.data || {});
-        setDepartments(facultyDepts);
+        setLoading(true);
+
+        // Get college departments first
+        const collegeResponse = await api.get('/api/admin/college-info');
+        const collegeDepartments = collegeResponse?.departments || [];
+
+        // First get all academic details
+        const allDetailsResponse = await api.get('/api/academic-details');
+
+        // Then get faculty-specific structure
+        const facultyResponse = await api.get('/api/academic-details/faculty-structure');
+
+        if (allDetailsResponse && Array.isArray(allDetailsResponse)) {
+          // Process all academic details into structure
+          const structure = allDetailsResponse.reduce((acc, detail) => {
+            if (!detail || !detail.department || !detail.year || !detail.semester) return acc;
+
+            // Initialize department if not exists
+            if (!acc[detail.department]) {
+              acc[detail.department] = { years: {} };
+            }
+
+            // Initialize year if not exists
+            if (!acc[detail.department].years[detail.year]) {
+              acc[detail.department].years[detail.year] = { semesters: {} };
+            }
+
+            // Add semester data
+            acc[detail.department].years[detail.year].semesters[detail.semester] = {
+              sections: detail.sections ? detail.sections.split(',').map(s => s.trim()) : [],
+              subjects: detail.subjects ? detail.subjects.split(',')
+                .map(s => {
+                  const trimmed = s.trim();
+                  if (!trimmed) return null;
+
+                  // Try to match format: "Subject Name(CODE)" - flexible code format
+                  const match = trimmed.match(/^(.+)\(([^)]+)\)$/);
+                  if (match) {
+                    return {
+                      name: match[1].trim(),
+                      code: match[2].trim()
+                    };
+                  } else {
+                    // If no parentheses format, treat the whole string as both name and code
+                    return {
+                      name: trimmed,
+                      code: trimmed
+                    };
+                  }
+                })
+                .filter(s => s !== null) : []
+            };
+
+            return acc;
+          }, {});
+
+          // Add departments from college settings that might not be in academic details
+          collegeDepartments.forEach(dept => {
+            if (!structure[dept]) {
+              structure[dept] = { years: {} };
+            }
+          });
+
+          // Mark departments that faculty has access to
+          if (facultyResponse?.data) {
+            Object.keys(structure).forEach(dept => {
+              structure[dept].hasAccess = !!facultyResponse.data[dept];
+            });
+          }
+
+          setAcademicStructure(structure);
+        }
       } catch (error) {
-        console.error('Error fetching faculty structure:', error);
+        setError('Failed to load academic structure');
+      } finally {
+        setLoading(false);
       }
     };
-    fetchFacultyStructure();
+
+    fetchAcademicStructure();
   }, []);
 
   // Update subjects from academic structure
@@ -293,26 +360,57 @@ const QuizEdit = () => {
     try {
       const semesterData = academicStructure[quiz.department]?.years[quiz.year]?.semesters[quiz.semester];
       if (semesterData?.subjects && Array.isArray(semesterData.subjects)) {
-        console.log('Setting subjects from academic structure:', semesterData.subjects);
-        setSubjects(semesterData.subjects);
+        let availableSubjects = semesterData.subjects;
+
+        // For faculty users, filter subjects based on their assignments
+        if (user?.role === 'faculty' && user?.assignments) {
+          // Find the faculty assignment that matches current selection
+          const matchingAssignment = user.assignments.find(assignment => {
+            const deptMatch = assignment.department === quiz.department;
+            const yearMatch = assignment.year === parseInt(quiz.year) || assignment.year === String(quiz.year);
+            const semesterMatch = assignment.semester === parseInt(quiz.semester) || assignment.semester === String(quiz.semester);
+            return deptMatch && yearMatch && semesterMatch;
+          });
+
+          if (matchingAssignment && matchingAssignment.subjects && matchingAssignment.subjects.length > 0) {
+            // Filter subjects to only show those assigned to this faculty
+            availableSubjects = semesterData.subjects.filter(subject => {
+              // Check if the subject is in the faculty's assigned subjects
+              // Match by full name (e.g., "Programming Fundamentals(CS101)")
+              return matchingAssignment.subjects.some(assignedSubject => {
+                // Try exact match first
+                if (assignedSubject === `${subject.name}(${subject.code})`) {
+                  return true;
+                }
+                // Also try matching just the subject name or code
+                return assignedSubject.includes(subject.name) || assignedSubject.includes(subject.code);
+              });
+            });
+          } else {
+            // If no matching assignment found, return empty array
+            availableSubjects = [];
+          }
+        }
+
+        setSubjects(availableSubjects);
       } else {
         setSubjects([]);
       }
     } catch (error) {
-      console.error('Error getting subjects:', error);
       setSubjects([]);
     }
-  }, [quiz.department, quiz.year, quiz.semester, academicStructure]);
+  }, [quiz.department, quiz.year, quiz.semester, academicStructure, user]);
 
+  // Fetch quiz data when component mounts
   useEffect(() => {
     fetchQuiz();
   }, [id]);
 
+
+
   const fetchQuiz = async () => {
     try {
-      console.log('Fetching quiz with ID:', id);
       const response = await api.get(`/api/quiz/${id}`);
-      console.log('Quiz data received:', response);
       
       // Helper function to safely format date
       const formatDate = (dateString) => {
@@ -357,7 +455,7 @@ const QuizEdit = () => {
         }
       };
       
-      console.log('Formatted quiz data:', formattedQuiz);
+      // Quiz data formatted
       setQuiz(formattedQuiz);
       
       // Update filters with quiz data
@@ -370,7 +468,6 @@ const QuizEdit = () => {
       
       setLoading(false);
     } catch (error) {
-      console.error('Error fetching quiz:', error);
       setError('Failed to load quiz');
       setLoading(false);
     }
@@ -548,7 +645,6 @@ const QuizEdit = () => {
         handleBackNavigation();
       }, 2000);
     } catch (error) {
-      console.error('Error updating quiz:', error);
       setError(error.response?.data?.message || 'Failed to update quiz');
     }
   };
@@ -565,92 +661,76 @@ const QuizEdit = () => {
   };
 
   const getAvailableYears = (department) => {
-    if (!department || !academicStructure) return YEARS;
-    if (user.role === 'faculty') {
-      const deptData = academicStructure[department];
-      if (!deptData) return YEARS;
+    if (!academicStructure || !department) return [];
+    const deptData = academicStructure[department];
+    if (!deptData?.years) return [];
 
-      // If years is an array
-      if (Array.isArray(deptData.years)) {
-        return deptData.years.map(y => typeof y === 'object' ? y.year : y);
-      }
-      
-      // If years is an object with numeric keys
-      if (typeof deptData.years === 'object') {
-        return Object.keys(deptData.years).map(Number).filter(y => !isNaN(y));
-      }
+    let availableYears = Object.keys(deptData.years).map(Number).sort((a, b) => a - b);
 
-      return YEARS;
+    // For faculty users, filter years based on their assignments
+    if (user?.role === 'faculty' && user?.assignments) {
+      const facultyYears = user.assignments
+        .filter(assignment => {
+          const match = assignment.department === department;
+          return match;
+        })
+        .map(assignment => parseInt(assignment.year));
+
+      availableYears = availableYears.filter(year => facultyYears.includes(year));
     }
-    return YEARS;
+
+    return availableYears;
   };
 
   const getAvailableSemesters = (department, year) => {
-    if (!department || !year || !academicStructure) return SEMESTERS;
-    if (user.role === 'faculty') {
-      const deptData = academicStructure[department];
-      if (!deptData || !deptData.years) return SEMESTERS;
+    if (!academicStructure || !department || !year) return [];
+    const yearData = academicStructure[department]?.years[year];
+    if (!yearData?.semesters) return [];
 
-      // If years is an array
-      if (Array.isArray(deptData.years)) {
-        const yearData = deptData.years.find(y => 
-          (typeof y === 'object' && y.year === parseInt(year)) || y === parseInt(year)
-        );
-        if (yearData && Array.isArray(yearData.semesters)) {
-          return yearData.semesters.map(s => typeof s === 'object' ? s.semester : s);
-        }
-      }
-      
-      // If years is an object with numeric keys
-      if (typeof deptData.years === 'object') {
-        const yearData = deptData.years[year];
-        if (yearData && Array.isArray(yearData.semesters)) {
-          return yearData.semesters.map(s => typeof s === 'object' ? s.semester : s);
-        }
-      }
+    let availableSemesters = Object.keys(yearData.semesters).map(Number).sort((a, b) => a - b);
 
-      return SEMESTERS;
+    // For faculty users, filter semesters based on their assignments
+    if (user?.role === 'faculty' && user?.assignments) {
+      const facultySemesters = user.assignments
+        .filter(assignment => {
+          const deptMatch = assignment.department === department;
+          const yearMatch = assignment.year === year || assignment.year === String(year);
+          return deptMatch && yearMatch;
+        })
+        .map(assignment => parseInt(assignment.semester));
+
+      availableSemesters = availableSemesters.filter(semester => facultySemesters.includes(semester));
     }
-    return SEMESTERS;
+
+    return availableSemesters;
   };
 
   const getAvailableSections = (department, year, semester) => {
-    if (!department || !year || !semester || !academicStructure) return SECTIONS;
-    if (user.role === 'faculty') {
-      const deptData = academicStructure[department];
-      if (!deptData || !deptData.years) return SECTIONS;
+    if (!academicStructure || !department || !year || !semester) return [];
+    const semesterData = academicStructure[department]?.years[year]?.semesters[semester];
+    let availableSections = semesterData?.sections || [];
 
-      // If years is an array
-      if (Array.isArray(deptData.years)) {
-        const yearData = deptData.years.find(y => 
-          (typeof y === 'object' && y.year === parseInt(year)) || y === parseInt(year)
+    // For faculty users, filter sections based on their assignments
+    if (user?.role === 'faculty' && user?.assignments) {
+      // Find the faculty assignment that matches current selection
+      const matchingAssignment = user.assignments.find(assignment => {
+        const deptMatch = assignment.department === department;
+        const yearMatch = assignment.year === year || assignment.year === String(year);
+        const semesterMatch = assignment.semester === semester || assignment.semester === String(semester);
+        return deptMatch && yearMatch && semesterMatch;
+      });
+
+      if (matchingAssignment && matchingAssignment.sections) {
+        availableSections = availableSections.filter(section =>
+          matchingAssignment.sections.includes(section)
         );
-        if (yearData && Array.isArray(yearData.semesters)) {
-          const semesterData = yearData.semesters.find(s =>
-            (typeof s === 'object' && s.semester === parseInt(semester)) || s === parseInt(semester)
-          );
-          if (semesterData && Array.isArray(semesterData.sections)) {
-            return semesterData.sections;
-          }
-        }
+      } else {
+        // If no assignment found for this combination, show no sections
+        availableSections = [];
       }
-      
-      // If years is an object with numeric keys
-      if (typeof deptData.years === 'object') {
-        const yearData = deptData.years[year];
-        if (yearData && Array.isArray(yearData.semesters)) {
-          const semesterData = yearData.semesters.find(s =>
-            (typeof s === 'object' && s.semester === parseInt(semester)) || s === parseInt(semester)
-          );
-          if (semesterData && Array.isArray(semesterData.sections)) {
-            return semesterData.sections;
-          }
-        }
-      }
-
-      return SECTIONS;
     }
-    return SECTIONS;
+
+    return availableSections;
   };
 
   if (loading) {
@@ -710,11 +790,20 @@ const QuizEdit = () => {
                   })}
                   required
                 >
-                  {departments.map(dept => (
-                    <MenuItem key={dept} value={dept}>
-                      {dept}
-                    </MenuItem>
-                  ))}
+                  {academicStructure && Object.keys(academicStructure)
+                    .filter(dept => {
+                      // For faculty users, only show departments they have assignments in
+                      if (user?.role === 'faculty') {
+                        return user?.assignments?.some(assignment => assignment.department === dept);
+                      }
+                      // For admin users, show all departments
+                      return true;
+                    })
+                    .map(dept => (
+                      <MenuItem key={dept} value={dept}>
+                        {dept}
+                      </MenuItem>
+                    ))}
                 </Select>
               </FormControl>
             </Grid>
@@ -1009,14 +1098,30 @@ const QuizEdit = () => {
                   value={quiz.subject?.code || quiz.subject || ''}
                   onChange={handleBasicDetailsChange}
                   label="Subject"
+                  disabled={!quiz.semester || subjects.length === 0}
                 >
-                  {subjects.map((subject) => (
-                    <MenuItem key={subject.code} value={subject.code}>
-                      {subject.name} ({subject.code})
+                  {subjects.length > 0 ? (
+                    subjects.map((subject) => (
+                      <MenuItem key={subject.code} value={subject.code}>
+                        {subject.name} ({subject.code})
+                      </MenuItem>
+                    ))
+                  ) : (
+                    <MenuItem disabled value="">
+                      {user?.role === 'faculty'
+                        ? 'No subjects assigned to you for this semester'
+                        : 'No subjects available for this semester'
+                      }
                     </MenuItem>
-                  ))}
+                  )}
                 </Select>
               </FormControl>
+              {user?.role === 'faculty' && subjects.length === 0 && quiz.semester && (
+                <Alert severity="info" sx={{ mt: 1 }}>
+                  You don't have any subjects assigned for {quiz.department} - Year {quiz.year} - Semester {quiz.semester}.
+                  Please contact the administrator to assign subjects to your account.
+                </Alert>
+              )}
             </Grid>
           </Grid>
         )}

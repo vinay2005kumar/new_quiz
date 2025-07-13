@@ -57,6 +57,7 @@ import {
 import api from '../../config/axios';
 import * as XLSX from 'xlsx';
 import CollegeInformation from './CollegeInformation';
+import { toast } from 'react-toastify';
 
 const CollegeSettings = () => {
   const theme = useTheme();
@@ -96,7 +97,6 @@ const CollegeSettings = () => {
     department: '',
     year: '',
     semester: '',
-    credits: '',
     description: ''
   });
   const [semesterSubjects, setSemesterSubjects] = useState([]);
@@ -161,15 +161,10 @@ const CollegeSettings = () => {
 
   const fetchAcademicDetails = async () => {
     try {
-      console.log('=== FETCHING ACADEMIC DETAILS ===');
       const response = await api.get('/api/academic-details');
-      console.log('Raw academic details API response:', response);
-      console.log('Response type:', typeof response);
 
       // The data is directly in the response object
       let academicData = Array.isArray(response) ? response : [];
-      console.log('Processed academic details:', academicData);
-      console.log('Number of academic details:', academicData.length);
 
       // Set the academic details state
       setAcademicDetails(academicData);
@@ -190,7 +185,7 @@ const CollegeSettings = () => {
           }
         }
       });
-      console.log('Grouped sections:', groupedSections);
+
       setSections(Object.values(groupedSections));
 
       // Process subjects
@@ -202,22 +197,35 @@ const CollegeSettings = () => {
             : [];
 
           subjectsArray.forEach(subject => {
-            const match = subject.trim().match(/^(.+)\(([A-Z]{2}\d{3})\)$/);
+            const trimmed = subject.trim();
+            if (!trimmed) return;
+
+            // Try to match format: "Subject Name(CODE)" - flexible code format
+            const match = trimmed.match(/^(.+)\(([^)]+)\)$/);
             if (match) {
               allSubjects.push({
                 _id: detail._id,
                 name: match[1].trim(),
-                code: match[2],
+                code: match[2].trim(),
                 department: detail.department,
                 year: detail.year || 1,
-                semester: detail.semester || 1,
-                credits: detail.credits || 3
+                semester: detail.semester || 1
+              });
+            } else {
+              // If no parentheses format, treat the whole string as both name and code
+              allSubjects.push({
+                _id: detail._id,
+                name: trimmed,
+                code: trimmed,
+                department: detail.department,
+                year: detail.year || 1,
+                semester: detail.semester || 1
               });
             }
           });
         }
       });
-      console.log('Extracted subjects:', allSubjects);
+
       setSubjects(allSubjects);
 
     } catch (error) {
@@ -239,36 +247,22 @@ const CollegeSettings = () => {
   const handleDeptSubmit = async (e) => {
     e.preventDefault();
     try {
-      console.log('=== DEPARTMENT SUBMIT START ===');
-      console.log('Form data:', deptFormData);
-      console.log('Selected dept:', selectedDept);
-
       if (!deptFormData.name || !deptFormData.code) {
-        console.log('Validation failed: missing name or code');
         showError('Department name and code are required');
         return;
       }
 
       if (!deptFormData.name.trim() || !deptFormData.code.trim()) {
-        console.log('Validation failed: empty name or code after trim');
         showError('Department name and code cannot be empty');
         return;
       }
 
-      console.log('Submitting department data:', deptFormData);
-
       let response;
       if (selectedDept) {
-        console.log('Updating existing department...');
         response = await api.put(`/api/admin/settings/departments/${selectedDept._id}`, deptFormData);
-        console.log('Department update response:', response);
       } else {
-        console.log('Creating new department...');
         response = await api.post('/api/admin/settings/departments', deptFormData);
-        console.log('Department create response:', response);
       }
-
-      console.log('API call successful, refreshing data...');
 
       // Refresh both departments and academic details
       await Promise.all([
@@ -429,22 +423,7 @@ const CollegeSettings = () => {
         return;
       }
 
-      // Check if subject code already exists in any academic detail
-      const subjectCodeExists = academicDetails.some(detail => {
-        if (!detail.subjects) return false;
-        return detail.subjects.split(',')
-          .some(subject => {
-            const match = subject.trim().match(/^(.+)\(([A-Z]{2}\d{3})\)$/);
-            if (!match) return false;
-            return match[2] === subjectFormData.code && 
-                   (!selectedSubject || subject.trim() !== selectedSubject);
-          });
-      });
 
-      if (subjectCodeExists) {
-        showError(`Subject code ${subjectFormData.code} already exists. Please use a unique code.`);
-        return;
-      }
 
       // Get current subjects and add the new one
       const currentSubjects = existingDetail.subjects ? 
@@ -465,8 +444,7 @@ const CollegeSettings = () => {
       // Update the academic detail
       const response = await api.put(`/api/academic-details/${existingDetail._id}`, {
         ...existingDetail,
-        subjects: updatedSubjects.join(','),
-        credits: subjectFormData.credits || existingDetail.credits || 3
+        subjects: updatedSubjects.join(',')
       });
 
       if (response) {
@@ -478,7 +456,6 @@ const CollegeSettings = () => {
           department: sectionFormData.department,
           year: sectionFormData.year,
           semester: sectionFormData.semester,
-          credits: '',
           description: ''
         });
         setSelectedSubject(null);
@@ -569,10 +546,10 @@ const CollegeSettings = () => {
 
   const downloadTemplate = () => {
     const template = [
-      ['Department', 'Year', 'Semester', 'Sections', 'Subjects', 'Credits'],
-      ['Computer Science', '1', '1', 'A,B,C', 'Programming Fundamentals(CS101),Digital Logic(CS102)', '4'],
-      ['Computer Science', '1', '2', 'A,B,C', 'Data Structures(CS201),OOP(CS202)', '3'],
-      ['Electronics', '2', '3', 'A,B', 'Circuit Theory(EC201),Electronic Devices(EC202)', '4']
+      ['Department', 'Year', 'Semester', 'Sections', 'Subjects'],
+      ['Computer Science', '1', '1', 'A,B,C', 'Programming Fundamentals(CS101),Digital Logic(CS102)'],
+      ['Computer Science', '1', '2', 'A,B,C', 'Data Structures(CS201),OOP(CS202)'],
+      ['Electronics', '2', '3', 'A,B', 'Circuit Theory(EC201),Electronic Devices(EC202)']
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(template);
@@ -584,51 +561,73 @@ const CollegeSettings = () => {
   const handleExcelUpload = async () => {
     try {
       if (!excelFile) {
-        setUploadError('Please select a file first');
+        toast.error('Please select a file first');
         return;
       }
 
       const formData = new FormData();
       formData.append('file', excelFile);
 
-      const response = await api.post('/api/settings/upload-academic-details', formData, {
+      const response = await api.post('/api/academic-details/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
       });
 
-      setUploadSuccess('Academic details uploaded successfully');
-      fetchSections();
-      fetchSubjects();
+      const responseData = response.data || response;
+
+      // Check if there were any validation errors
+      if (responseData.errors && responseData.errors.length > 0) {
+        // Show each validation error as a toast notification
+        responseData.errors.forEach(error => {
+          toast.error(error, {
+            position: "top-right",
+            autoClose: 6000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+          });
+        });
+
+        // Show summary message
+        if (responseData.success > 0) {
+          toast.warning(`${responseData.success} rows uploaded successfully, but ${responseData.errors.length} rows had errors.`, {
+            position: "top-right",
+            autoClose: 4000,
+          });
+        } else {
+          toast.error('Upload failed due to validation errors. Please fix the errors and try again.', {
+            position: "top-right",
+            autoClose: 4000,
+          });
+        }
+      } else {
+        // All rows uploaded successfully
+        toast.success('Academic details uploaded successfully!', {
+          position: "top-right",
+          autoClose: 3000,
+        });
+      }
+
+      // Refresh the data if any rows were successful
+      if (!responseData.errors || responseData.success > 0) {
+        setTimeout(async () => {
+          await fetchAcademicDetails();
+        }, 500);
+      }
+
       setExcelFile(null);
       setOpenSectionDialog(false);
     } catch (error) {
-      console.error('Error uploading file:', error);
-      setUploadError(error.response?.data?.message || 'Error uploading file. Please try again.');
-    }
-  };
-
-  const handleUploadExcel = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      await api.post('/api/academic-details/upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
+      toast.error(error.response?.data?.message || 'Error uploading file. Please try again.', {
+        position: "top-right",
+        autoClose: 5000,
       });
-      
-      // Refresh the data
-      fetchAcademicDetails();
-      setUploadSuccess('Academic details uploaded successfully');
-    } catch (error) {
-      setUploadError(error.response?.data?.message || 'Error uploading academic details');
     }
   };
+
+
 
   const handleDeleteAcademicDetail = async (id) => {
     try {
@@ -1374,8 +1373,7 @@ const CollegeSettings = () => {
                       name: '',
                       department: '',
                       year: '',
-                      semester: '',
-                      credits: ''
+                      semester: ''
                     });
                     setUploadMode(false);
                     setOpenSectionDialog(true);
@@ -1499,13 +1497,22 @@ const CollegeSettings = () => {
                               {detail.subjects?.split(',')
                                 .filter(subject => subject.trim())
                                 .map((subject, idx) => {
-                                  const match = subject.trim().match(/^(.+)\(([A-Z]{2}\d{3})\)$/);
-                                  if (!match) return null;
-                                  
+                                  const trimmed = subject.trim();
+                                  if (!trimmed) return null;
+
+                                  // Try to match format: "Subject Name(CODE)" - flexible code format
+                                  const match = trimmed.match(/^(.+)\(([^)]+)\)$/);
+                                  let displayText;
+                                  if (match) {
+                                    displayText = `${match[1].trim()} (${match[2].trim()})`;
+                                  } else {
+                                    displayText = trimmed;
+                                  }
+
                                   return (
                                     <Box key={idx} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                       <Chip
-                                        label={`${match[1].trim()} (${match[2]})`}
+                                        label={displayText}
                                         size="small"
                                         variant="outlined"
                                         onDelete={() => handleDeleteSubject(detail, idx)}
@@ -1891,7 +1898,7 @@ const CollegeSettings = () => {
               department: '',
               year: '',
               semester: '',
-              credits: '',
+
               description: ''
             });
             setSelectedSection(null);
@@ -1930,7 +1937,6 @@ const CollegeSettings = () => {
                         <TableCell><strong>Semester</strong></TableCell>
                         <TableCell><strong>Sections</strong></TableCell>
                         <TableCell><strong>Subjects</strong></TableCell>
-                        <TableCell><strong>Credits</strong></TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -1940,15 +1946,18 @@ const CollegeSettings = () => {
                         <TableCell>1</TableCell>
                         <TableCell>A,B,C</TableCell>
                         <TableCell>Programming Fundamentals(CS101),Digital Logic(CS102)</TableCell>
-                        <TableCell>4</TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>
                 </TableContainer>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 2, mb: 2 }}>
-                  <strong>Note:</strong> For subjects, use the format: subject_name(subject_code),next_subject_name(next_subject_code)
+                  <strong>Note:</strong> For subjects, you can use any format you prefer:
                   <br />
-                  Example: Programming Fundamentals(CS101),Digital Logic(CS102)
+                  • With parentheses: Programming Fundamentals(CS101),Digital Logic(CS102)
+                  <br />
+                  • Without parentheses: Programming Fundamentals,Digital Logic
+                  <br />
+                  • Any code format: Math(MATH-201),Physics(PHY_301)
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
                   <Button
@@ -2207,30 +2216,14 @@ const CollegeSettings = () => {
                           label="Subject Code"
                           value={subjectFormData.code}
                           onChange={(e) => {
-                            const code = e.target.value.toUpperCase();
-                            if (/^[A-Z]{0,2}\d{0,3}$/.test(code)) {
-                              setSubjectFormData({
-                                ...subjectFormData,
-                                code: code
-                              });
-                            }
+                            setSubjectFormData({
+                              ...subjectFormData,
+                              code: e.target.value
+                            });
                           }}
                           required
                           error={!subjectFormData.code}
-                          helperText={!subjectFormData.code ? 'Subject code is required (Format: XX999)' : 'Format: XX999 (e.g., CS101)'}
-                        />
-                      </MuiGrid>
-                      <MuiGrid item xs={12} sm={6}>
-                        <TextField
-                          fullWidth
-                          label="Credits"
-                          type="number"
-                          value={subjectFormData.credits}
-                          onChange={(e) => setSubjectFormData({
-                            ...subjectFormData,
-                            credits: e.target.value
-                          })}
-                          inputProps={{ min: 1, max: 6 }}
+                          helperText={!subjectFormData.code ? 'Subject code is required' : 'Enter any format you prefer (e.g., CS101, MATH-201, etc.)'}
                         />
                       </MuiGrid>
                       <MuiGrid item xs={12} sm={6}>
@@ -2287,14 +2280,22 @@ const CollegeSettings = () => {
                           </Typography>
                           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                             {currentSubjects.map((subject, index) => {
-                              const match = subject.trim().match(/^(.+)\(([A-Z]{2}\d{3})\)$/);
-                              const subjectName = match ? match[1] : subject.trim();
-                              const subjectCode = match ? match[2] : '';
+                              const trimmed = subject.trim();
+                              if (!trimmed) return null;
+
+                              // Try to match format: "Subject Name(CODE)" - flexible code format
+                              const match = trimmed.match(/^(.+)\(([^)]+)\)$/);
+                              let displayText;
+                              if (match) {
+                                displayText = `${match[1].trim()} (${match[2].trim()})`;
+                              } else {
+                                displayText = trimmed;
+                              }
 
                               return (
                                 <Chip
                                   key={index}
-                                  label={`${subjectName} (${subjectCode})`}
+                                  label={displayText}
                                   variant="outlined"
                                   color="primary"
                                   onDelete={() => {
@@ -2348,7 +2349,7 @@ const CollegeSettings = () => {
                 department: '',
                 year: '',
                 semester: '',
-                credits: '',
+
                 description: ''
               });
               setSelectedSection(null);
@@ -2387,7 +2388,7 @@ const CollegeSettings = () => {
               department: '',
               year: '',
               semester: '',
-              credits: '',
+
               description: ''
             });
             setSelectedSubject(null);
@@ -2436,7 +2437,7 @@ const CollegeSettings = () => {
                 department: '',
                 year: '',
                 semester: '',
-                credits: '',
+
                 description: ''
               });
               setSelectedSubject(null);
@@ -2460,7 +2461,7 @@ const CollegeSettings = () => {
                     department: '',
                     year: '',
                     semester: '',
-                    credits: '',
+
                     description: ''
                   });
                   setSelectedSubject(null);

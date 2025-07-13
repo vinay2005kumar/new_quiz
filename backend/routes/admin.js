@@ -1118,8 +1118,7 @@ router.post('/academic-details/years-semesters', isAdmin, async (req, res) => {
                 year,
                 semester,
                 sections: 'A', // Default section
-                subjects: '',
-                credits: 3
+                subjects: ''
               },
               { 
                 new: true, 
@@ -1362,12 +1361,24 @@ router.get('/subjects/:department/:year/:semester', auth, authorize('admin'), as
     }
 
     const subjects = academicDetail.subjects.split(',').map(s => {
-      const match = s.trim().match(/^(.+)\(([A-Z]{2}\d{3})\)$/);
-      return {
-        name: match[1].trim(),
-        code: match[2]
-      };
-    });
+      const trimmed = s.trim();
+      if (!trimmed) return null;
+
+      // Try to match format: "Subject Name(CODE)" - flexible code format
+      const match = trimmed.match(/^(.+)\(([^)]+)\)$/);
+      if (match) {
+        return {
+          name: match[1].trim(),
+          code: match[2].trim()
+        };
+      } else {
+        // If no parentheses format, treat the whole string as both name and code
+        return {
+          name: trimmed,
+          code: trimmed
+        };
+      }
+    }).filter(s => s !== null);
 
     res.json(subjects);
   } catch (error) {

@@ -30,24 +30,19 @@ const academicDetailSchema = new mongoose.Schema({
     }
   },
   subjects: {
-    type: String,  // Store as comma-separated string: "Programming Fundamentals(CS101),Digital Logic(CS102)"
+    type: String,  // Store as comma-separated string: "Programming Fundamentals(CS101),Digital Logic(CS102)" or any format
     default: '',
     validate: {
       validator: function(subjects) {
         // Empty subjects string is allowed
         if (!subjects) return true;
         const subjectArray = subjects.split(',').map(s => s.trim());
-        // Allow empty subjects array or validate format
-        return subjectArray.length === 0 || 
-               subjectArray.every(s => /^.+\([A-Z]{2}\d{3}\)$/.test(s));
+        // Allow empty subjects array or any non-empty string format
+        return subjectArray.length === 0 ||
+               subjectArray.every(s => s.length > 0);
       },
-      message: 'Subjects must be in format: Subject Name(CODE) and comma-separated'
+      message: 'Subjects must be non-empty strings and comma-separated'
     }
-  },
-  credits: {
-    type: Number,
-    required: true,
-    min: 1
   }
 }, {
   timestamps: true

@@ -83,14 +83,26 @@ router.get('/subjects', async (req, res) => {
       return res.json([]);
     }
 
-    // Convert subjects string to array of objects
+    // Convert subjects string to array of objects - flexible format
     const subjects = academicDetail.subjects.split(',').map(subject => {
-      const match = subject.trim().match(/^(.+)\(([A-Z]{2}\d{3})\)$/);
-      return {
-        name: match[1].trim(),
-        code: match[2]
-      };
-    });
+      const trimmed = subject.trim();
+      if (!trimmed) return null;
+
+      // Try to match format: "Subject Name(CODE)" - flexible code format
+      const match = trimmed.match(/^(.+)\(([^)]+)\)$/);
+      if (match) {
+        return {
+          name: match[1].trim(),
+          code: match[2].trim()
+        };
+      } else {
+        // If no parentheses format, treat the whole string as both name and code
+        return {
+          name: trimmed,
+          code: trimmed
+        };
+      }
+    }).filter(s => s !== null);
 
     res.json(subjects);
   } catch (error) {
@@ -157,22 +169,31 @@ router.get('/faculty-structure', async (req, res) => {
         // Handle sections
         const sections = detail.sections ? detail.sections.split(',').map(s => s.trim()) : [];
 
-        // Handle subjects
+        // Handle subjects - flexible format
         let subjects = [];
         if (detail.subjects) {
           subjects = detail.subjects.split(',')
             .filter(s => s.trim()) // Filter out empty strings
             .map(s => {
-              const match = s.trim().match(/^(.+)\(([A-Z]{2}\d{3})\)$/);
-              if (!match) {
-                return null;
+              const trimmed = s.trim();
+              if (!trimmed) return null;
+
+              // Try to match format: "Subject Name(CODE)" - flexible code format
+              const match = trimmed.match(/^(.+)\(([^)]+)\)$/);
+              if (match) {
+                return {
+                  name: match[1].trim(),
+                  code: match[2].trim()
+                };
+              } else {
+                // If no parentheses format, treat the whole string as both name and code
+                return {
+                  name: trimmed,
+                  code: trimmed
+                };
               }
-              return {
-                name: match[1].trim(),
-                code: match[2]
-              };
             })
-            .filter(s => s !== null); // Filter out invalid subjects
+            .filter(s => s !== null); // Filter out null subjects
         }
 
         acc[detail.department].years[detail.year].semesters[detail.semester] = {
@@ -236,12 +257,14 @@ router.get('/semesters/:departmentId/:year', async (req, res) => {
 
 // Protected routes - Require authentication and admin role
 
+
+
 // Create or update academic details
 router.post('/', auth, authorize('admin'), async (req, res) => {
   try {
-    const { department, year, semester, sections, subjects, credits } = req.body;
+    const { department, year, semester, sections, subjects } = req.body;
 
-    console.log('Received data:', req.body); // Debug log
+
 
     // Basic validation
     if (!department || !year || !semester || !sections) {
@@ -258,13 +281,14 @@ router.post('/', auth, authorize('admin'), async (req, res) => {
       });
     }
 
+
+
     // Create or update the academic detail
     const academicDetail = await AcademicDetail.findOneAndUpdate(
       { department, year, semester },
-      { 
+      {
         sections,
-        subjects: subjects || '',
-        credits: credits || 3
+        subjects: subjects || ''
       },
       { 
         new: true, 
@@ -274,14 +298,12 @@ router.post('/', auth, authorize('admin'), async (req, res) => {
       }
     );
 
-    console.log('Created/Updated academic detail:', academicDetail); // Debug log
+
     res.status(201).json(academicDetail);
   } catch (error) {
-    console.error('Server error:', error); // Debug log
-    res.status(500).json({ 
-      message: 'Error creating/updating academic details', 
-      error: error.message,
-      details: error.stack 
+    res.status(500).json({
+      message: 'Error creating/updating academic details',
+      error: error.message
     });
   }
 });
@@ -289,7 +311,7 @@ router.post('/', auth, authorize('admin'), async (req, res) => {
 // Update academic details by ID
 router.put('/:id', auth, authorize('admin'), async (req, res) => {
   try {
-    const { department, year, semester, sections, subjects, credits } = req.body;
+    const { department, year, semester, sections, subjects } = req.body;
 
     // Validate sections format if provided
     if (sections) {
@@ -307,18 +329,19 @@ router.put('/:id', auth, authorize('admin'), async (req, res) => {
       return res.status(404).json({ message: 'Academic details not found' });
     }
 
+
+
     // Update only the provided fields
     if (department) academicDetail.department = department;
     if (year) academicDetail.year = year;
     if (semester) academicDetail.semester = semester;
     if (sections) academicDetail.sections = sections;
     if (subjects) academicDetail.subjects = subjects;
-    if (credits) academicDetail.credits = credits;
+
 
     await academicDetail.save();
     res.json(academicDetail);
   } catch (error) {
-    console.error('Error updating academic details:', error);
     res.status(500).json({ message: 'Error updating academic details', error: error.message });
   }
 });
@@ -334,13 +357,53 @@ router.post('/upload', auth, authorize('admin'), upload.single('file'), async (r
     const worksheet = workbook.Sheets[workbook.SheetNames[0]];
     const data = XLSX.utils.sheet_to_json(worksheet);
 
+    // Get existing departments from college settings
+    const Department = require('../models/Department');
+    const existingDepartments = await Department.find({});
+    const validDepartmentNames = existingDepartments.map(dept => dept.name);
+
+    // Get existing year/semester combinations from academic details
+    const existingAcademicDetails = await AcademicDetail.find({});
+    const existingYears = [...new Set(existingAcademicDetails.map(detail => detail.year))];
+    const existingSemesters = [...new Set(existingAcademicDetails.map(detail => detail.semester))];
+
     const results = [];
     const errors = [];
 
     for (const row of data) {
       try {
+        // Skip empty rows
+        if (!row.Department || !row.Year || !row.Semester || !row.Sections) {
+          continue;
+        }
+
         const year = parseInt(row.Year);
         const semester = parseInt(row.Semester);
+        const rowNumber = data.indexOf(row) + 2;
+
+        // Validate year and semester
+        if (isNaN(year) || isNaN(semester)) {
+          errors.push(`Row ${rowNumber}: Invalid year or semester`);
+          continue;
+        }
+
+        // Validate department exists in college settings
+        if (!validDepartmentNames.includes(row.Department)) {
+          errors.push(`Row ${rowNumber}: Department "${row.Department}" does not exist in college settings. Please add it first.`);
+          continue;
+        }
+
+        // Validate year exists in configured academic details
+        if (!existingYears.includes(year)) {
+          errors.push(`Row ${rowNumber}: Year "${year}" is not configured in academic details. Please configure it first.`);
+          continue;
+        }
+
+        // Validate semester exists in configured academic details
+        if (!existingSemesters.includes(semester)) {
+          errors.push(`Row ${rowNumber}: Semester "${semester}" is not configured in academic details. Please configure it first.`);
+          continue;
+        }
 
         // Create or update academic detail
         const academicDetail = await AcademicDetail.findOneAndUpdate(
@@ -351,8 +414,7 @@ router.post('/upload', auth, authorize('admin'), upload.single('file'), async (r
           },
           {
             sections: row.Sections,
-            subjects: row.Subjects,
-            credits: parseInt(row.Credits)
+            subjects: row.Subjects || ''
           },
           { new: true, upsert: true, runValidators: true }
         );
@@ -370,7 +432,10 @@ router.post('/upload', auth, authorize('admin'), upload.single('file'), async (r
       details: results
     });
   } catch (error) {
-    res.status(500).json({ message: 'Error uploading academic details', error: error.message });
+    res.status(500).json({
+      message: 'Error uploading academic details',
+      error: error.message
+    });
   }
 });
 
