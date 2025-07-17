@@ -22,12 +22,6 @@ const quizSettingsSchema = new mongoose.Schema({
         enum: ['Ctrl', 'Alt', 'Shift', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
         default: '6'
       }
-    },
-    sessionTimeout: {
-      type: Number,
-      default: 300, // 5 minutes in seconds
-      min: 60,
-      max: 1800 // Max 30 minutes
     }
   },
 

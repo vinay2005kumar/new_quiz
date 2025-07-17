@@ -42,7 +42,8 @@ import {
   CardContent,
   CardHeader,
   useTheme,
-  useMediaQuery
+  useMediaQuery,
+  InputAdornment
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -120,6 +121,9 @@ const CollegeSettings = () => {
   
   const [openUploadDialog, setOpenUploadDialog] = useState(false);
   const [tabValue, setTabValue] = useState(0);
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [showAdminPasswordDisplay, setShowAdminPasswordDisplay] = useState(false);
+  const [showEmergencyPasswordDialog, setShowEmergencyPasswordDialog] = useState(false);
 
   const [availableSemesters, setAvailableSemesters] = useState([]);
 
@@ -131,8 +135,7 @@ const CollegeSettings = () => {
       triggerButtons: {
         button1: 'Ctrl',
         button2: '6'
-      },
-      sessionTimeout: 300
+      }
     },
     emergencyAccess: {
       enabled: true,
@@ -143,14 +146,11 @@ const CollegeSettings = () => {
       maxViolations: 5,
       autoTerminate: true,
       warningThreshold: 3
-    },
-    loggingSettings: {
-      logViolations: true,
-      logAdminOverrides: true,
-      retentionDays: 30
     }
   });
   const [openQuizSettingsDialog, setOpenQuizSettingsDialog] = useState(false);
+  const [openAdminOverrideDialog, setOpenAdminOverrideDialog] = useState(false);
+  const [openEmergencyAccessDialog, setOpenEmergencyAccessDialog] = useState(false);
   const [showEmergencyPassword, setShowEmergencyPassword] = useState(false);
 
   useEffect(() => {
@@ -918,13 +918,22 @@ const CollegeSettings = () => {
         const cleanedSettings = { ...response };
         delete cleanedSettings.defaultSecuritySettings;
 
-        // Ensure only allowed settings remain
+        // Validate and ensure only allowed settings remain
+        const existingAdminOverride = cleanedSettings.adminOverride || {};
+        const existingButton1 = existingAdminOverride.triggerButtons?.button1;
+        const existingButton2 = existingAdminOverride.triggerButtons?.button2;
+
+        // Validate button1 (must be Ctrl, Alt, or Shift)
+        const validButton1 = ['Ctrl', 'Alt', 'Shift'].includes(existingButton1) ? existingButton1 : 'Ctrl';
+
+        // Validate button2 (must be 0-9)
+        const validButton2 = /^[0-9]$/.test(existingButton2) ? existingButton2 : '6';
+
         const allowedSettings = {
-          adminOverride: cleanedSettings.adminOverride || {
-            enabled: false,
-            password: 'admin123',
-            triggerButtons: { button1: 'Ctrl', button2: '6' },
-            sessionTimeout: 300
+          adminOverride: {
+            enabled: existingAdminOverride.enabled || false,
+            password: existingAdminOverride.password || 'admin123',
+            triggerButtons: { button1: validButton1, button2: validButton2 }
           },
           emergencyAccess: cleanedSettings.emergencyAccess || {
             enabled: true,
@@ -935,11 +944,6 @@ const CollegeSettings = () => {
             maxViolations: 5,
             autoTerminate: true,
             warningThreshold: 3
-          },
-          loggingSettings: cleanedSettings.loggingSettings || {
-            logViolations: true,
-            logAdminOverrides: true,
-            retentionDays: 30
           }
         };
 
@@ -957,14 +961,23 @@ const CollegeSettings = () => {
       console.log('=== UPDATING QUIZ SETTINGS ===');
       console.log('Quiz settings data:', quizSettings);
 
-      // Ensure trigger buttons are properly set
+      // Validate and ensure trigger buttons are properly set
+      const button1 = quizSettings.adminOverride?.triggerButtons?.button1;
+      const button2 = quizSettings.adminOverride?.triggerButtons?.button2;
+
+      // Validate button1 (must be Ctrl, Alt, or Shift)
+      const validButton1 = ['Ctrl', 'Alt', 'Shift'].includes(button1) ? button1 : 'Ctrl';
+
+      // Validate button2 (must be 0-9)
+      const validButton2 = /^[0-9]$/.test(button2) ? button2 : '6';
+
       const settingsToSend = {
         ...quizSettings,
         adminOverride: {
           ...quizSettings.adminOverride,
           triggerButtons: {
-            button1: quizSettings.adminOverride?.triggerButtons?.button1 || 'Ctrl',
-            button2: quizSettings.adminOverride?.triggerButtons?.button2 || '6'
+            button1: validButton1,
+            button2: validButton2
           }
         }
       };
@@ -975,7 +988,6 @@ const CollegeSettings = () => {
       console.log('Update response:', response);
 
       showSuccess('Quiz settings updated successfully');
-      setOpenQuizSettingsDialog(false);
       await fetchQuizSettings(); // Refresh data
     } catch (error) {
       console.error('Error updating quiz settings:', error);
@@ -2561,30 +2573,31 @@ const CollegeSettings = () => {
                 >
                   Quiz Security Settings
                 </Typography>
-                <Button
-                  variant="contained"
-                  startIcon={<EditIcon />}
-                  onClick={() => setOpenQuizSettingsDialog(true)}
-                  size="small"
-                  sx={{
-                    fontSize: '0.75rem',
-                    minWidth: 'auto',
-                    px: { xs: 1.5, sm: 2 },
-                    py: 0.5,
-                    height: '32px'
-                  }}
-                >
-                  {isMobile ? 'Edit' : 'Edit Settings'}
-                </Button>
               </Box>
 
               <Grid container spacing={3}>
-                {/* Admin Override Settings */}
+                {/* Admin Override & Violation Management */}
                 <Grid item xs={12} md={6}>
-                  <Card>
+                  <Card sx={{ height: '100%' }}>
                     <CardHeader
-                      title="🔧 Admin Override"
-                      subheader="Administrative emergency access system"
+                      title="🔧 Admin Override & Security"
+                      subheader="Emergency access and violation management"
+                      action={
+                        <Button
+                          variant="outlined"
+                          startIcon={<EditIcon />}
+                          onClick={() => setOpenAdminOverrideDialog(true)}
+                          size="small"
+                          sx={{
+                            fontSize: '0.75rem',
+                            minWidth: 'auto',
+                            px: { xs: 1, sm: 1.5 },
+                            py: 0.5
+                          }}
+                        >
+                          {isMobile ? 'Edit' : 'Edit'}
+                        </Button>
+                      }
                     />
                     <CardContent>
                       <Typography variant="body2" color="text.secondary" gutterBottom>
@@ -2595,24 +2608,81 @@ const CollegeSettings = () => {
                       </Typography>
                       {quizSettings.adminOverride?.enabled && (
                         <>
+                          <Box sx={{ display: 'flex', alignItems: 'center', mt: 1, gap: 1 }}>
+                            <Typography variant="body2">
+                              <strong>Password:</strong> {
+                                quizSettings.adminOverride?.password ?
+                                  (showAdminPasswordDisplay ? quizSettings.adminOverride.password : '••••••••') :
+                                  'Not set'
+                              }
+                            </Typography>
+                            {quizSettings.adminOverride?.password && (
+                              <Button
+                                size="small"
+                                variant="text"
+                                onClick={() => setShowAdminPasswordDisplay(!showAdminPasswordDisplay)}
+                                sx={{
+                                  minWidth: 'auto',
+                                  p: 0.5,
+                                  fontSize: '0.7rem',
+                                  textTransform: 'none'
+                                }}
+                              >
+                                {showAdminPasswordDisplay ? 'Hide' : 'Show'}
+                              </Button>
+                            )}
+                          </Box>
                           <Typography variant="body2" sx={{ mt: 1 }}>
                             <strong>Trigger Keys:</strong> {quizSettings.adminOverride.triggerButtons?.button1} + {quizSettings.adminOverride.triggerButtons?.button2}
                           </Typography>
-                          <Typography variant="body2">
-                            <strong>Session Timeout:</strong> {quizSettings.adminOverride?.sessionTimeout} seconds
-                          </Typography>
                         </>
                       )}
+
+                      <Typography variant="body2" sx={{ mt: 2, fontWeight: 'bold' }}>
+                        Violation Management:
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Max Violations:</strong> {quizSettings.violationSettings?.maxViolations || 5}
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Auto Submit:</strong> {quizSettings.violationSettings?.autoTerminate ? 'Yes' : 'No'}
+                      </Typography>
+                      <Typography variant="body2">
+                        <strong>Warning Threshold:</strong> {quizSettings.violationSettings?.warningThreshold || 3}
+                      </Typography>
+
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', fontStyle: 'italic' }}>
+                        {quizSettings.adminOverride?.enabled
+                          ? 'Admin override allows temporary security bypass. Violations are tracked and managed automatically.'
+                          : 'Admin override disabled. Violations are tracked and managed automatically.'
+                        }
+                      </Typography>
                     </CardContent>
                   </Card>
                 </Grid>
 
                 {/* Emergency Access Settings */}
                 <Grid item xs={12} md={6}>
-                  <Card>
+                  <Card sx={{ height: '100%' }}>
                     <CardHeader
                       title="🚨 Emergency Quiz Access"
-                      subheader="Emergency password for quiz access without credentials"
+                      subheader="Student access without individual credentials"
+                      action={
+                        <Button
+                          variant="outlined"
+                          startIcon={<EditIcon />}
+                          onClick={() => setOpenEmergencyAccessDialog(true)}
+                          size="small"
+                          sx={{
+                            fontSize: '0.75rem',
+                            minWidth: 'auto',
+                            px: { xs: 1, sm: 1.5 },
+                            py: 0.5
+                          }}
+                        >
+                          {isMobile ? 'Edit' : 'Edit'}
+                        </Button>
+                      }
                     />
                     <CardContent>
                       <Typography variant="body2" color="text.secondary" gutterBottom>
@@ -2657,66 +2727,18 @@ const CollegeSettings = () => {
                               </Typography>
                             </Alert>
                           )}
-                          <Box sx={{ mt: 1 }}>
-                            <Button
-                              size="small"
-                              variant="outlined"
-                              onClick={() => {
-                                console.log('🔍 Current Emergency Access Settings:', quizSettings.emergencyAccess);
-                                console.log('🔍 Full Quiz Settings:', quizSettings);
-                              }}
-                              sx={{ fontSize: '0.7rem', px: 1, py: 0.25 }}
-                            >
-                              Debug Settings
-                            </Button>
-                          </Box>
                         </>
+                      )}
+                      {!quizSettings.emergencyAccess?.enabled && (
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontStyle: 'italic' }}>
+                          Emergency access is disabled. Students must use their individual credentials to access quizzes.
+                        </Typography>
                       )}
                     </CardContent>
                   </Card>
                 </Grid>
 
-                {/* Violation Settings */}
-                <Grid item xs={12} md={6}>
-                  <Card>
-                    <CardHeader
-                      title="⚠️ Violation Management"
-                      subheader="Configure violation limits and responses"
-                    />
-                    <CardContent>
-                      <Typography variant="body2">
-                        <strong>Max Violations:</strong> {quizSettings.violationSettings?.maxViolations}
-                      </Typography>
-                      <Typography variant="body2">
-                        <strong>Warning Threshold:</strong> {quizSettings.violationSettings?.warningThreshold}
-                      </Typography>
-                      <Typography variant="body2">
-                        <strong>Auto Terminate:</strong> {quizSettings.violationSettings?.autoTerminate ? '✅ Yes' : '❌ No'}
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
 
-                {/* Logging Settings */}
-                <Grid item xs={12} md={6}>
-                  <Card>
-                    <CardHeader
-                      title="📊 Logging Settings"
-                      subheader="Configure security event logging"
-                    />
-                    <CardContent>
-                      <Typography variant="body2">
-                        <strong>Log Violations:</strong> {quizSettings.loggingSettings?.logViolations ? '✅ Yes' : '❌ No'}
-                      </Typography>
-                      <Typography variant="body2">
-                        <strong>Log Admin Overrides:</strong> {quizSettings.loggingSettings?.logAdminOverrides ? '✅ Yes' : '❌ No'}
-                      </Typography>
-                      <Typography variant="body2">
-                        <strong>Retention Period:</strong> {quizSettings.loggingSettings?.retentionDays} days
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
               </Grid>
             </Paper>
           </Grid>
@@ -2735,10 +2757,16 @@ const CollegeSettings = () => {
           {/* Debug: Log current quiz settings */}
           {console.log('🔍 Current quiz settings in dialog:', quizSettings)}
           <Grid container spacing={3} sx={{ mt: 1 }}>
-            {/* Admin Override Settings */}
+            {/* Admin Override & Violation Management */}
             <Grid item xs={12}>
-              <Typography variant="h6" gutterBottom>🔧 Admin Override Settings</Typography>
-              <FormGroup>
+              <Paper sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="h6" gutterBottom>🔧 Admin Override & Security Management</Typography>
+                <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+                  Configure emergency access system and violation management for quiz security
+                </Typography>
+              </Paper>
+              <Box sx={{ mt: 2 }}>
+                <FormGroup>
                 <FormControlLabel
                   control={
                     <Switch
@@ -2756,23 +2784,26 @@ const CollegeSettings = () => {
                     <TextField
                       fullWidth
                       label="Admin Override Password"
-                      type="password"
+                      type={showAdminPassword ? 'text' : 'password'}
                       value={quizSettings.adminOverride?.password || ''}
                       onChange={(e) => handleDirectQuizSettingsChange('adminOverride', 'password', e.target.value)}
                       helperText="Password for administrative emergency access"
+                      InputProps={{
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              aria-label="toggle password visibility"
+                              onClick={() => setShowAdminPassword(!showAdminPassword)}
+                              edge="end"
+                            >
+                              {showAdminPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                      }}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <TextField
-                      fullWidth
-                      label="Session Timeout (seconds)"
-                      type="number"
-                      value={quizSettings.adminOverride?.sessionTimeout || 300}
-                      onChange={(e) => handleDirectQuizSettingsChange('adminOverride', 'sessionTimeout', parseInt(e.target.value))}
-                      helperText="How long override lasts"
-                      inputProps={{ min: 60, max: 1800 }}
-                    />
-                  </Grid>
+
                   <Grid item xs={12} sm={6}>
                     <FormControl fullWidth>
                       <InputLabel>First Trigger Key</InputLabel>
@@ -2781,10 +2812,13 @@ const CollegeSettings = () => {
                         onChange={(e) => handleNestedQuizSettingsChange('adminOverride', 'triggerButtons', 'button1', e.target.value)}
                         label="First Trigger Key"
                       >
-                        {['Ctrl', 'Alt', 'Shift', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map(key => (
+                        {['Ctrl', 'Alt', 'Shift'].map(key => (
                           <MenuItem key={key} value={key}>{key}</MenuItem>
                         ))}
                       </Select>
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                        Modifier keys only (Ctrl, Alt, Shift)
+                      </Typography>
                     </FormControl>
                   </Grid>
                   <Grid item xs={12} sm={6}>
@@ -2795,14 +2829,18 @@ const CollegeSettings = () => {
                         onChange={(e) => handleNestedQuizSettingsChange('adminOverride', 'triggerButtons', 'button2', e.target.value)}
                         label="Second Trigger Key"
                       >
-                        {['Ctrl', 'Alt', 'Shift', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map(key => (
+                        {['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map(key => (
                           <MenuItem key={key} value={key}>{key}</MenuItem>
                         ))}
                       </Select>
+                      <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                        Number keys only (0-9)
+                      </Typography>
                     </FormControl>
                   </Grid>
                 </Grid>
               )}
+              </Box>
             </Grid>
 
             <Grid item xs={12}>
@@ -2811,8 +2849,14 @@ const CollegeSettings = () => {
 
             {/* Emergency Access Settings */}
             <Grid item xs={12}>
-              <Typography variant="h6" gutterBottom>🚨 Emergency Quiz Access</Typography>
-              <FormGroup>
+              <Paper sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="h6" gutterBottom>🚨 Emergency Quiz Access</Typography>
+                <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+                  Configure emergency password for students to access quizzes without individual credentials
+                </Typography>
+              </Paper>
+              <Box sx={{ mt: 2 }}>
+                <FormGroup>
                 <FormControlLabel
                   control={
                     <Switch
@@ -2830,7 +2874,7 @@ const CollegeSettings = () => {
                     <TextField
                       fullWidth
                       label="Emergency Password"
-                      type="password"
+                      type={showEmergencyPasswordDialog ? 'text' : 'password'}
                       value={quizSettings.emergencyAccess?.password || ''}
                       onChange={(e) => handleDirectQuizSettingsChange('emergencyAccess', 'password', e.target.value)}
                       helperText="Password for emergency quiz access without credentials"
@@ -2841,6 +2885,19 @@ const CollegeSettings = () => {
                       inputProps={{
                         'data-lpignore': 'true',
                         'data-form-type': 'other'
+                      }}
+                      InputProps={{
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              aria-label="toggle emergency password visibility"
+                              onClick={() => setShowEmergencyPasswordDialog(!showEmergencyPasswordDialog)}
+                              edge="end"
+                            >
+                              {showEmergencyPasswordDialog ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                            </IconButton>
+                          </InputAdornment>
+                        ),
                       }}
                     />
                   </Grid>
@@ -2864,15 +2921,9 @@ const CollegeSettings = () => {
                   </Grid>
                 </Grid>
               )}
-            </Grid>
 
-            <Grid item xs={12}>
-              <Divider />
-            </Grid>
-
-            {/* Violation Settings */}
-            <Grid item xs={12}>
-              <Typography variant="h6" gutterBottom>⚠️ Violation Management</Typography>
+              {/* Violation Management Settings */}
+              <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>⚠️ Violation Management</Typography>
               <Grid container spacing={2}>
                 <Grid item xs={12} sm={4}>
                   <TextField
@@ -2880,9 +2931,8 @@ const CollegeSettings = () => {
                     label="Maximum Violations"
                     type="number"
                     value={quizSettings.violationSettings?.maxViolations || 5}
-                    onChange={(e) => handleDirectQuizSettingsChange('violationSettings', 'maxViolations', parseInt(e.target.value))}
-                    inputProps={{ min: 1, max: 20 }}
-                    helperText="Quiz terminates after this many violations"
+                    onChange={(e) => handleDirectQuizSettingsChange('violationSettings', 'maxViolations', e.target.value)}
+                    helperText="Quiz auto-submits after this many violations"
                   />
                 </Grid>
                 <Grid item xs={12} sm={4}>
@@ -2891,8 +2941,7 @@ const CollegeSettings = () => {
                     label="Warning Threshold"
                     type="number"
                     value={quizSettings.violationSettings?.warningThreshold || 3}
-                    onChange={(e) => handleDirectQuizSettingsChange('violationSettings', 'warningThreshold', parseInt(e.target.value))}
-                    inputProps={{ min: 1, max: 10 }}
+                    onChange={(e) => handleDirectQuizSettingsChange('violationSettings', 'warningThreshold', e.target.value)}
                     helperText="Show final warning after this many violations"
                   />
                 </Grid>
@@ -2904,16 +2953,358 @@ const CollegeSettings = () => {
                         onChange={(e) => handleDirectQuizSettingsChange('violationSettings', 'autoTerminate', e.target.checked)}
                       />
                     }
-                    label="Auto-terminate Quiz"
+                    label="Auto-submit Quiz"
                   />
                 </Grid>
               </Grid>
+
+              </Box>
             </Grid>
+
+            {/* Divider between sections */}
+            <Grid item xs={12}>
+              <Divider sx={{ my: 2 }} />
+            </Grid>
+
+            {/* Emergency Access Settings */}
+            <Grid item xs={12}>
+              <Paper sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="h6" gutterBottom>🚨 Emergency Quiz Access</Typography>
+                <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+                  Configure emergency password for students to access quizzes without individual credentials
+                </Typography>
+              </Paper>
+              <Box sx={{ mt: 2 }}>
+                <FormGroup>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={quizSettings.emergencyAccess?.enabled || false}
+                        onChange={(e) => handleDirectQuizSettingsChange('emergencyAccess', 'enabled', e.target.checked)}
+                      />
+                    }
+                    label="Enable Emergency Access System"
+                  />
+                </FormGroup>
+
+                {quizSettings.emergencyAccess?.enabled && (
+                  <Grid container spacing={2} sx={{ mt: 1 }}>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        label="Emergency Password"
+                        type={showEmergencyPasswordDialog ? 'text' : 'password'}
+                        value={quizSettings.emergencyAccess?.password || ''}
+                        onChange={(e) => handleDirectQuizSettingsChange('emergencyAccess', 'password', e.target.value)}
+                        helperText="Password for emergency quiz access without credentials"
+                        autoComplete="new-password"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck="false"
+                        inputProps={{
+                          'data-lpignore': 'true',
+                          'data-form-type': 'other'
+                        }}
+                        InputProps={{
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton
+                                aria-label="toggle emergency password visibility"
+                                onClick={() => setShowEmergencyPasswordDialog(!showEmergencyPasswordDialog)}
+                                edge="end"
+                              >
+                                {showEmergencyPasswordDialog ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                              </IconButton>
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        label="Description"
+                        multiline
+                        rows={2}
+                        value={quizSettings.emergencyAccess?.description || ''}
+                        onChange={(e) => handleDirectQuizSettingsChange('emergencyAccess', 'description', e.target.value)}
+                        helperText="Description of what this emergency access allows"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck="true"
+                        inputProps={{
+                          'data-lpignore': 'true'
+                        }}
+                      />
+                    </Grid>
+                  </Grid>
+                )}
+              </Box>
+            </Grid>
+
           </Grid>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenQuizSettingsDialog(false)}>Cancel</Button>
-          <Button onClick={handleQuizSettingsSubmit} variant="contained">Save Settings</Button>
+          <Button
+            onClick={async () => {
+              await handleQuizSettingsSubmit();
+              setOpenQuizSettingsDialog(false);
+            }}
+            variant="contained"
+          >
+            Save Settings
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Admin Override & Security Dialog */}
+      <Dialog
+        open={openAdminOverrideDialog}
+        onClose={() => setOpenAdminOverrideDialog(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Edit Admin Override & Security Settings</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={3} sx={{ mt: 1 }}>
+            {/* Admin Override & Violation Management */}
+            <Grid item xs={12}>
+              <Paper sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="h6" gutterBottom>🔧 Admin Override & Security Management</Typography>
+                <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+                  Configure emergency access system and violation management for quiz security
+                </Typography>
+              </Paper>
+              <Box sx={{ mt: 2 }}>
+                <FormGroup>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={quizSettings.adminOverride?.enabled || false}
+                        onChange={(e) => handleDirectQuizSettingsChange('adminOverride', 'enabled', e.target.checked)}
+                      />
+                    }
+                    label="Enable Admin Override System"
+                  />
+                </FormGroup>
+
+                {quizSettings.adminOverride?.enabled && (
+                  <Grid container spacing={2} sx={{ mt: 1 }}>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        label="Admin Override Password"
+                        type={showAdminPassword ? 'text' : 'password'}
+                        value={quizSettings.adminOverride?.password || ''}
+                        onChange={(e) => handleDirectQuizSettingsChange('adminOverride', 'password', e.target.value)}
+                        helperText="Password for administrative emergency access"
+                        InputProps={{
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton
+                                aria-label="toggle password visibility"
+                                onClick={() => setShowAdminPassword(!showAdminPassword)}
+                                edge="end"
+                              >
+                                {showAdminPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                              </IconButton>
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                    </Grid>
+
+                    <Grid item xs={12} sm={6}>
+                      <FormControl fullWidth>
+                        <InputLabel>First Trigger Key</InputLabel>
+                        <Select
+                          value={quizSettings.adminOverride?.triggerButtons?.button1 || 'Ctrl'}
+                          onChange={(e) => handleNestedQuizSettingsChange('adminOverride', 'triggerButtons', 'button1', e.target.value)}
+                          label="First Trigger Key"
+                        >
+                          {['Ctrl', 'Alt', 'Shift'].map(key => (
+                            <MenuItem key={key} value={key}>{key}</MenuItem>
+                          ))}
+                        </Select>
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                          Modifier keys only (Ctrl, Alt, Shift)
+                        </Typography>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <FormControl fullWidth>
+                        <InputLabel>Second Trigger Key</InputLabel>
+                        <Select
+                          value={quizSettings.adminOverride?.triggerButtons?.button2 || '6'}
+                          onChange={(e) => handleNestedQuizSettingsChange('adminOverride', 'triggerButtons', 'button2', e.target.value)}
+                          label="Second Trigger Key"
+                        >
+                          {['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map(key => (
+                            <MenuItem key={key} value={key}>{key}</MenuItem>
+                          ))}
+                        </Select>
+                        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                          Number keys only (0-9)
+                        </Typography>
+                      </FormControl>
+                    </Grid>
+                  </Grid>
+                )}
+
+                {/* Violation Management Settings */}
+                <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>⚠️ Violation Management</Typography>
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      fullWidth
+                      label="Maximum Violations"
+                      type="number"
+                      value={quizSettings.violationSettings?.maxViolations || 5}
+                      onChange={(e) => handleDirectQuizSettingsChange('violationSettings', 'maxViolations', e.target.value)}
+                      helperText="Quiz auto-submits after this many violations"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <TextField
+                      fullWidth
+                      label="Warning Threshold"
+                      type="number"
+                      value={quizSettings.violationSettings?.warningThreshold || 3}
+                      onChange={(e) => handleDirectQuizSettingsChange('violationSettings', 'warningThreshold', e.target.value)}
+                      helperText="Show final warning after this many violations"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={4}>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={quizSettings.violationSettings?.autoTerminate || false}
+                          onChange={(e) => handleDirectQuizSettingsChange('violationSettings', 'autoTerminate', e.target.checked)}
+                        />
+                      }
+                      label="Auto-submit Quiz"
+                    />
+                  </Grid>
+                </Grid>
+
+              </Box>
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenAdminOverrideDialog(false)}>Cancel</Button>
+          <Button
+            onClick={async () => {
+              await handleQuizSettingsSubmit();
+              setOpenAdminOverrideDialog(false);
+            }}
+            variant="contained"
+          >
+            Save Settings
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Emergency Access Dialog */}
+      <Dialog
+        open={openEmergencyAccessDialog}
+        onClose={() => setOpenEmergencyAccessDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Edit Emergency Quiz Access</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={3} sx={{ mt: 1 }}>
+            <Grid item xs={12}>
+              <Paper sx={{ p: 2, border: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="h6" gutterBottom>🚨 Emergency Quiz Access</Typography>
+                <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+                  Configure emergency password for students to access quizzes without individual credentials
+                </Typography>
+              </Paper>
+              <Box sx={{ mt: 2 }}>
+                <FormGroup>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={quizSettings.emergencyAccess?.enabled || false}
+                        onChange={(e) => handleDirectQuizSettingsChange('emergencyAccess', 'enabled', e.target.checked)}
+                      />
+                    }
+                    label="Enable Emergency Access System"
+                  />
+                </FormGroup>
+
+                {quizSettings.emergencyAccess?.enabled && (
+                  <Grid container spacing={2} sx={{ mt: 1 }}>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        label="Emergency Password"
+                        type={showEmergencyPasswordDialog ? 'text' : 'password'}
+                        value={quizSettings.emergencyAccess?.password || ''}
+                        onChange={(e) => handleDirectQuizSettingsChange('emergencyAccess', 'password', e.target.value)}
+                        helperText="Password for emergency quiz access without credentials"
+                        autoComplete="new-password"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck="false"
+                        inputProps={{
+                          'data-lpignore': 'true',
+                          'data-form-type': 'other'
+                        }}
+                        InputProps={{
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton
+                                aria-label="toggle emergency password visibility"
+                                onClick={() => setShowEmergencyPasswordDialog(!showEmergencyPasswordDialog)}
+                                edge="end"
+                              >
+                                {showEmergencyPasswordDialog ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                              </IconButton>
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <TextField
+                        fullWidth
+                        label="Description"
+                        multiline
+                        rows={2}
+                        value={quizSettings.emergencyAccess?.description || ''}
+                        onChange={(e) => handleDirectQuizSettingsChange('emergencyAccess', 'description', e.target.value)}
+                        helperText="Description of what this emergency access allows"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck="true"
+                        inputProps={{
+                          'data-lpignore': 'true'
+                        }}
+                      />
+                    </Grid>
+                  </Grid>
+                )}
+              </Box>
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenEmergencyAccessDialog(false)}>Cancel</Button>
+          <Button
+            onClick={async () => {
+              await handleQuizSettingsSubmit();
+              setOpenEmergencyAccessDialog(false);
+            }}
+            variant="contained"
+          >
+            Save Settings
+          </Button>
         </DialogActions>
       </Dialog>
     </Container>

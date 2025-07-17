@@ -1496,7 +1496,7 @@ const EventQuizSubmissions = () => {
                   </TableCell>
                   <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                     {studentData.hasSubmitted
-                      ? `${studentData.totalMarks}/${quiz?.totalMarks} (${Math.round(calculateScorePercentage(studentData.totalMarks, quiz?.totalMarks))}%)`
+                      ? `${studentData.totalMarks}/${quiz?.effectiveTotalMarks || quiz?.totalMarks} (${Math.round(calculateScorePercentage(studentData.totalMarks, quiz?.effectiveTotalMarks || quiz?.totalMarks))}%)`
                       : 'Not submitted'
                     }
                   </TableCell>

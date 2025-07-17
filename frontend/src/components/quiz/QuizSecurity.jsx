@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -17,34 +17,162 @@ const QuizSecurity = ({
   children,
   securitySettings = {},
   onSecurityViolation,
+  onAutoSubmit,
   quizTitle = "Quiz",
-  onOverrideStateChange
+
 }) => {
+  // Remove the console logs that cause re-renders
+  // console.log('🔧 QuizSecurity component mounted/rendered');
+  // console.log('🔧 securitySettings prop received:', securitySettings);
+
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [violations, setViolations] = useState([]);
   const [showViolationDialog, setShowViolationDialog] = useState(false);
   const [currentViolation, setCurrentViolation] = useState('');
   const [showFullscreenPrompt, setShowFullscreenPrompt] = useState(false);
-  const [personalOverrideActive, setPersonalOverrideActive] = useState(false);
+  const [showAutoSubmitDialog, setShowAutoSubmitDialog] = useState(false);
+  const [autoSubmitReason, setAutoSubmitReason] = useState('');
 
 
-  const [showPersonalDialog, setShowPersonalDialog] = useState(false);
-  const [personalPassword, setPersonalPassword] = useState('');
-  const [personalKeys, setPersonalKeys] = useState(new Set());
-  const [adminOverrideActive, setAdminOverrideActive] = useState(false);
+  // 🚨 STRICT ONE-STRIKE SYSTEM
+  const [violated, setViolated] = useState(false);
+  const [pressedKeys, setPressedKeys] = useState(new Set());
+  const containerRef = useRef(null);
+
+  // Admin override state - full functionality
   const [showAdminDialog, setShowAdminDialog] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
-  const [adminKeys, setAdminKeys] = useState(new Set());
-  const [adminConfig, setAdminConfig] = useState(null);
-  const [pressedKeys, setPressedKeys] = useState(new Set()); // Track all currently pressed keys
-  const containerRef = useRef(null);
-  const personalTimeoutRef = useRef(null);
+  const [adminOverrideActive, setAdminOverrideActive] = useState(false);
   const adminTimeoutRef = useRef(null);
 
-  // Fetch admin config only once on mount
+  // Quiz settings state - same as CollegeSettings
+  const [quizSettings, setQuizSettings] = useState(null);
+
+  // Admin override settings - direct state for easy access
+  const [adminOverrideSettings, setAdminOverrideSettings] = useState({
+    enabled: false,
+    triggerButtons: { button1: 'Alt', button2: '3' },
+    password: 'admin'
+  });
+
+  // Quiz Settings Functions - same as CollegeSettings
+  const fetchQuizSettings = async () => {
+    try {
+      console.log('=== FETCHING QUIZ SETTINGS (QuizSecurity) ===');
+      const response = await api.get('/api/admin/quiz-settings');
+      console.log('Quiz settings response (QuizSecurity):', response);
+
+      if (response) {
+        // Clean up any legacy defaultSecuritySettings that might still exist in database
+        const cleanedSettings = { ...response };
+        delete cleanedSettings.defaultSecuritySettings;
+
+        // Validate and ensure only allowed settings remain
+        const existingAdminOverride = cleanedSettings.adminOverride || {};
+        const existingButton1 = existingAdminOverride.triggerButtons?.button1;
+        const existingButton2 = existingAdminOverride.triggerButtons?.button2;
+
+        // Validate button1 (must be Ctrl, Alt, or Shift)
+        const validButton1 = ['Ctrl', 'Alt', 'Shift'].includes(existingButton1) ? existingButton1 : 'Ctrl';
+
+        // Validate button2 (must be 0-9)
+        const validButton2 = /^[0-9]$/.test(existingButton2) ? existingButton2 : '6';
+
+        const allowedSettings = {
+          adminOverride: {
+            enabled: existingAdminOverride.enabled || false,
+            password: existingAdminOverride.password || 'admin123',
+            triggerButtons: { button1: validButton1, button2: validButton2 }
+          },
+          emergencyAccess: cleanedSettings.emergencyAccess || {
+            enabled: true,
+            password: 'Quiz@123',
+            description: 'Emergency password allows admin access to any quiz even without registered credentials'
+          },
+          violationSettings: cleanedSettings.violationSettings || {
+            maxViolations: 5,
+            autoTerminate: true,
+            warningThreshold: 3
+          }
+        };
+
+        console.log('Cleaned quiz settings (QuizSecurity):', allowedSettings);
+        setQuizSettings(allowedSettings);
+
+        // Set admin override settings directly in state
+        setAdminOverrideSettings(allowedSettings.adminOverride);
+        console.log('🔧 Admin override settings loaded:', allowedSettings.adminOverride);
+      }
+    } catch (error) {
+      console.error('Error fetching quiz settings (QuizSecurity):', error);
+    }
+  };
+
+  // Settings function - combines securitySettings and quizSettings
+  const getSettings = () => {
+    console.log('🔧 getSettings called - quizSettings:', quizSettings);
+    console.log('🔧 getSettings called - quizSettings?.adminOverride:', quizSettings?.adminOverride);
+
+    const result = {
+      violationSettings: {
+        maxViolations: securitySettings?.violationSettings?.maxViolations || quizSettings?.violationSettings?.maxViolations || 5,
+        warningThreshold: securitySettings?.violationSettings?.warningThreshold || quizSettings?.violationSettings?.warningThreshold || 3,
+        autoTerminate: securitySettings?.violationSettings?.autoTerminate !== false,
+        strictMode: securitySettings?.violationSettings?.strictMode || quizSettings?.violationSettings?.strictMode || false
+      },
+      adminOverride: quizSettings?.adminOverride || {
+        enabled: false,
+        triggerButtons: { button1: 'Alt', button2: '3' },
+        password: 'admin123'
+      }
+    };
+
+    console.log('🔧 getSettings returning:', result);
+    return result;
+  };
+
+  // Load quiz settings on mount - same as CollegeSettings
   useEffect(() => {
-    fetchAdminConfig();
+    fetchQuizSettings();
   }, []);
+
+  // Debug: Log when adminOverrideSettings changes
+  useEffect(() => {
+    console.log('🔧 adminOverrideSettings state changed:', adminOverrideSettings);
+  }, [adminOverrideSettings]);
+
+  // Admin override detection - separate useEffect to avoid closure issues
+  useEffect(() => {
+    const handleAdminOverrideDetection = (e) => {
+      console.log('🔧 NEW handleAdminOverrideDetection called with key:', e.key);
+      console.log('🔧 NEW Current adminOverrideSettings state:', adminOverrideSettings);
+
+      // Check admin override using current state
+      if (adminOverrideSettings.enabled && !adminOverrideActive) {
+        const { button1, button2 } = adminOverrideSettings.triggerButtons || {};
+
+        // Check for admin override key combinations
+        if ((button1 === 'Ctrl' && e.ctrlKey && e.key === button2) ||
+            (button1 === 'Alt' && e.altKey && e.key === button2) ||
+            (button1 === 'Shift' && e.shiftKey && e.key === button2)) {
+          console.log('🔧 NEW Admin override detected:', button1 + '+' + button2);
+          e.preventDefault();
+          e.stopPropagation();
+          setShowAdminDialog(true);
+          return; // Don't block admin override keys
+        }
+      }
+    };
+
+    // Add event listener with current state
+    console.log('🔧 Adding NEW admin override event listener with current state:', adminOverrideSettings);
+    document.addEventListener('keydown', handleAdminOverrideDetection, { capture: true, passive: false });
+
+    // Cleanup
+    return () => {
+      document.removeEventListener('keydown', handleAdminOverrideDetection, { capture: true, passive: false });
+    };
+  }, [adminOverrideSettings, adminOverrideActive]); // Re-run when settings or override state changes
 
   useEffect(() => {
     // Only run if securitySettings is properly loaded
@@ -90,171 +218,7 @@ const QuizSecurity = ({
     // Set up security event listeners
     const securityListeners = [];
 
-    // Global key tracking for reliable override detection
-    const handleGlobalKeyDown = (e) => {
-      const key = e.key;
 
-      // Only check for overrides if none are active
-      if (!adminOverrideActive && !personalOverrideActive) {
-        // Check admin override first
-        const adminConfig = settings?.adminOverride;
-        if (adminConfig?.enabled) {
-          const { button1, button2 } = adminConfig.triggerButtons || {};
-
-          console.log('🔧 Checking admin override:', {
-            key: key,
-            button1: button1,
-            button2: button2,
-            ctrlKey: e.ctrlKey,
-            altKey: e.altKey,
-            shiftKey: e.shiftKey,
-            metaKey: e.metaKey
-          });
-
-          // Handle different key combination formats
-          let isAdminOverride = false;
-
-          // Check for Ctrl+number combination (button1="Ctrl", button2="5")
-          if (button1 === 'Ctrl' && /^[0-9]$/.test(button2)) {
-            console.log('🔧 Checking Ctrl+number combo:', {
-              key: key,
-              button2: button2,
-              ctrlPressed: e.ctrlKey,
-              keyMatches: key === button2,
-              shouldTrigger: e.ctrlKey && key === button2
-            });
-
-            if (e.ctrlKey && key === button2) {
-              isAdminOverride = true;
-              console.log('🔧 Ctrl+number override triggered!');
-            }
-          }
-          // Check for Alt+number combination
-          else if (button1 === 'Alt' && /^[0-9]$/.test(button2)) {
-            if (e.altKey && key === button2) {
-              isAdminOverride = true;
-              console.log('🔧 Alt+number override triggered!');
-            }
-          }
-          // Check for Shift+number combination
-          else if (button1 === 'Shift' && /^[0-9]$/.test(button2)) {
-            if (e.shiftKey && key === button2) {
-              isAdminOverride = true;
-              console.log('🔧 Shift+number override triggered!');
-            }
-          }
-          // Check for number key combinations (button1="1", button2="2")
-          else if (/^[0-9]$/.test(button1) && /^[0-9]$/.test(button2)) {
-            // Improved number key tracking - check current state immediately
-            const currentKeys = new Set(pressedKeys);
-            currentKeys.add(key);
-
-            console.log('🔧 Admin number key pressed:', key, 'Current keys:', Array.from(currentKeys));
-            console.log('🔧 Looking for admin combination:', button1, '+', button2);
-
-            if (currentKeys.has(button1) && currentKeys.has(button2)) {
-              isAdminOverride = true;
-              console.log('🔧 Admin number combination override triggered!');
-            } else {
-              // Update pressed keys state for next keypress
-              setPressedKeys(currentKeys);
-            }
-          }
-          // Check for other modifier combinations
-          else if ((button1 === 'Ctrl' || button2 === 'Ctrl') && e.ctrlKey) {
-            const nonCtrlButton = button1 === 'Ctrl' ? button2 : button1;
-            if (key === nonCtrlButton) {
-              isAdminOverride = true;
-            }
-          }
-          else if ((button1 === 'Alt' || button2 === 'Alt') && e.altKey) {
-            const nonAltButton = button1 === 'Alt' ? button2 : button1;
-            if (key === nonAltButton) {
-              isAdminOverride = true;
-            }
-          }
-
-          if (isAdminOverride) {
-            console.log('🔧 Admin override detected! Opening dialog...');
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-
-            // Force dialog to show with a slight delay to ensure state updates
-            setTimeout(() => {
-              console.log('🔧 Setting showAdminDialog to true');
-              setShowAdminDialog(true);
-            }, 10);
-
-            setPressedKeys(new Set()); // Clear keys after successful detection
-            return;
-          }
-        }
-
-        // Check personal override (number key combinations only)
-        const personalConfig = getCurrentPersonalConfig();
-        const { button1: pButton1, button2: pButton2 } = personalConfig.buttons;
-
-        if (/^[0-9]$/.test(pButton1) && /^[0-9]$/.test(pButton2)) {
-          // Improved personal key tracking - check current state immediately
-          const currentKeys = new Set(pressedKeys);
-          currentKeys.add(key);
-
-          console.log('🔑 Personal key pressed:', key, 'Current keys:', Array.from(currentKeys));
-          console.log('🔑 Looking for personal combination:', pButton1, '+', pButton2);
-
-          if (currentKeys.has(pButton1) && currentKeys.has(pButton2)) {
-            console.log('🔑 Personal override detected! Keys:', Array.from(currentKeys), 'Opening dialog...');
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-
-            // Force dialog to show with a slight delay to ensure state updates
-            setTimeout(() => {
-              console.log('🔑 Setting showPersonalDialog to true');
-              setShowPersonalDialog(true);
-            }, 10);
-
-            setPressedKeys(new Set()); // Clear keys after successful detection
-          } else {
-            // Update pressed keys state for next keypress
-            setPressedKeys(currentKeys);
-          }
-        }
-      }
-    };
-
-    const handleGlobalKeyUp = (e) => {
-      const key = e.key;
-
-      // Improved key clearing logic
-      setPressedKeys(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(key);
-
-        // Clear all keys after a short delay if no keys are being held
-        setTimeout(() => {
-          setPressedKeys(current => {
-            // Only clear if no modifier keys are currently pressed
-            if (!document.querySelector(':focus') ||
-                (!e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey)) {
-              return new Set();
-            }
-            return current;
-          });
-        }, 1000); // Clear after 1 second of inactivity
-
-        return newSet;
-      });
-    };
-
-    // Add global key listeners with highest priority
-    document.addEventListener('keydown', handleGlobalKeyDown, true);
-    document.addEventListener('keyup', handleGlobalKeyUp, true);
-    securityListeners.push(() => {
-      document.removeEventListener('keydown', handleGlobalKeyDown, true);
-      document.removeEventListener('keyup', handleGlobalKeyUp, true);
-    });
 
     // Monitor window focus to detect tab switching attempts
     if (securitySettings.enableFullscreen || securitySettings.enableProctoringMode) {
@@ -279,9 +243,21 @@ const QuizSecurity = ({
       });
     }
 
-    // Disable right-click (always enabled in fullscreen for security)
-    if (securitySettings.disableRightClick === true || securitySettings.enableProctoringMode === true || securitySettings.enableFullscreen === true) {
+    // Selective right-click blocking - Only when explicitly enabled
+    if (securitySettings.disableRightClick === true) {
       const handleContextMenu = (e) => {
+        // Skip blocking if admin override is active
+        if (adminOverrideActive) {
+          console.log('🔓 Admin override active - allowing right-click');
+          return true;
+        }
+
+        // Allow right-click on form inputs and text areas for better UX
+        const allowedElements = ['INPUT', 'TEXTAREA', 'SELECT'];
+        if (allowedElements.includes(e.target.tagName)) {
+          return true; // Allow right-click on form elements
+        }
+
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
@@ -356,140 +332,12 @@ const QuizSecurity = ({
         handleViolation('⚠️ Drag & Drop Blocked!\n\nDrag and drop operations are disabled during the quiz for security reasons.');
         return false;
       };
-
-      // Additional keyboard shortcuts blocking
-      const handleAdditionalKeys = (e) => {
-        // PRIORITY 1: Check for admin override FIRST before blocking anything
-        const adminConfig = settings?.adminOverride;
-        if (adminConfig?.enabled && !adminOverrideActive && !personalOverrideActive) {
-          const { button1, button2 } = adminConfig.triggerButtons || {};
-
-          // Check for Ctrl+number combination (like Ctrl+5)
-          if (button1 === 'Ctrl' && /^[0-9]$/.test(button2)) {
-            if (e.ctrlKey && e.key === button2) {
-              console.log('🔧 Admin override detected in additional keys handler: Ctrl+' + button2);
-              e.preventDefault();
-              e.stopPropagation();
-              e.stopImmediatePropagation();
-              setShowAdminDialog(true);
-              return; // Exit early, don't block this key combination
-            }
-          }
-        }
-
-        // If any override is active, don't block any keys
-        if (personalOverrideActive || adminOverrideActive) {
-          return;
-        }
-
-        // DYNAMIC ADMIN OVERRIDE CHECK: Don't block the current admin override key combination
-        const currentAdminConfig = settings?.adminOverride;
-        if (currentAdminConfig?.enabled) {
-          const { button1, button2 } = currentAdminConfig.triggerButtons || {};
-
-          // Check if current key combination matches admin override - DON'T block it!
-          const isAdminOverrideCombo = (
-            (button1 === 'Ctrl' && e.ctrlKey && e.key === button2) ||
-            (button1 === 'Alt' && e.altKey && e.key === button2) ||
-            (button1 === 'Shift' && e.shiftKey && e.key === button2) ||
-            (button2 === 'Ctrl' && e.ctrlKey && e.key === button1) ||
-            (button2 === 'Alt' && e.altKey && e.key === button1) ||
-            (button2 === 'Shift' && e.shiftKey && e.key === button1)
-          );
-
-          if (isAdminOverrideCombo) {
-            console.log('🔧 DYNAMIC: Admin override key detected - allowing through security:', button1 + '+' + button2);
-            return; // Don't block admin override keys - let them pass through
-          }
-        }
-
-        // Block Ctrl+L (address bar focus)
-        if (e.ctrlKey && e.key === 'l') {
-          e.preventDefault();
-          e.stopPropagation();
-          handleViolation('⚠️ Address Bar Access Blocked!\n\nAccessing the address bar is not allowed during the quiz.');
-          return false;
-        }
-
-        // Block Ctrl+D (bookmark)
-        if (e.ctrlKey && e.key === 'd') {
-          e.preventDefault();
-          e.stopPropagation();
-          handleViolation('⚠️ Bookmark Action Blocked!\n\nBookmark operations are not allowed during the quiz.');
-          return false;
-        }
-
-        // Block Ctrl+H (history)
-        if (e.ctrlKey && e.key === 'h') {
-          e.preventDefault();
-          e.stopPropagation();
-          handleViolation('⚠️ History Access Blocked!\n\nAccessing browser history is not allowed during the quiz.');
-          return false;
-        }
-
-        // Block Ctrl+J (downloads)
-        if (e.ctrlKey && e.key === 'j') {
-          e.preventDefault();
-          e.stopPropagation();
-          handleViolation('⚠️ Downloads Access Blocked!\n\nAccessing downloads is not allowed during the quiz.');
-          return false;
-        }
-
-        // Block Ctrl+Shift+Delete (clear browsing data)
-        if (e.ctrlKey && e.shiftKey && e.key === 'Delete') {
-          e.preventDefault();
-          e.stopPropagation();
-          handleViolation('⚠️ Browser Settings Blocked!\n\nAccessing browser settings is not allowed during the quiz.');
-          return false;
-        }
-
-        // Block F6 (address bar focus)
-        if (e.key === 'F6') {
-          e.preventDefault();
-          e.stopPropagation();
-          handleViolation('⚠️ Address Bar Focus Blocked!\n\nAccessing the address bar is not allowed during the quiz.');
-          return false;
-        }
-
-        // Block Ctrl+Shift+N (incognito window)
-        if (e.ctrlKey && e.shiftKey && e.key === 'N') {
-          e.preventDefault();
-          e.stopPropagation();
-          handleViolation('⚠️ Incognito Window Blocked!\n\nOpening incognito windows is not allowed during the quiz.');
-          return false;
-        }
-
-        // Block Ctrl+Shift+T (reopen closed tab)
-        if (e.ctrlKey && e.shiftKey && e.key === 'T') {
-          e.preventDefault();
-          e.stopPropagation();
-          handleViolation('⚠️ Reopen Tab Blocked!\n\nReopening closed tabs is not allowed during the quiz.');
-          return false;
-        }
-
-        // Block Ctrl+K (search bar)
-        if (e.ctrlKey && e.key === 'k') {
-          e.preventDefault();
-          e.stopPropagation();
-          handleViolation('⚠️ Search Bar Blocked!\n\nAccessing the search bar is not allowed during the quiz.');
-          return false;
-        }
-
-        // Block Ctrl+E (search bar in some browsers)
-        if (e.ctrlKey && e.key === 'e') {
-          e.preventDefault();
-          e.stopPropagation();
-          handleViolation('⚠️ Search Access Blocked!\n\nAccessing search functionality is not allowed during the quiz.');
-          return false;
-        }
-      };
-
       document.addEventListener('click', handleLinkClick, true);
       document.addEventListener('mousedown', handleMouseDown, true);
       window.addEventListener('beforeunload', handleBeforeUnload);
       document.addEventListener('submit', handleFormSubmit, true);
       document.addEventListener('dragstart', handleDragStart, true);
-      document.addEventListener('keydown', handleAdditionalKeys, true);
+
 
       // Additional escape key blocker at document level (highest priority)
       const handleEscapeBlock = (e) => {
@@ -517,7 +365,7 @@ const QuizSecurity = ({
         window.removeEventListener('beforeunload', handleBeforeUnload);
         document.removeEventListener('submit', handleFormSubmit, true);
         document.removeEventListener('dragstart', handleDragStart, true);
-        document.removeEventListener('keydown', handleAdditionalKeys, true);
+
         window.open = originalWindowOpen; // Restore original function
       });
     }
@@ -525,26 +373,9 @@ const QuizSecurity = ({
     // Disable copy/paste (only if explicitly enabled)
     if (securitySettings.disableCopyPaste === true || securitySettings.enableProctoringMode === true) {
       const handleKeyDown = (e) => {
-        // DYNAMIC ADMIN OVERRIDE CHECK: Don't block the current admin override key combination
-        const adminConfig = settings?.adminOverride;
-        if (adminConfig?.enabled && !adminOverrideActive && !personalOverrideActive) {
-          const { button1, button2 } = adminConfig.triggerButtons || {};
-
-          // Check if current key combination matches admin override - DON'T block it!
-          const isAdminOverrideCombo = (
-            (button1 === 'Ctrl' && e.ctrlKey && e.key === button2) ||
-            (button1 === 'Alt' && e.altKey && e.key === button2) ||
-            (button1 === 'Shift' && e.shiftKey && e.key === button2)
-          );
-
-          if (isAdminOverrideCombo) {
-            console.log('🔧 DYNAMIC: Admin override key detected in copy/paste handler - allowing through:', button1 + '+' + button2);
-            return; // Don't block admin override keys
-          }
-        }
-
-        // If any override is active, don't block any keys
-        if (personalOverrideActive || adminOverrideActive) {
+        // Skip blocking if admin override is active
+        if (adminOverrideActive) {
+          console.log('🔓 Admin override active - allowing copy/paste operations');
           return;
         }
 
@@ -625,33 +456,12 @@ const QuizSecurity = ({
         console.log('🖥️ Fullscreen state changed:', isCurrentlyFullscreen);
         setIsFullscreen(isCurrentlyFullscreen);
 
-        if (!isCurrentlyFullscreen && (securitySettings.enableFullscreen || securitySettings.enableProctoringMode)) {
+        if (!isCurrentlyFullscreen && (securitySettings.enableFullscreen || securitySettings.enableProctoringMode) && !adminOverrideActive) {
           console.log('🖥️ Fullscreen exited unexpectedly, showing violation');
-          handleViolation('🚨 CRITICAL SECURITY VIOLATION!\n\n⚠️ FULLSCREEN MODE EXITED!\n\nYou have exited fullscreen mode. This is a serious security violation that compromises quiz integrity.\n\n🔄 The system will automatically attempt to return to fullscreen mode.\n\n⚠️ Repeated violations may result in immediate quiz termination and academic consequences.\n\n🚫 Do NOT attempt to exit fullscreen again!');
+          handleViolation('🚨 CRITICAL SECURITY VIOLATION!\n\n⚠️ FULLSCREEN MODE EXITED!\n\nYou have exited fullscreen mode. This is a serious security violation that compromises quiz integrity.\n\n🔄 Please click "OK" and then click the fullscreen button to continue.\n\n⚠️ Repeated violations may result in immediate quiz termination and academic consequences.\n\n🚫 Do NOT attempt to exit fullscreen again!');
 
-          // Try to re-enter fullscreen immediately and repeatedly
-          const attemptReEntry = () => {
-            console.log('🖥️ Attempting to re-enter fullscreen...');
-            enterFullscreen();
-
-            // Check again after a short delay and retry if still not fullscreen
-            setTimeout(() => {
-              const stillNotFullscreen = !(
-                document.fullscreenElement ||
-                document.webkitFullscreenElement ||
-                document.mozFullScreenElement ||
-                document.msFullscreenElement
-              );
-
-              if (stillNotFullscreen) {
-                console.log('🖥️ Still not in fullscreen, retrying...');
-                attemptReEntry();
-              }
-            }, 500);
-          };
-
-          // Start re-entry attempts immediately
-          attemptReEntry();
+          // Show fullscreen prompt again to require user gesture instead of automatic re-entry
+          setShowFullscreenPrompt(true);
         }
       };
 
@@ -668,63 +478,323 @@ const QuizSecurity = ({
       });
     }
 
-    // Monitor fullscreen exit attempts and disable developer tools
+    // 🚨 COLLEGE SETTINGS-BASED VIOLATION MONITORING
     if (securitySettings.enableFullscreen || securitySettings.enableProctoringMode) {
-      const handleKeyDown = (e) => {
-        // PRIORITY 1: Check for admin override FIRST before blocking anything
-        const adminConfig = settings?.adminOverride;
-        if (adminConfig?.enabled && !adminOverrideActive && !personalOverrideActive) {
-          const { button1, button2 } = adminConfig.triggerButtons || {};
 
-          // Check for Ctrl+number combination (like Ctrl+5)
-          if (button1 === 'Ctrl' && /^[0-9]$/.test(button2)) {
-            if (e.ctrlKey && e.key === button2) {
-              console.log('🔧 Admin override detected in security handler: Ctrl+' + button2);
-              e.preventDefault();
-              e.stopPropagation();
-              e.stopImmediatePropagation();
-              setShowAdminDialog(true);
-              return; // Exit early, don't block this key combination
-            }
-          }
+      // Get violation settings from college settings
+      const violationSettings = getSettings().violationSettings;
+      const maxViolations = violationSettings.maxViolations;
+      const autoTerminate = violationSettings.autoTerminate;
+      const strictMode = violationSettings.strictMode;
 
-          // Check other admin override combinations
-          if ((button1 === 'Alt' && /^[0-9]$/.test(button2) && e.altKey && e.key === button2) ||
-              (button1 === 'Shift' && /^[0-9]$/.test(button2) && e.shiftKey && e.key === button2)) {
-            console.log('🔧 Admin override detected in security handler:', button1 + '+' + button2);
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
-            setShowAdminDialog(true);
-            return; // Exit early, don't block this key combination
+      console.log('🔒 Violation Settings:', { maxViolations, autoTerminate, strictMode });
+
+      if (strictMode) {
+        // STRICT MODE: Track and auto-submit on first fullscreen violation
+        const handleStrictFullscreenChange = () => {
+          if (!document.fullscreenElement && !violated && !adminOverrideActive) {
+            console.log('🚨 STRICT FULLSCREEN VIOLATION DETECTED');
+            strictAutoSubmit('You exited full-screen mode. Quiz will be submitted.');
           }
+        };
+
+        // Add strict fullscreen monitoring
+        document.addEventListener('fullscreenchange', handleStrictFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', handleStrictFullscreenChange);
+        document.addEventListener('mozfullscreenchange', handleStrictFullscreenChange);
+        document.addEventListener('MSFullscreenChange', handleStrictFullscreenChange);
+
+        securityListeners.push(() => {
+          document.removeEventListener('fullscreenchange', handleStrictFullscreenChange);
+          document.removeEventListener('webkitfullscreenchange', handleStrictFullscreenChange);
+          document.removeEventListener('mozfullscreenchange', handleStrictFullscreenChange);
+          document.removeEventListener('MSFullscreenChange', handleStrictFullscreenChange);
+        });
+      }
+    }
+
+    // COLLEGE SETTINGS-BASED TAB SWITCH MONITORING
+    if (securitySettings.disableTabSwitch || securitySettings.enableProctoringMode || securitySettings.enableFullscreen) {
+
+      // Get violation settings from college settings
+      const violationSettings = getSettings().violationSettings;
+      const maxViolations = violationSettings.maxViolations;
+      const strictMode = violationSettings.strictMode;
+
+      if (strictMode) {
+        // STRICT MODE: Track and auto-submit on first tab switch violation
+        const handleStrictVisibilityChange = () => {
+          if (document.visibilityState === 'hidden' && !violated && !adminOverrideActive) {
+            console.log('🚨 STRICT TAB SWITCH VIOLATION DETECTED');
+            strictAutoSubmit('You switched tabs. Quiz submitted.');
+          }
+        };
+
+        document.addEventListener('visibilitychange', handleStrictVisibilityChange);
+
+        securityListeners.push(() => {
+          document.removeEventListener('visibilitychange', handleStrictVisibilityChange);
+        });
+      }
+    }
+
+    // � ADMIN OVERRIDE KEY DETECTION - Always active
+    const handleAdminOverrideDetection = (e) => {
+      console.log('🔧 handleAdminOverrideDetection called with key:', e.key);
+      console.log('🔧 Current adminOverrideSettings state:', adminOverrideSettings);
+
+      // Use direct admin override settings state
+      console.log('🔧 Admin override check:', {
+        enabled: adminOverrideSettings.enabled,
+        adminOverrideActive: adminOverrideActive,
+        triggerButtons: adminOverrideSettings.triggerButtons,
+        currentKey: e.key,
+        ctrlKey: e.ctrlKey,
+        altKey: e.altKey,
+        shiftKey: e.shiftKey
+      });
+
+      // Check admin override using direct state
+      if (adminOverrideSettings.enabled && !adminOverrideActive) {
+        const { button1, button2 } = adminOverrideSettings.triggerButtons || {};
+
+        // Check for admin override key combinations
+        if ((button1 === 'Ctrl' && e.ctrlKey && e.key === button2) ||
+            (button1 === 'Alt' && e.altKey && e.key === button2) ||
+            (button1 === 'Shift' && e.shiftKey && e.key === button2)) {
+          console.log('🔧 Admin override detected:', button1 + '+' + button2);
+          e.preventDefault();
+          e.stopPropagation();
+          setShowAdminDialog(true);
+          return; // Don't block admin override keys
         }
+      }
+    };
 
-        // If any override is active, don't block any keys
-        if (personalOverrideActive || adminOverrideActive) {
+    // Add admin override detection - always active
+    console.log('🔧 Adding admin override event listener...');
+    document.addEventListener('keydown', handleAdminOverrideDetection, { capture: true, passive: false });
+    securityListeners.push(() => {
+      document.removeEventListener('keydown', handleAdminOverrideDetection, { capture: true, passive: false });
+    });
+
+    // 🔒 SIMPLE & EFFECTIVE KEY DETECTION SYSTEM
+    if (securitySettings.enableFullscreen || securitySettings.enableProctoringMode) {
+
+      // Simple key detection with specific alerts
+      const handleKeyDetection = (e) => {
+        // Skip all other blocking if admin override is active
+        if (adminOverrideActive) {
+          console.log('🔓 Admin override active - allowing key:', e.key);
           return;
         }
 
-        // DYNAMIC ADMIN OVERRIDE CHECK: Don't block the current admin override key combination
-        const mainAdminConfig = settings?.adminOverride;
-        if (mainAdminConfig?.enabled) {
-          const { button1, button2 } = mainAdminConfig.triggerButtons || {};
+        console.log(`🔍 Key pressed: ${e.key}`);
 
-          // Check if current key combination matches admin override - DON'T block it!
-          const isAdminOverrideCombo = (
-            (button1 === 'Ctrl' && e.ctrlKey && e.key === button2) ||
-            (button1 === 'Alt' && e.altKey && e.key === button2) ||
-            (button1 === 'Shift' && e.shiftKey && e.key === button2) ||
-            (button2 === 'Ctrl' && e.ctrlKey && e.key === button1) ||
-            (button2 === 'Alt' && e.altKey && e.key === button1) ||
-            (button2 === 'Shift' && e.shiftKey && e.key === button1)
-          );
+        // ESCAPE KEY DETECTION
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          alert("🚨 ESCAPE KEY DETECTED!\n\nEscape key pressed! You may be trying to exit full-screen.\n\nThis action is not allowed during the quiz.");
 
-          if (isAdminOverrideCombo) {
-            console.log('🔧 DYNAMIC: Admin override key detected in main handler - allowing through:', button1 + '+' + button2);
-            return; // Don't block admin override keys - let them pass through
+          // Check if strict mode is enabled
+          const violationSettings = getSettings().violationSettings;
+          if (violationSettings.strictMode) {
+            strictAutoSubmit('You pressed the Escape key to exit fullscreen.');
+          } else {
+            handleViolation('Escape key usage detected');
           }
+          return false;
         }
+
+        // DEVELOPER TOOLS DETECTION
+        if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I')) {
+          e.preventDefault();
+          e.stopPropagation();
+          alert("🚨 DEVELOPER TOOLS BLOCKED!\n\nDev tools access is not allowed!\n\nThis action has been logged as a security violation.");
+          handleViolation('Developer tools access attempt detected');
+          return false;
+        }
+
+        // CONSOLE ACCESS DETECTION
+        if (e.ctrlKey && e.shiftKey && e.key === 'J') {
+          e.preventDefault();
+          e.stopPropagation();
+          alert("🚨 CONSOLE ACCESS BLOCKED!\n\nBrowser console access is not allowed!\n\nThis action has been logged as a security violation.");
+          handleViolation('Console access attempt detected');
+          return false;
+        }
+
+        // VIEW SOURCE DETECTION
+        if (e.ctrlKey && e.key === 'u') {
+          e.preventDefault();
+          e.stopPropagation();
+          alert("🚨 VIEW SOURCE BLOCKED!\n\nViewing page source is not allowed!\n\nThis action has been logged as a security violation.");
+          handleViolation('View source attempt detected');
+          return false;
+        }
+
+        // TAB SWITCHING DETECTION
+        if ((e.altKey && e.key === 'Tab') || (e.ctrlKey && e.key === 'Tab')) {
+          e.preventDefault();
+          e.stopPropagation();
+          alert("🚨 TAB SWITCHING BLOCKED!\n\nSwitching tabs is not allowed!\n\nThis action has been logged as a security violation.");
+
+          // Check if strict mode is enabled
+          const violationSettings = getSettings().violationSettings;
+          if (violationSettings.strictMode) {
+            strictAutoSubmit('You attempted to switch tabs.');
+          } else {
+            handleViolation('Tab switching attempt detected');
+          }
+          return false;
+        }
+
+        // NEW WINDOW/TAB DETECTION
+        if (e.ctrlKey && e.key === 'n') {
+          e.preventDefault();
+          e.stopPropagation();
+          alert("🚨 NEW WINDOW BLOCKED!\n\nOpening new windows is not allowed!\n\nThis action has been logged as a security violation.");
+          handleViolation('New window attempt detected');
+          return false;
+        }
+
+        if (e.ctrlKey && e.key === 't') {
+          e.preventDefault();
+          e.stopPropagation();
+          alert("🚨 NEW TAB BLOCKED!\n\nOpening new tabs is not allowed!\n\nThis action has been logged as a security violation.");
+          handleViolation('New tab attempt detected');
+          return false;
+        }
+
+        // INCOGNITO WINDOW DETECTION
+        if (e.ctrlKey && e.shiftKey && e.key === 'N') {
+          e.preventDefault();
+          e.stopPropagation();
+          alert("🚨 INCOGNITO WINDOW BLOCKED!\n\nOpening incognito windows is not allowed!\n\nThis action has been logged as a security violation.");
+          handleViolation('Incognito window attempt detected');
+          return false;
+        }
+
+        // REFRESH DETECTION
+        if (e.key === 'F5' || (e.ctrlKey && e.key === 'r')) {
+          e.preventDefault();
+          e.stopPropagation();
+          alert("🚨 PAGE REFRESH BLOCKED!\n\nRefreshing the page is not allowed during the quiz!\n\nThis may cause loss of progress.");
+          handleViolation('Page refresh attempt detected');
+          return false;
+        }
+      };
+
+
+
+      // 🔒 FULLSCREEN CHANGE MONITOR - Force Re-entry
+      const handleFullscreenChange = () => {
+        const isFullscreen = !!(
+          document.fullscreenElement ||
+          document.webkitFullscreenElement ||
+          document.mozFullScreenElement ||
+          document.msFullscreenElement
+        );
+
+        if (!isFullscreen && !adminOverrideActive) {
+          console.log('🚨 FULLSCREEN EXIT DETECTED - SHOWING RE-ENTRY PROMPT');
+
+          // Instead of forcing re-entry, show a prompt that requires user interaction
+          handleViolation('🚨 FULLSCREEN EXIT DETECTED!\n\n⚠️ UNAUTHORIZED FULLSCREEN EXIT!\n\nYou exited fullscreen mode which is not allowed during the quiz.\n\n🔒 Please click "OK" and then click the fullscreen button to continue.\n\n⚠️ This violation has been logged.');
+
+          // Show fullscreen prompt again to require user gesture
+          setShowFullscreenPrompt(true);
+        }
+      };
+
+      // 🌐 NEW WINDOW/TAB BLOCKER - Advanced Detection
+      const blockNewWindows = (e) => {
+        // Block Ctrl+N (New Window)
+        if (e.ctrlKey && e.key === 'n') {
+          e.preventDefault();
+          e.stopPropagation();
+          handleViolation('🚨 NEW WINDOW BLOCKED!\n\n⚠️ Attempt to open new window detected!\n\nCtrl+N is disabled during the quiz.\n\n🔒 This violation has been logged.');
+          return false;
+        }
+
+        // Block Ctrl+T (New Tab)
+        if (e.ctrlKey && e.key === 't') {
+          e.preventDefault();
+          e.stopPropagation();
+          handleViolation('🚨 NEW TAB BLOCKED!\n\n⚠️ Attempt to open new tab detected!\n\nCtrl+T is disabled during the quiz.\n\n🔒 This violation has been logged.');
+          return false;
+        }
+
+        // Block Ctrl+Shift+N (Incognito Window)
+        if (e.ctrlKey && e.shiftKey && e.key === 'N') {
+          e.preventDefault();
+          e.stopPropagation();
+          handleViolation('🚨 INCOGNITO WINDOW BLOCKED!\n\n⚠️ Attempt to open incognito window detected!\n\nCtrl+Shift+N is disabled during the quiz.\n\n🔒 This violation has been logged.');
+          return false;
+        }
+
+        // Block Alt+Tab (Window Switching)
+        if (e.altKey && e.key === 'Tab') {
+          e.preventDefault();
+          e.stopPropagation();
+          handleViolation('🚨 WINDOW SWITCHING BLOCKED!\n\n⚠️ Attempt to switch windows detected!\n\nAlt+Tab is disabled during the quiz.\n\n🔒 This violation has been logged.');
+          return false;
+        }
+      };
+
+      // 🔧 DEVELOPER TOOLS BLOCKER - Enhanced Detection
+      const blockDevTools = (e) => {
+        // F12 - Developer Tools
+        if (e.key === 'F12') {
+          e.preventDefault();
+          e.stopPropagation();
+          handleViolation('🚨 DEVELOPER TOOLS BLOCKED!\n\n⚠️ Attempt to open developer tools detected!\n\nF12 is disabled during the quiz.\n\n🔒 This violation has been logged.');
+          return false;
+        }
+
+        // Ctrl+Shift+I - Developer Tools
+        if (e.ctrlKey && e.shiftKey && e.key === 'I') {
+          e.preventDefault();
+          e.stopPropagation();
+          handleViolation('🚨 DEVELOPER TOOLS BLOCKED!\n\n⚠️ Attempt to open developer tools detected!\n\nCtrl+Shift+I is disabled during the quiz.\n\n🔒 This violation has been logged.');
+          return false;
+        }
+
+        // Ctrl+Shift+J - Console
+        if (e.ctrlKey && e.shiftKey && e.key === 'J') {
+          e.preventDefault();
+          e.stopPropagation();
+          handleViolation('🚨 CONSOLE ACCESS BLOCKED!\n\n⚠️ Attempt to open browser console detected!\n\nCtrl+Shift+J is disabled during the quiz.\n\n🔒 This violation has been logged.');
+          return false;
+        }
+
+        // Ctrl+U - View Source
+        if (e.ctrlKey && e.key === 'u') {
+          e.preventDefault();
+          e.stopPropagation();
+          handleViolation('🚨 VIEW SOURCE BLOCKED!\n\n⚠️ Attempt to view page source detected!\n\nCtrl+U is disabled during the quiz.\n\n🔒 This violation has been logged.');
+          return false;
+        }
+      };
+
+      // 📱 MOBILE SECURITY - Touch and Gesture Blocking
+      const blockMobileGestures = (e) => {
+        // Block long press (context menu on mobile)
+        if (e.type === 'touchstart' && e.touches.length === 1) {
+          const touch = e.touches[0];
+          setTimeout(() => {
+            // If touch is still active after 500ms, it's a long press
+            if (e.touches.length > 0) {
+              e.preventDefault();
+              handleViolation('🚨 LONG PRESS BLOCKED!\n\n⚠️ Long press detected on mobile device!\n\nLong press gestures are disabled during the quiz.\n\n🔒 This violation has been logged.');
+            }
+          }, 500);
+        }
+      };
+
+      const handleKeyDown = (e) => {
+
 
         // Monitor F1 and F2 (can trigger browser help)
         if (e.key === 'F1' || e.key === 'F2') {
@@ -748,7 +818,7 @@ const QuizSecurity = ({
           e.stopPropagation();
           e.stopImmediatePropagation();
 
-          // Immediately try to re-enter fullscreen if we're not in it
+          // Check if we're in fullscreen and show prompt if not
           setTimeout(() => {
             const isCurrentlyFullscreen = !!(
               document.fullscreenElement ||
@@ -757,9 +827,10 @@ const QuizSecurity = ({
               document.msFullscreenElement
             );
 
-            if (!isCurrentlyFullscreen) {
-              console.log('🖥️ Escape detected - forcing fullscreen re-entry');
-              enterFullscreen();
+            if (!isCurrentlyFullscreen && !adminOverrideActive) {
+              console.log('🖥️ Escape detected - showing fullscreen prompt');
+              handleViolation('🚨 ESCAPE KEY DETECTED!\n\n⚠️ You pressed the Escape key which can exit fullscreen mode.\n\n🔒 Please click "OK" and then click the fullscreen button to continue.\n\n⚠️ This action has been logged.');
+              setShowFullscreenPrompt(true);
             }
           }, 10);
 
@@ -858,22 +929,138 @@ const QuizSecurity = ({
 
       // Key up handling is now done by global listeners
 
-      // Use capture phase to catch events before they bubble
-      document.addEventListener('keydown', handleKeyDown, true);
-      securityListeners.push(() => {
-        document.removeEventListener('keydown', handleKeyDown, true);
-      });
+      // 🎯 SIMPLE & EFFECTIVE EVENT LISTENER SETUP
 
-      // Prevent context menu on right-click (additional security)
-      const handleContextMenu = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        handleViolation('⚠️ Right-Click Menu Blocked!\n\nRight-click context menu is disabled during the quiz for security reasons.');
-        return false;
+      // Add simple key detection with highest priority
+      document.addEventListener('keydown', handleKeyDetection, { capture: true, passive: false });
+      window.addEventListener('keydown', handleKeyDetection, { capture: true, passive: false });
+
+      // FULLSCREEN CHANGE MONITORS - FORCE RE-ENTRY
+      document.addEventListener('fullscreenchange', handleFullscreenChange);
+      document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+      // Other security event listeners
+      document.addEventListener('keydown', blockNewWindows, { capture: true, passive: false });
+      document.addEventListener('keydown', blockDevTools, { capture: true, passive: false });
+      document.addEventListener('keydown', handleKeyDown, { capture: true, passive: false });
+
+      // Mobile security listeners
+      document.addEventListener('touchstart', blockMobileGestures, { passive: false });
+      document.addEventListener('touchend', blockMobileGestures, { passive: false });
+
+      // Window event listeners for enhanced security
+      const handleBeforeUnload = (e) => {
+        if (!adminOverrideActive) {
+          e.preventDefault();
+          e.returnValue = '🚨 QUIZ IN PROGRESS!\n\nAre you sure you want to leave? This will be recorded as a security violation.';
+          handleViolation('🚨 PAGE UNLOAD ATTEMPT!\n\n⚠️ Attempt to leave quiz page detected!\n\nThis action has been blocked and logged as a security violation.');
+          return e.returnValue;
+        }
+      };
+      window.addEventListener('beforeunload', handleBeforeUnload);
+
+      // 🔒 NUCLEAR OPTION - OVERRIDE BROWSER ESCAPE BEHAVIOR
+      const originalExitFullscreen = document.exitFullscreen;
+      const originalWebkitExitFullscreen = document.webkitExitFullscreen;
+      const originalMozCancelFullScreen = document.mozCancelFullScreen;
+      const originalMsExitFullscreen = document.msExitFullscreen;
+
+      // Override all fullscreen exit methods
+      document.exitFullscreen = function() {
+        // Allow fullscreen exit if admin override is active
+        if (adminOverrideActive) {
+          console.log('🔧 Admin override active - allowing fullscreen exit');
+          return originalExitFullscreen.call(document);
+        }
+
+        console.log('🚫 BLOCKED: document.exitFullscreen() call intercepted');
+        handleViolation('🚨 FULLSCREEN EXIT BLOCKED!\n\n⚠️ Programmatic fullscreen exit attempt detected!\n\nThis action is not allowed during the quiz.');
+        return Promise.reject(new Error('Fullscreen exit blocked during quiz'));
       };
 
-      document.addEventListener('contextmenu', handleContextMenu, true);
-      securityListeners.push(() => document.removeEventListener('contextmenu', handleContextMenu, true));
+      if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen = function() {
+          // Allow fullscreen exit if admin override is active
+          if (adminOverrideActive) {
+            console.log('🔧 Admin override active - allowing webkit fullscreen exit');
+            return originalWebkitExitFullscreen.call(document);
+          }
+
+          console.log('🚫 BLOCKED: document.webkitExitFullscreen() call intercepted');
+          handleViolation('🚨 FULLSCREEN EXIT BLOCKED!\n\n⚠️ Programmatic fullscreen exit attempt detected!\n\nThis action is not allowed during the quiz.');
+          return;
+        };
+      }
+
+      if (document.mozCancelFullScreen) {
+        document.mozCancelFullScreen = function() {
+          // Allow fullscreen exit if admin override is active
+          if (adminOverrideActive) {
+            console.log('🔧 Admin override active - allowing moz fullscreen exit');
+            return originalMozCancelFullScreen.call(document);
+          }
+
+          console.log('🚫 BLOCKED: document.mozCancelFullScreen() call intercepted');
+          handleViolation('🚨 FULLSCREEN EXIT BLOCKED!\n\n⚠️ Programmatic fullscreen exit attempt detected!\n\nThis action is not allowed during the quiz.');
+          return;
+        };
+      }
+
+      if (document.msExitFullscreen) {
+        document.msExitFullscreen = function() {
+          // Allow fullscreen exit if admin override is active
+          if (adminOverrideActive) {
+            console.log('🔧 Admin override active - allowing ms fullscreen exit');
+            return originalMsExitFullscreen.call(document);
+          }
+
+          console.log('🚫 BLOCKED: document.msExitFullscreen() call intercepted');
+          handleViolation('🚨 FULLSCREEN EXIT BLOCKED!\n\n⚠️ Programmatic fullscreen exit attempt detected!\n\nThis action is not allowed during the quiz.');
+          return;
+        };
+      }
+
+      // Enhanced popup blocker
+      const originalOpen = window.open;
+      window.open = function(...args) {
+        if (!adminOverrideActive) {
+          handleViolation('🚨 POPUP BLOCKED!\n\n⚠️ Attempt to open popup window detected!\n\nPopup windows are disabled during the quiz.\n\n🔒 This violation has been logged.');
+          return null;
+        }
+        return originalOpen.apply(this, args);
+      };
+
+      // SIMPLE CLEANUP FUNCTIONS
+      securityListeners.push(() => {
+        // Remove simple key detection listeners
+        document.removeEventListener('keydown', handleKeyDetection, { capture: true });
+        window.removeEventListener('keydown', handleKeyDetection, { capture: true });
+
+        // Remove fullscreen change monitors
+        document.removeEventListener('fullscreenchange', handleFullscreenChange);
+        document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+        document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+        document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+
+        // Remove other security listeners
+        document.removeEventListener('keydown', blockNewWindows, { capture: true });
+        document.removeEventListener('keydown', blockDevTools, { capture: true });
+        document.removeEventListener('keydown', handleKeyDown, { capture: true });
+        document.removeEventListener('touchstart', blockMobileGestures);
+        document.removeEventListener('touchend', blockMobileGestures);
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+
+        // Restore original browser functions
+        window.open = originalOpen;
+        document.exitFullscreen = originalExitFullscreen;
+        if (originalWebkitExitFullscreen) document.webkitExitFullscreen = originalWebkitExitFullscreen;
+        if (originalMozCancelFullScreen) document.mozCancelFullScreen = originalMozCancelFullScreen;
+        if (originalMsExitFullscreen) document.msExitFullscreen = originalMsExitFullscreen;
+      });
+
+
     }
 
     // Cleanup function
@@ -957,13 +1144,37 @@ const QuizSecurity = ({
     } catch (error) {
       console.error('🖥️ Fullscreen request failed:', error);
 
-      // Provide specific error messages
+      // Handle specific error types more gracefully
       if (error.name === 'NotAllowedError') {
-        handleViolation('⚠️ Fullscreen Permission Denied!\n\nFullscreen access was denied. Please allow fullscreen mode when prompted by your browser, or check your browser settings.');
-      } else if (error.name === 'TypeError') {
-        handleViolation('⚠️ Fullscreen Not Available!\n\nFullscreen mode is not available. This may be due to browser restrictions or security policies.');
+        console.log('🖥️ Fullscreen permission denied - this is often due to browser security policies or lack of user gesture');
+        // Don't treat permission errors as violations in development/testing
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          console.log('🖥️ Development environment detected - not treating as violation');
+          alert('⚠️ Fullscreen Permission Denied!\n\nThis is normal in development. The fullscreen API requires user interaction (click/touch).');
+        } else {
+          // In production, show the fullscreen prompt instead of treating as violation
+          console.log('🖥️ Showing fullscreen prompt due to permission error');
+          setShowFullscreenPrompt(true);
+        }
+      } else if (error.name === 'TypeError' && error.message.includes('Permissions')) {
+        console.log('🖥️ Fullscreen permissions check failed - this is often normal in development');
+        // Don't treat permissions check failures as violations
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          console.log('🖥️ Development environment detected - permissions check failure is normal');
+          alert('⚠️ Fullscreen Permissions Check Failed!\n\nThis is normal in development. The quiz will continue without fullscreen.');
+        } else {
+          console.log('🖥️ Production environment - treating permissions failure as informational');
+          // In production, log but don't create violation for permissions issues
+          console.log('🖥️ Note: Fullscreen permissions check failed, continuing without fullscreen');
+        }
+      } else if (error.name === 'AbortError') {
+        console.log('🖥️ Fullscreen request was aborted by user');
+        handleViolation('⚠️ Fullscreen Cancelled!\n\nFullscreen request was cancelled. Please try again to continue the quiz.');
       } else {
-        handleViolation(`⚠️ Fullscreen Error!\n\nFailed to enter fullscreen mode: ${error.message}\n\nPlease try refreshing the page or use a different browser.`);
+        console.log('🖥️ Unknown fullscreen error:', error);
+        // For unknown errors, also show the prompt instead of treating as violation
+        console.log('🖥️ Showing fullscreen prompt due to unknown error');
+        setShowFullscreenPrompt(true);
       }
     }
   };
@@ -1014,7 +1225,11 @@ const QuizSecurity = ({
     const violationRecord = {
       type: violation,
       timestamp,
-      id: Date.now()
+      id: Date.now(),
+      severity: violation.includes('CRITICAL') ? 'critical' :
+               violation.includes('ESCAPE') ? 'high' :
+               violation.includes('NEW') ? 'high' :
+               violation.includes('DEVELOPER') ? 'high' : 'medium'
     };
 
     const newViolations = [...violations, violationRecord];
@@ -1022,26 +1237,54 @@ const QuizSecurity = ({
     setCurrentViolation(violation);
     setShowViolationDialog(true);
 
-    // Check if violation limit is reached
-    if (newViolations.length >= 5) {
-      // Auto-terminate quiz after 5 violations
-      setTimeout(() => {
-        alert('🚨 QUIZ TERMINATED 🚨\n\n' +
-              'You have exceeded the maximum number of security violations (5).\n\n' +
-              'Your quiz session has been terminated for security reasons.\n\n' +
-              'Please contact your instructor if you believe this was an error.\n\n' +
-              'You will now be redirected.');
+    // Enhanced violation management with college settings integration
+    const maxViolations = securitySettings?.violationSettings?.maxViolations || 5;
+    const warningThreshold = securitySettings?.violationSettings?.warningThreshold || 3;
+    const autoTerminate = securitySettings?.violationSettings?.autoTerminate !== false;
 
-        // Redirect to dashboard or quiz list
-        window.location.href = '/student/dashboard';
-      }, 2000);
+    // Show warning at threshold
+    if (newViolations.length === warningThreshold) {
+      setTimeout(() => {
+        alert(`⚠️ VIOLATION WARNING ⚠️\n\n` +
+              `You have ${newViolations.length} security violations.\n\n` +
+              `Maximum allowed: ${maxViolations}\n\n` +
+              `⚠️ You have ${maxViolations - newViolations.length} violations remaining before quiz termination.\n\n` +
+              `Please follow quiz security rules strictly!`);
+      }, 1000);
     }
+
+    // Check if violation limit is reached
+    if (newViolations.length >= maxViolations && autoTerminate) {
+      // Show auto-submit dialog
+      const reason = `You have exceeded the maximum number of security violations (${maxViolations}).`;
+      setAutoSubmitReason(reason);
+      setShowAutoSubmitDialog(true);
+
+      // Log final violation report
+      console.log('🚨 QUIZ AUTO-SUBMITTED - Final Violation Report:', {
+        totalViolations: newViolations.length,
+        maxAllowed: maxViolations,
+        violations: newViolations,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Enhanced logging for debugging and monitoring
+    console.log('🚨 Security Violation Details:', {
+      violation,
+      severity: violationRecord.severity,
+      count: newViolations.length,
+      maxAllowed: maxViolations,
+      remaining: maxViolations - newViolations.length,
+      timestamp: violationRecord.timestamp
+    });
 
     if (onSecurityViolation) {
       onSecurityViolation({
         ...violationRecord,
         totalViolations: newViolations.length,
-        isTerminating: newViolations.length >= 5
+        maxViolations,
+        isTerminating: newViolations.length >= maxViolations && autoTerminate
       });
     }
   };
@@ -1051,18 +1294,7 @@ const QuizSecurity = ({
     setCurrentViolation('');
   };
 
-  // Personal Override Algorithm Functions
-  const generateDailyButtons = () => {
-    const today = new Date();
-    const dayOfMonth = today.getDate(); // 1-31
-    const month = today.getMonth() + 1;  // 1-12
 
-    // Algorithm: Number keys 1-9 (day % 9 + 1) and (month % 9 + 1)
-    const button1 = `${(dayOfMonth % 9) + 1}`;
-    const button2 = `${(month % 9) + 1}`;
-
-    return { button1, button2 };
-  };
 
   const generateDailyPassword = () => {
     const today = new Date();
@@ -1078,66 +1310,11 @@ const QuizSecurity = ({
     return `admin${passwordNumber}`;
   };
 
-  const getCurrentPersonalConfig = () => {
-    const buttons = generateDailyButtons();
-    const password = generateDailyPassword();
 
-    console.log(`🔑 Today's personal override: ${buttons.button1} + ${buttons.button2}, password: ${password}`);
 
-    return { buttons, password };
-  };
 
-  const handlePersonalSubmit = () => {
-    const personalConfig = getCurrentPersonalConfig();
-    const correctPassword = personalConfig.password;
-
-    if (personalPassword === correctPassword) {
-      console.log('🔑 Personal override activated!');
-      setPersonalOverrideActive(true);
-      setShowPersonalDialog(false);
-      setPersonalPassword('');
-      setPersonalKeys(new Set());
-
-      // Set timeout to deactivate override (10 minutes)
-      const timeout = 10 * 60 * 1000; // 10 minutes
-      personalTimeoutRef.current = setTimeout(() => {
-        setPersonalOverrideActive(false);
-        console.log('🔑 Personal override expired');
-      }, timeout);
-
-      // Silent activation - no alerts
-      console.log('Personal access granted. Session expires in 10 minutes.');
-
-      // Notify parent component
-      if (onOverrideStateChange) {
-        onOverrideStateChange({
-          adminOverrideActive: false,
-          personalOverrideActive: true,
-          reEnableSecurity
-        });
-      }
-    } else {
-      console.log('Invalid personal access code');
-      setPersonalPassword('');
-    }
-  };
-
-  const handlePersonalCancel = () => {
-    setShowPersonalDialog(false);
-    setPersonalPassword('');
-    setPersonalKeys(new Set());
-  };
 
   // Admin Override Functions
-  const fetchAdminConfig = async () => {
-    try {
-      const response = await api.get('/api/admin/quiz-settings/admin-config');
-      setAdminConfig(response);
-      console.log('🔧 Admin config loaded:', response);
-    } catch (error) {
-      console.error('Error fetching admin config:', error);
-    }
-  };
 
   const handleAdminSubmit = async () => {
     try {
@@ -1150,26 +1327,27 @@ const QuizSecurity = ({
         setAdminOverrideActive(true);
         setShowAdminDialog(false);
         setAdminPassword('');
-        setAdminKeys(new Set());
 
-        // Set timeout to deactivate override
-        const timeout = response.sessionTimeout * 1000;
-        adminTimeoutRef.current = setTimeout(() => {
-          setAdminOverrideActive(false);
-          console.log('🔧 Admin override expired');
-        }, timeout);
+        // No automatic timeout - security stays disabled until manually re-enabled
+        console.log('🔧 Admin override activated - no automatic timeout, manual re-enable required');
+
+        // Exit fullscreen if currently in fullscreen
+        try {
+          console.log('🔧 Checking fullscreen status:', !!document.fullscreenElement);
+          if (document.fullscreenElement) {
+            console.log('🔧 Attempting to exit fullscreen...');
+            await document.exitFullscreen();
+            console.log('🔧 Fullscreen exit completed');
+          } else {
+            console.log('🔧 Not in fullscreen, no need to exit');
+          }
+        } catch (error) {
+          console.warn('🔧 Error exiting fullscreen:', error);
+        }
 
         // Show success message
-        console.log(`Admin access granted. Session expires in ${response.sessionTimeout} seconds.`);
-
-        // Notify parent component
-        if (onOverrideStateChange) {
-          onOverrideStateChange({
-            adminOverrideActive: true,
-            personalOverrideActive: false,
-            reEnableSecurity
-          });
-        }
+        console.log('🔧 Admin access granted. Security disabled until manually re-enabled.');
+        alert('🔧 Admin Override Activated!\n\nSecurity measures have been disabled.\n\nYou can now:\n• Exit fullscreen\n• Use right-click\n• Switch tabs\n• Use copy/paste\n\n⚠️ Security will remain disabled until you manually click the "Re-enable Security" button.');
       }
     } catch (error) {
       console.error('Admin override failed:', error);
@@ -1180,36 +1358,34 @@ const QuizSecurity = ({
   const handleAdminCancel = () => {
     setShowAdminDialog(false);
     setAdminPassword('');
-    setAdminKeys(new Set());
   };
 
-  // Function to re-enable security
-  const reEnableSecurity = () => {
-    // Clear all override states
-    setAdminOverrideActive(false);
-    setPersonalOverrideActive(false);
-
-    // Clear timeouts
+  const handleReEnableSecurity = () => {
+    // Clear any existing timeout
     if (adminTimeoutRef.current) {
       clearTimeout(adminTimeoutRef.current);
       adminTimeoutRef.current = null;
     }
-    if (personalTimeoutRef.current) {
-      clearTimeout(personalTimeoutRef.current);
-      personalTimeoutRef.current = null;
-    }
 
-    console.log('🔒 Security re-enabled manually');
+    setAdminOverrideActive(false);
+    console.log('🔧 Security manually re-enabled by admin');
+    alert('🔒 Security Re-enabled!\n\nAll security measures have been restored:\n• Fullscreen mode enforced\n• Right-click disabled\n• Tab switching blocked\n• Copy/paste disabled');
+  };
 
-    // Notify parent component
-    if (onOverrideStateChange) {
-      onOverrideStateChange({
-        adminOverrideActive: false,
-        personalOverrideActive: false,
-        reEnableSecurity
-      });
+  const handleAutoSubmitConfirm = () => {
+    setShowAutoSubmitDialog(false);
+
+    // Call the auto-submit function if provided, otherwise redirect
+    if (onAutoSubmit && typeof onAutoSubmit === 'function') {
+      console.log('🚨 Calling onAutoSubmit function...');
+      onAutoSubmit();
+    } else {
+      console.log('🚨 No onAutoSubmit function provided, redirecting...');
+      window.location.href = '/student/dashboard';
     }
   };
+
+
 
 
 
@@ -1250,9 +1426,6 @@ const QuizSecurity = ({
         </Box>
       )}
 
-      {/* Main Content */}
-      {children}
-
       {/* Admin Override Status Indicator */}
       {adminOverrideActive && (
         <Box
@@ -1267,31 +1440,37 @@ const QuizSecurity = ({
             py: 1,
             borderRadius: 1,
             boxShadow: 3,
-            animation: 'pulse 2s infinite'
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1
           }}
         >
           <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
             🔧 ADMIN OVERRIDE ACTIVE
           </Typography>
+          <Button
+            variant="contained"
+            size="small"
+            onClick={handleReEnableSecurity}
+            sx={{
+              bgcolor: 'error.main',
+              color: 'error.contrastText',
+              '&:hover': {
+                bgcolor: 'error.dark'
+              }
+            }}
+          >
+            Re-enable Security
+          </Button>
         </Box>
       )}
 
-      {/* Personal Override Status Indicator - Ultra Discreet */}
-      {personalOverrideActive && (
-        <Box
-          sx={{
-            position: 'fixed',
-            bottom: 4,
-            left: 4,
-            zIndex: 9999,
-            width: 4,
-            height: 4,
-            bgcolor: 'rgba(0, 255, 0, 0.1)',
-            borderRadius: '50%',
-            opacity: 0.2
-          }}
-        />
-      )}
+      {/* Main Content */}
+      {children}
+
+
+
+
 
 
 
@@ -1427,64 +1606,7 @@ const QuizSecurity = ({
         </DialogActions>
       </Dialog>
 
-      {/* Personal Override Dialog - Ultra Discreet */}
-      <Dialog
-        open={showPersonalDialog}
-        onClose={handlePersonalCancel}
-        maxWidth="xs"
-        fullWidth
-        disableEscapeKeyDown
-        PaperProps={{
-          sx: {
-            bgcolor: 'background.paper',
-            boxShadow: 1
-          }
-        }}
-      >
-        <DialogTitle sx={{
-          textAlign: 'center',
-          fontSize: '1rem',
-          py: 2
-        }}>
-          Access
-        </DialogTitle>
-        <DialogContent sx={{ py: 2 }}>
-          <TextField
-            fullWidth
-            type="password"
-            label="Code"
-            value={personalPassword}
-            onChange={(e) => setPersonalPassword(e.target.value)}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter') {
-                handlePersonalSubmit();
-              }
-            }}
-            autoFocus
-            variant="outlined"
-            size="small"
-          />
-        </DialogContent>
-        <DialogActions sx={{ justifyContent: 'center', pb: 2 }}>
-          <Button
-            onClick={handlePersonalCancel}
-            color="inherit"
-            variant="text"
-            size="small"
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handlePersonalSubmit}
-            color="primary"
-            variant="contained"
-            size="small"
-            disabled={!personalPassword.trim()}
-          >
-            OK
-          </Button>
-        </DialogActions>
-      </Dialog>
+
 
       {/* Admin Override Dialog */}
       <Dialog
@@ -1516,7 +1638,7 @@ const QuizSecurity = ({
               ADMINISTRATIVE OVERRIDE DETECTED
             </Typography>
             <Typography variant="body2">
-              You have pressed the admin override key combination: <strong>{adminConfig?.triggerButtons?.button1} + {adminConfig?.triggerButtons?.button2}</strong>
+              You have pressed the admin override key combination: <strong>{adminOverrideSettings.triggerButtons.button1} + {adminOverrideSettings.triggerButtons.button2}</strong>
             </Typography>
           </Alert>
 
@@ -1543,7 +1665,7 @@ const QuizSecurity = ({
             <Typography variant="body2">
               <strong>⚠️ NOTICE:</strong>
               • This action will be logged and reported to administrators
-              • Security features will be disabled for {adminConfig?.sessionTimeout} seconds
+              • Security features will be disabled until manually re-enabled
               • Use this feature only for legitimate administrative purposes
               • All override usage is tracked for audit purposes
             </Typography>
@@ -1566,6 +1688,52 @@ const QuizSecurity = ({
             disabled={!adminPassword.trim()}
           >
             ACTIVATE ADMIN OVERRIDE
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Auto-Submit Dialog */}
+      <Dialog
+        open={showAutoSubmitDialog}
+        onClose={() => {}} // Prevent closing without action
+        maxWidth="sm"
+        fullWidth
+        disableEscapeKeyDown
+      >
+        <DialogTitle sx={{ color: 'error.main', textAlign: 'center' }}>
+          🚨 Quiz Auto-Submit
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            <Typography variant="h6" sx={{ mb: 1 }}>
+              Security Violation Limit Exceeded
+            </Typography>
+            <Typography variant="body2">
+              {autoSubmitReason}
+            </Typography>
+          </Alert>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            Your quiz will be automatically submitted for security reasons.
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            <strong>What happens next:</strong>
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 2, pl: 2 }}>
+            • Your current answers will be saved and submitted
+            • All violations have been logged and reported
+            • You will be redirected to the results page
+            • Contact your instructor if you believe this was an error
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: 'center', pb: 3 }}>
+          <Button
+            onClick={handleAutoSubmitConfirm}
+            color="error"
+            variant="contained"
+            size="large"
+            autoFocus
+          >
+            Submit Quiz Now
           </Button>
         </DialogActions>
       </Dialog>

@@ -239,6 +239,10 @@ const QuizEdit = () => {
     endTime: '',
     negativeMarkingEnabled: false,
     shuffleQuestions: false,
+    // Question limiting and randomization settings
+    questionLimitEnabled: false,
+    questionLimit: 10,
+    randomizeQuestionsPerStudent: false,
     securitySettings: {
       enableFullscreen: false,
       disableRightClick: false,
@@ -263,6 +267,8 @@ const QuizEdit = () => {
 
   // Add Question Modal state
   const [addQuestionModalOpen, setAddQuestionModalOpen] = useState(false);
+
+
 
   // Fetch academic structure on mount - EXACT COPY from QuizBasicDetails
   useEffect(() => {
@@ -446,6 +452,9 @@ const QuizEdit = () => {
         sections: sections,
         subject: response.subject?.code || response.subject || '',
         shuffleQuestions: response.shuffleQuestions || false,
+        questionLimitEnabled: response.questionLimitEnabled || false,
+        questionLimit: response.questionLimit || 10,
+        randomizeQuestionsPerStudent: response.randomizeQuestionsPerStudent || false,
         securitySettings: response.securitySettings || {
           enableFullscreen: false,
           disableRightClick: false,
@@ -604,6 +613,8 @@ const QuizEdit = () => {
         return;
       }
 
+
+
       // Find the full subject data
       const subjectData = subjects.find(s => s.code === quiz.subject || s.code === quiz.subject.code);
       if (!subjectData) {
@@ -645,7 +656,13 @@ const QuizEdit = () => {
         handleBackNavigation();
       }, 2000);
     } catch (error) {
-      setError(error.response?.data?.message || 'Failed to update quiz');
+      // Handle duplicate title error
+      const errorMessage = error.response?.data?.message || '';
+      if (errorMessage.includes('E11000') || errorMessage.includes('duplicate key') || errorMessage.includes('duplicate')) {
+        setError('A quiz with this title already exists. Please choose a different title.');
+      } else {
+        setError(errorMessage || 'Failed to update quiz');
+      }
     }
   };
 
@@ -777,6 +794,18 @@ const QuizEdit = () => {
                 name="title"
                 value={quiz.title}
                 onChange={handleBasicDetailsChange}
+                error={error && error.toLowerCase().includes('title already exists')}
+                helperText={error && error.toLowerCase().includes('title already exists') ? error : ''}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    '&.Mui-error': {
+                      '& fieldset': {
+                        borderColor: 'error.main',
+                        borderWidth: 2
+                      }
+                    }
+                  }
+                }}
               />
             </Grid>
 
@@ -875,6 +904,54 @@ const QuizEdit = () => {
             </Grid>
 
             <Grid item xs={12} sm={6}>
+              <FormControl fullWidth required>
+                <InputLabel>Subject</InputLabel>
+                <Select
+                  name="subject"
+                  value={(() => {
+                    const currentValue = quiz.subject?.code || quiz.subject || '';
+                    // If subjects are loaded and current value exists in subjects, use it
+                    if (subjects.length > 0 && subjects.some(s => s.code === currentValue)) {
+                      return currentValue;
+                    }
+                    // If subjects are loaded but current value doesn't exist, clear it
+                    if (subjects.length > 0) {
+                      return '';
+                    }
+                    // If subjects haven't loaded yet, use current value
+                    return currentValue;
+                  })()}
+                  onChange={handleBasicDetailsChange}
+                  label="Subject"
+                  disabled={!quiz.semester || subjects.length === 0}
+                >
+                  {subjects.length > 0 ? (
+                    subjects.map((subject) => (
+                      <MenuItem key={subject.code} value={subject.code}>
+                        {subject.name} ({subject.code})
+                      </MenuItem>
+                    ))
+                  ) : (
+                    <MenuItem disabled value="">
+                      {loading
+                        ? 'Loading subjects...'
+                        : user?.role === 'faculty'
+                        ? 'No subjects assigned to you for this semester'
+                        : 'No subjects available for this semester'
+                      }
+                    </MenuItem>
+                  )}
+                </Select>
+              </FormControl>
+              {user?.role === 'faculty' && subjects.length === 0 && quiz.semester && (
+                <Alert severity="info" sx={{ mt: 1 }}>
+                  You don't have any subjects assigned for {quiz.department} - Year {quiz.year} - Semester {quiz.semester}.
+                  Please contact the administrator to assign subjects to your account.
+                </Alert>
+              )}
+            </Grid>
+
+            <Grid item xs={12} sm={6}>
               <TextField
                 required
                 fullWidth
@@ -913,216 +990,276 @@ const QuizEdit = () => {
               </Typography>
             </Grid>
 
-            {/* Security Settings */}
+            {/* Security Settings Section */}
             <Grid item xs={12}>
-              <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
-                🔒 Security Settings
-              </Typography>
+              <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+                <Typography variant="h6" sx={{ mb: 3, color: 'primary.main', display: 'flex', alignItems: 'center' }}>
+                  🔒 Security Settings
+                </Typography>
 
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
-                  <FormGroup>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={quiz.securitySettings?.enableFullscreen || false}
-                          onChange={(e) => setQuiz(prev => ({
-                            ...prev,
-                            securitySettings: {
-                              ...prev.securitySettings,
-                              enableFullscreen: e.target.checked
-                            }
-                          }))}
-                          name="enableFullscreen"
+                <Grid container spacing={3}>
+                  <Grid item xs={12} sm={6}>
+                      <FormGroup>
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              checked={quiz.securitySettings?.enableFullscreen || false}
+                              onChange={(e) => setQuiz(prev => ({
+                                ...prev,
+                                securitySettings: {
+                                  ...prev.securitySettings,
+                                  enableFullscreen: e.target.checked
+                                }
+                              }))}
+                              name="enableFullscreen"
+                            />
+                          }
+                          label="🖥️ Enable Fullscreen Mode"
                         />
-                      }
-                      label="Enable Fullscreen Mode"
-                    />
-                    <Typography variant="caption" color="text.secondary">
-                      Forces quiz to open in fullscreen mode and prevents exiting
-                    </Typography>
-                  </FormGroup>
+                        <Typography variant="caption" color="text.secondary">
+                          Forces quiz to open in fullscreen mode and prevents exiting
+                        </Typography>
+                      </FormGroup>
                 </Grid>
 
-                <Grid item xs={12} sm={6}>
-                  <FormGroup>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={quiz.securitySettings?.disableRightClick || false}
-                          onChange={(e) => setQuiz(prev => ({
-                            ...prev,
-                            securitySettings: {
-                              ...prev.securitySettings,
-                              disableRightClick: e.target.checked
-                            }
-                          }))}
-                          name="disableRightClick"
-                        />
-                      }
-                      label="Disable Right Click"
-                    />
-                    <Typography variant="caption" color="text.secondary">
-                      Prevents right-click context menu during quiz
-                    </Typography>
-                  </FormGroup>
-                </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <FormGroup>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={quiz.securitySettings?.disableRightClick || false}
+                            onChange={(e) => setQuiz(prev => ({
+                              ...prev,
+                              securitySettings: {
+                                ...prev.securitySettings,
+                                disableRightClick: e.target.checked
+                              }
+                            }))}
+                            name="disableRightClick"
+                          />
+                        }
+                        label="🚫 Disable Right Click"
+                      />
+                      <Typography variant="caption" color="text.secondary">
+                        Prevents right-click context menu during quiz
+                      </Typography>
+                    </FormGroup>
+                  </Grid>
 
-                <Grid item xs={12} sm={6}>
-                  <FormGroup>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={quiz.securitySettings?.disableCopyPaste || false}
-                          onChange={(e) => setQuiz(prev => ({
-                            ...prev,
-                            securitySettings: {
-                              ...prev.securitySettings,
-                              disableCopyPaste: e.target.checked
-                            }
-                          }))}
-                          name="disableCopyPaste"
-                        />
-                      }
-                      label="Disable Copy/Paste"
-                    />
-                    <Typography variant="caption" color="text.secondary">
-                      Prevents copying and pasting during quiz
-                    </Typography>
-                  </FormGroup>
-                </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <FormGroup>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={quiz.securitySettings?.disableCopyPaste || false}
+                            onChange={(e) => setQuiz(prev => ({
+                              ...prev,
+                              securitySettings: {
+                                ...prev.securitySettings,
+                                disableCopyPaste: e.target.checked
+                              }
+                            }))}
+                            name="disableCopyPaste"
+                          />
+                        }
+                        label="📋 Disable Copy/Paste"
+                      />
+                      <Typography variant="caption" color="text.secondary">
+                        Prevents copying and pasting during quiz
+                      </Typography>
+                    </FormGroup>
+                  </Grid>
 
-                <Grid item xs={12} sm={6}>
-                  <FormGroup>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={quiz.securitySettings?.disableTabSwitch || false}
-                          onChange={(e) => setQuiz(prev => ({
-                            ...prev,
-                            securitySettings: {
-                              ...prev.securitySettings,
-                              disableTabSwitch: e.target.checked
-                            }
-                          }))}
-                          name="disableTabSwitch"
-                        />
-                      }
-                      label="Disable Tab Switching"
-                    />
-                    <Typography variant="caption" color="text.secondary">
-                      Warns when user tries to switch tabs or windows
-                    </Typography>
-                  </FormGroup>
-                </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <FormGroup>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={quiz.securitySettings?.disableTabSwitch || false}
+                            onChange={(e) => setQuiz(prev => ({
+                              ...prev,
+                              securitySettings: {
+                                ...prev.securitySettings,
+                                disableTabSwitch: e.target.checked
+                              }
+                            }))}
+                            name="disableTabSwitch"
+                          />
+                        }
+                        label="🔄 Disable Tab Switching"
+                      />
+                      <Typography variant="caption" color="text.secondary">
+                        Warns when user tries to switch tabs or windows
+                      </Typography>
+                    </FormGroup>
+                  </Grid>
 
-                <Grid item xs={12} sm={6}>
-                  <FormGroup>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={quiz.securitySettings?.enableProctoringMode || false}
-                          onChange={(e) => setQuiz(prev => ({
-                            ...prev,
-                            securitySettings: {
-                              ...prev.securitySettings,
-                              enableProctoringMode: e.target.checked
-                            }
-                          }))}
-                          name="enableProctoringMode"
-                        />
-                      }
-                      label="Enable Proctoring Mode"
-                    />
-                    <Typography variant="caption" color="text.secondary">
-                      Enables all security features and monitors user activity
-                    </Typography>
-                  </FormGroup>
+                  <Grid item xs={12} sm={6}>
+                    <FormGroup>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={quiz.securitySettings?.enableProctoringMode || false}
+                            onChange={(e) => setQuiz(prev => ({
+                              ...prev,
+                              securitySettings: {
+                                ...prev.securitySettings,
+                                enableProctoringMode: e.target.checked
+                              }
+                            }))}
+                            name="enableProctoringMode"
+                          />
+                        }
+                        label="👁️ Enable Proctoring Mode"
+                      />
+                      <Typography variant="caption" color="text.secondary">
+                        Enables all security features and monitors user activity
+                      </Typography>
+                    </FormGroup>
+                  </Grid>
                 </Grid>
+              </Paper>
+            </Grid>
+
+            {/* Question Selection Settings Section */}
+            <Grid item xs={12}>
+              <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+                <Typography variant="h6" sx={{ mb: 3, color: 'primary.main', display: 'flex', alignItems: 'center' }}>
+                  📊 Question Selection Settings
+                </Typography>
+
+                <Grid container spacing={3}>
+                  <Grid item xs={12} sm={6}>
+                    <FormGroup>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={quiz.shuffleQuestions || false}
+                            onChange={(e) => setQuiz(prev => ({
+                              ...prev,
+                              shuffleQuestions: e.target.checked
+                            }))}
+                            name="shuffleQuestions"
+                          />
+                        }
+                        label="🔀 Shuffle Questions"
+                      />
+                      <Typography variant="caption" color="text.secondary">
+                        Each student will receive questions in a different random order
+                      </Typography>
+                    </FormGroup>
+                  </Grid>
+
+              {/* Question Limiting Section */}
+              <Grid item xs={12}>
+                <Typography variant="h6" sx={{ mb: 2, mt: 3, color: 'primary.main' }}>
+                  📊 Question Selection Settings
+                </Typography>
               </Grid>
 
-              {/* Shuffle Questions Setting */}
-              <Grid item xs={12}>
-                <FormGroup sx={{ mt: 2 }}>
+              <Grid item xs={12} sm={6}>
+                <FormGroup>
                   <FormControlLabel
                     control={
                       <Switch
-                        checked={quiz.shuffleQuestions || false}
+                        checked={quiz.questionLimitEnabled || false}
                         onChange={(e) => setQuiz(prev => ({
                           ...prev,
-                          shuffleQuestions: e.target.checked
+                          questionLimitEnabled: e.target.checked
                         }))}
-                        name="shuffleQuestions"
+                        name="questionLimitEnabled"
                       />
                     }
-                    label="🔀 Shuffle Questions"
+                    label="🎯 Limit Number of Questions"
                   />
                   <Typography variant="caption" color="text.secondary">
-                    Each student will receive questions in a different random order
+                    Show only a subset of questions instead of all questions
                   </Typography>
                 </FormGroup>
               </Grid>
-            </Grid>
 
-            <Grid item xs={12} sm={6}>
-              <TextField
-                required
-                fullWidth
-                type="datetime-local"
-                label="Start Time"
-                name="startTime"
-                value={quiz.startTime}
-                onChange={handleBasicDetailsChange}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
-
-            <Grid item xs={12} sm={6}>
-              <TextField
-                required
-                fullWidth
-                type="datetime-local"
-                label="End Time"
-                name="endTime"
-                value={quiz.endTime}
-                onChange={handleBasicDetailsChange}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Grid>
-
-            <Grid item xs={12} sm={6}>
-              <FormControl fullWidth required>
-                <InputLabel>Subject</InputLabel>
-                <Select
-                  name="subject"
-                  value={quiz.subject?.code || quiz.subject || ''}
-                  onChange={handleBasicDetailsChange}
-                  label="Subject"
-                  disabled={!quiz.semester || subjects.length === 0}
-                >
-                  {subjects.length > 0 ? (
-                    subjects.map((subject) => (
-                      <MenuItem key={subject.code} value={subject.code}>
-                        {subject.name} ({subject.code})
-                      </MenuItem>
-                    ))
-                  ) : (
-                    <MenuItem disabled value="">
-                      {user?.role === 'faculty'
-                        ? 'No subjects assigned to you for this semester'
-                        : 'No subjects available for this semester'
-                      }
-                    </MenuItem>
-                  )}
-                </Select>
-              </FormControl>
-              {user?.role === 'faculty' && subjects.length === 0 && quiz.semester && (
-                <Alert severity="info" sx={{ mt: 1 }}>
-                  You don't have any subjects assigned for {quiz.department} - Year {quiz.year} - Semester {quiz.semester}.
-                  Please contact the administrator to assign subjects to your account.
-                </Alert>
+              {quiz.questionLimitEnabled && (
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    label="Number of Questions to Show"
+                    name="questionLimit"
+                    type="number"
+                    value={quiz.questionLimit || 10}
+                    onChange={(e) => setQuiz(prev => ({
+                      ...prev,
+                      questionLimit: parseInt(e.target.value) || 10
+                    }))}
+                    inputProps={{ min: 1, max: 100 }}
+                    helperText="Maximum questions each student will see"
+                    required
+                  />
+                </Grid>
               )}
+
+              <Grid item xs={12} sm={6}>
+                <FormGroup>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={quiz.randomizeQuestionsPerStudent || false}
+                        onChange={(e) => setQuiz(prev => ({
+                          ...prev,
+                          randomizeQuestionsPerStudent: e.target.checked
+                        }))}
+                        name="randomizeQuestionsPerStudent"
+                        disabled={!quiz.questionLimitEnabled}
+                      />
+                    }
+                    label="🎲 Different Questions per Student"
+                  />
+                  <Typography variant="caption" color="text.secondary">
+                    Each student gets different questions from the question pool
+                  </Typography>
+                </FormGroup>
+              </Grid>
+                </Grid>
+              </Paper>
             </Grid>
+
+            {/* Timing & Schedule Section */}
+            <Grid item xs={12}>
+              <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+                <Typography variant="h6" sx={{ mb: 3, color: 'primary.main', display: 'flex', alignItems: 'center' }}>
+                  ⏰ Timing & Schedule
+                </Typography>
+
+                <Grid container spacing={3}>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      required
+                      fullWidth
+                      type="datetime-local"
+                      label="Start Time"
+                      name="startTime"
+                      value={quiz.startTime}
+                      onChange={handleBasicDetailsChange}
+                InputLabelProps={{ shrink: true }}
+              />
+            </Grid>
+
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      required
+                      fullWidth
+                      type="datetime-local"
+                      label="End Time"
+                      name="endTime"
+                      value={quiz.endTime}
+                      onChange={handleBasicDetailsChange}
+                      InputLabelProps={{ shrink: true }}
+                    />
+                  </Grid>
+                </Grid>
+              </Paper>
+            </Grid>
+
+
           </Grid>
         )}
 

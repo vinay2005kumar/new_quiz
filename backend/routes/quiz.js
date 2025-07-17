@@ -285,6 +285,9 @@ router.post('/', auth, authorize('faculty', 'admin'), async (req, res) => {
       endTime: req.body.endTime,
       allowedGroups: req.body.allowedGroups,
       questionsCount: processedQuestions.length,
+      questionLimitEnabled: req.body.questionLimitEnabled,
+      questionLimit: req.body.questionLimit,
+      randomizeQuestionsPerStudent: req.body.randomizeQuestionsPerStudent,
       createdBy: req.user._id
     });
 
@@ -366,6 +369,48 @@ router.post('/', auth, authorize('faculty', 'admin'), async (req, res) => {
       success: false,
       message: error.message || 'Failed to create quiz'
     });
+  }
+});
+
+// Check if quiz title is unique (public endpoint for real-time validation)
+router.get('/check-title/:title', async (req, res) => {
+  try {
+    const { title } = req.params;
+    const { excludeId } = req.query; // For editing existing quiz
+
+    console.log('🔍 Backend: Checking title uniqueness for:', title);
+    console.log('🔍 Backend: excludeId:', excludeId);
+
+    if (!title || title.trim().length === 0) {
+      console.log('❌ Backend: Title is empty');
+      return res.status(400).json({ message: 'Title is required' });
+    }
+
+    const query = {
+      title: { $regex: new RegExp(`^${title.trim()}$`, 'i') }, // Case-insensitive exact match
+      type: 'academic'
+    };
+
+    // Exclude current quiz when editing
+    if (excludeId) {
+      query._id = { $ne: excludeId };
+    }
+
+    console.log('📊 Backend: Database query:', JSON.stringify(query, null, 2));
+    const existingQuiz = await Quiz.findOne(query);
+    console.log('📋 Backend: Found existing quiz:', existingQuiz ? { id: existingQuiz._id, title: existingQuiz.title } : 'None');
+
+    const result = {
+      isUnique: !existingQuiz,
+      exists: !!existingQuiz,
+      message: existingQuiz ? 'A quiz with this title already exists' : 'Title is available'
+    };
+
+    console.log('✅ Backend: Sending response:', result);
+    res.json(result);
+  } catch (error) {
+    console.error('❌ Backend: Error checking quiz title:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
@@ -765,16 +810,28 @@ router.get('/:id', auth, async (req, res) => {
         return res.status(403).json({ message: 'Quiz not available' });
       }
 
-      // If shuffle is enabled, return shuffled questions for this student
-      if (quiz.shuffleQuestions) {
-        const shuffledQuestions = quiz.getShuffledQuestions(req.user._id);
-        const quizWithShuffledQuestions = quiz.toObject();
-        quizWithShuffledQuestions.questions = shuffledQuestions;
-        return res.json(quizWithShuffledQuestions);
+      // If shuffle or question limiting is enabled, return processed questions for this student
+      if (quiz.shuffleQuestions || quiz.questionLimitEnabled || quiz.randomizeQuestionsPerStudent) {
+        const processedQuestions = quiz.getShuffledQuestions(req.user._id);
+        const quizWithProcessedQuestions = quiz.toObject();
+        quizWithProcessedQuestions.questions = processedQuestions;
+
+        // Update total marks if question limiting is enabled
+        if (quiz.questionLimitEnabled) {
+          quizWithProcessedQuestions.effectiveTotalMarks = quiz.getEffectiveTotalMarks();
+        }
+
+        return res.json(quizWithProcessedQuestions);
       }
     }
 
-    res.json(quiz);
+    // Always add effectiveTotalMarks if question limiting is enabled
+    const quizResponse = quiz.toObject();
+    if (quiz.questionLimitEnabled) {
+      quizResponse.effectiveTotalMarks = quiz.getEffectiveTotalMarks();
+    }
+
+    res.json(quizResponse);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

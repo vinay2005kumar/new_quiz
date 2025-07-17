@@ -1803,8 +1803,8 @@ router.post('/faculty/:facultyId/assignments/:assignmentIndex/subjects', auth, a
 
 // ===== QUIZ SETTINGS ROUTES =====
 
-// Get quiz settings
-router.get('/quiz-settings', isAdmin, async (req, res) => {
+// Get quiz settings (allow authenticated users for QuizSecurity component)
+router.get('/quiz-settings', auth, async (req, res) => {
   try {
     const settings = await QuizSettings.getOrCreateDefault();
 
@@ -1845,8 +1845,7 @@ router.put('/quiz-settings', isAdmin, async (req, res) => {
         settings.adminOverride = {
           enabled: false,
           password: 'admin123',
-          triggerButtons: { button1: 'Ctrl', button2: '6' },
-          sessionTimeout: 300
+          triggerButtons: { button1: 'Ctrl', button2: '6' }
         };
       }
 
@@ -1864,9 +1863,6 @@ router.put('/quiz-settings', isAdmin, async (req, res) => {
       }
       if (req.body.adminOverride.hasOwnProperty('password')) {
         settings.adminOverride.password = req.body.adminOverride.password;
-      }
-      if (req.body.adminOverride.hasOwnProperty('sessionTimeout')) {
-        settings.adminOverride.sessionTimeout = req.body.adminOverride.sessionTimeout;
       }
     }
 
@@ -1920,8 +1916,7 @@ router.post('/quiz-settings/validate-admin', async (req, res) => {
 
       res.json({
         valid: true,
-        message: 'Admin override activated',
-        sessionTimeout: settings.adminOverride.sessionTimeout
+        message: 'Admin override activated'
       });
     } else {
       res.status(401).json({
@@ -1942,8 +1937,7 @@ router.get('/quiz-settings/admin-config', async (req, res) => {
 
     res.json({
       enabled: settings.adminOverride.enabled,
-      triggerButtons: settings.adminOverride.triggerButtons,
-      sessionTimeout: settings.adminOverride.sessionTimeout
+      triggerButtons: settings.adminOverride.triggerButtons
     });
   } catch (error) {
     console.error('Error fetching admin config:', error);

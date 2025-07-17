@@ -864,7 +864,7 @@ const QuizAuthorizedStudents = () => {
                       {studentData.hasSubmitted ? (
                         <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'flex-start', sm: 'center' } }}>
                           <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
-                            {studentData.totalMarks} / {quiz?.totalMarks}
+                            {studentData.totalMarks} / {quiz?.effectiveTotalMarks || quiz?.totalMarks}
                           </Typography>
                           <Typography 
                             variant="body2" 
@@ -874,7 +874,7 @@ const QuizAuthorizedStudents = () => {
                               fontSize: { xs: '0.625rem', sm: '0.75rem' }
                             }}
                           >
-                            ({calculateScorePercentage(studentData.totalMarks, quiz?.totalMarks).toFixed(1)}%)
+                            ({calculateScorePercentage(studentData.totalMarks, quiz?.effectiveTotalMarks || quiz?.totalMarks).toFixed(1)}%)
                           </Typography>
                         </Box>
                       ) : (

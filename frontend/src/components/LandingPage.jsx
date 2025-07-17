@@ -64,22 +64,32 @@ const clearCache = () => {
 };
 
 const isPageReload = () => {
-  // Use performance.navigation.type to detect reload
-  // 0 = navigate, 1 = reload, 2 = back/forward
+  // Modern browsers: Use Navigation API
+  if (performance.getEntriesByType) {
+    const navEntries = performance.getEntriesByType('navigation');
+    if (navEntries.length > 0) {
+      const navType = navEntries[0].type;
+      console.log('🔍 Navigation type:', navType);
+      return navType === 'reload';
+    }
+  }
+
+  // Fallback: Legacy performance.navigation
   if (performance.navigation && performance.navigation.type === 1) {
+    console.log('🔍 Legacy navigation type: reload');
     return true;
   }
 
-  // Fallback: Check if this is a fresh browser session
+  // Check if this is navigation return
   const isNavigation = sessionStorage.getItem(NAVIGATION_KEY);
-
-  // If we have navigation flag, it's navigation (not reload)
   if (isNavigation === 'true') {
+    console.log('🔍 Navigation return detected');
     sessionStorage.removeItem(NAVIGATION_KEY);
     return false;
   }
 
-  // For first time visit or unclear cases, show loading
+  // Default: treat as reload/fresh load
+  console.log('🔍 Default: treating as reload/fresh load');
   return true;
 };
 
@@ -182,6 +192,8 @@ const LandingPage = () => {
 
       if (isReload) {
         console.log('🔄 Page reload detected - showing loading animation');
+        // Clear cache on reload to ensure fresh data
+        clearCache();
       } else {
         console.log('🔄 Loading fresh landing page data');
       }
@@ -246,6 +258,21 @@ const LandingPage = () => {
     };
 
     initializePage();
+  }, []);
+
+  // Set navigation flag when leaving the page
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Only set navigation flag if it's not a reload
+      if (!isPageReload()) {
+        setNavigationFlag();
+      }
+    };
+
+    // Set navigation flag when component unmounts (navigation)
+    return () => {
+      setNavigationFlag();
+    };
   }, []);
 
   // Add keyboard shortcut to clear cache (Ctrl+Shift+R)

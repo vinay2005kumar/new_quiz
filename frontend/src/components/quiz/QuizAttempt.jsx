@@ -425,7 +425,7 @@ const QuizAttempt = () => {
               <strong>Total Questions:</strong> {quiz?.questions?.length || 0}
             </Typography>
             <Typography variant="body2" gutterBottom>
-              <strong>Total Marks:</strong> {quiz?.totalMarks || 0}
+              <strong>Total Marks:</strong> {quiz?.effectiveTotalMarks || quiz?.totalMarks || 0}
             </Typography>
             {quiz?.subject && (
               <Typography variant="body2" gutterBottom>
@@ -522,7 +522,7 @@ const QuizAttempt = () => {
                   <strong>Total Questions:</strong> {quiz?.questions?.length || 0}
                 </Typography>
                 <Typography variant="body2" gutterBottom sx={{ color: 'text.primary' }}>
-                  <strong>Total Marks:</strong> {quiz?.totalMarks || 0}
+                  <strong>Total Marks:</strong> {quiz?.effectiveTotalMarks || quiz?.totalMarks || 0}
                 </Typography>
                 {quiz?.subject && (
                   <Typography variant="body2" gutterBottom sx={{ color: 'text.primary' }}>
@@ -1114,7 +1114,7 @@ const QuizAttempt = () => {
                 Your Score
               </Typography>
               <Typography variant="h2" color="primary" gutterBottom>
-                {submissionResult.answers?.reduce((total, ans) => total + (ans.marks || 0), 0) || 0} / {quiz?.totalMarks || 0}
+                {submissionResult.answers?.reduce((total, ans) => total + (ans.marks || 0), 0) || 0} / {quiz?.effectiveTotalMarks || quiz?.totalMarks || 0}
               </Typography>
               <Typography variant="body1" color="text.secondary" gutterBottom>
                 Questions Attempted: {Object.keys(answers).length} of {quiz?.questions?.length || 0}

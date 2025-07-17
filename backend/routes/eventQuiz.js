@@ -136,6 +136,38 @@ const memoryUpload = multer({
   }
 });
 
+// Check if event quiz title is unique (public endpoint for real-time validation)
+router.get('/check-title/:title', async (req, res) => {
+  try {
+    const { title } = req.params;
+    const { excludeId } = req.query; // For editing existing quiz
+
+    if (!title || title.trim().length === 0) {
+      return res.status(400).json({ message: 'Title is required' });
+    }
+
+    const query = {
+      title: { $regex: new RegExp(`^${title.trim()}$`, 'i') } // Case-insensitive exact match
+    };
+
+    // Exclude current quiz when editing
+    if (excludeId) {
+      query._id = { $ne: excludeId };
+    }
+
+    const existingQuiz = await EventQuiz.findOne(query);
+
+    res.json({
+      isUnique: !existingQuiz,
+      exists: !!existingQuiz,
+      message: existingQuiz ? 'An event quiz with this title already exists' : 'Title is available'
+    });
+  } catch (error) {
+    console.error('Error checking event quiz title:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // Create a new event quiz
 router.post('/', auth, authorize('faculty', 'admin', 'event'), async (req, res) => {
   try {
@@ -1115,7 +1147,8 @@ router.get('/:id/public-access', async (req, res) => {
         participationMode: quiz.participationMode,
         teamSize: quiz.teamSize,
         totalQuestions: quiz.questions.length,
-        totalMarks: quiz.questions.reduce((sum, q) => sum + (q.marks || 1), 0)
+        totalMarks: quiz.questionLimitEnabled ? quiz.getEffectiveTotalMarks() : quiz.questions.reduce((sum, q) => sum + (q.marks || 1), 0),
+        effectiveTotalMarks: quiz.questionLimitEnabled ? quiz.getEffectiveTotalMarks() : undefined
       },
       questions,
       timeRemaining: Math.max(0, endTime.getTime() - now.getTime()),
@@ -1181,11 +1214,11 @@ router.get('/:id/questions', async (req, res) => {
     // Get participant ID for shuffling (use session token as unique identifier)
     const participantId = sessionToken;
 
-    // Get questions (shuffled if enabled)
+    // Get questions (shuffled and/or limited if enabled)
     let questionsToUse = quiz.questions;
-    if (quiz.shuffleQuestions) {
+    if (quiz.shuffleQuestions || quiz.questionLimitEnabled || quiz.randomizeQuestionsPerStudent) {
       questionsToUse = quiz.getShuffledQuestions(participantId);
-      console.log(`🔍 QUESTIONS: Questions shuffled for participant ${participantId.substring(0, 8)}...`);
+      console.log(`🔍 QUESTIONS: Questions processed for participant ${participantId.substring(0, 8)}... (shuffled: ${quiz.shuffleQuestions}, limited: ${quiz.questionLimitEnabled}, randomized: ${quiz.randomizeQuestionsPerStudent})`);
     }
 
     // Return questions without correct answers
@@ -1216,7 +1249,8 @@ router.get('/:id/questions', async (req, res) => {
         endTime: quiz.endTime,
         questionDisplayMode: quiz.questionDisplayMode || 'one-by-one', // Include question display mode
         participationMode: quiz.participationMode,
-        teamSize: quiz.teamSize
+        teamSize: quiz.teamSize,
+        effectiveTotalMarks: quiz.questionLimitEnabled ? quiz.getEffectiveTotalMarks() : undefined
       },
       questions,
       timeRemaining: timeRemainingFromDuration

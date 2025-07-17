@@ -182,8 +182,8 @@ const QuizSubmissionView = () => {
                 <Grid container spacing={isMobile ? 1 : 2}>
                   <Grid item xs={12} sm={6} md={3}>
                     <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                      <strong>Score:</strong> {submission.totalMarks}/{submission.quiz?.totalMarks}
-                      {' '}({Math.round((submission.totalMarks / submission.quiz?.totalMarks) * 100)}%)
+                      <strong>Score:</strong> {submission.totalMarks}/{submission.quiz?.effectiveTotalMarks || submission.quiz?.totalMarks}
+                      {' '}({Math.round((submission.totalMarks / (submission.quiz?.effectiveTotalMarks || submission.quiz?.totalMarks)) * 100)}%)
                     </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6} md={3}>

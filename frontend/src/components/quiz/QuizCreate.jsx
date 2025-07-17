@@ -63,6 +63,10 @@ const QuizCreate = () => {
     allowedGroups: [],
     questionDisplayMode: 'oneByOne',
     negativeMarkingEnabled: false,
+    // Question limiting and randomization settings
+    questionLimitEnabled: false,
+    questionLimit: 10,
+    randomizeQuestionsPerStudent: false,
     securitySettings: {
       enableFullscreen: false,
       disableRightClick: false,
@@ -83,21 +87,7 @@ const QuizCreate = () => {
     }
   ]);
 
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    duration: 30,
-    startTime: null,
-    endTime: null,
-    totalMarks: 0,
-    passingMarks: 0,
-    department: '',
-    year: '',
-    section: '',
-    questions: [],
-    allowSpotRegistration: false,
-    // ... any other existing fields ...
-  });
+
 
   const steps = ['Choose Input Method', 'Create Quiz', 'Review & Submit'];
 
@@ -120,6 +110,7 @@ const QuizCreate = () => {
   
       // Validate basic details
       if (!basicDetails.title?.trim()) throw new Error('Quiz title is required');
+
       if (!basicDetails.subject) throw new Error('Subject is required');
       if (!basicDetails.duration || basicDetails.duration < 1) throw new Error('Valid duration is required');
       if (!basicDetails.startTime) throw new Error('Start time is required');
@@ -149,6 +140,16 @@ const QuizCreate = () => {
       // Validate questions
       if (!questions?.length) throw new Error('At least one question is required');
   
+      // Validate question limit settings
+      if (basicDetails.questionLimitEnabled) {
+        if (!basicDetails.questionLimit || basicDetails.questionLimit < 1) {
+          throw new Error('Question limit must be at least 1 when enabled');
+        }
+        if (basicDetails.questionLimit > questions.length) {
+          throw new Error(`Question limit (${basicDetails.questionLimit}) cannot exceed total number of questions (${questions.length})`);
+        }
+      }
+
       // Validate each question
       for (let i = 0; i < questions.length; i++) {
         const q = questions[i];
@@ -198,6 +199,10 @@ const QuizCreate = () => {
         type: 'academic',
         questionDisplayMode: basicDetails.questionDisplayMode || 'oneByOne',
         negativeMarkingEnabled: basicDetails.negativeMarkingEnabled || false,
+        // Question limiting and randomization settings
+        questionLimitEnabled: basicDetails.questionLimitEnabled || false,
+        questionLimit: basicDetails.questionLimitEnabled ? parseInt(basicDetails.questionLimit) || 10 : undefined,
+        randomizeQuestionsPerStudent: basicDetails.randomizeQuestionsPerStudent || false,
         securitySettings: basicDetails.securitySettings || {
           enableFullscreen: false,
           disableRightClick: false,
@@ -251,9 +256,13 @@ const QuizCreate = () => {
         
         // Handle different types of errors
         if (error.response) {
-          // The request was made and the server responded with a status code
-          // that falls out of the range of 2xx
-          setError(error.response.data?.message || 'Server error occurred');
+          // Check for duplicate title error
+          const errorMessage = error.response.data?.message || '';
+          if (errorMessage.includes('E11000') || errorMessage.includes('duplicate key') || errorMessage.includes('duplicate')) {
+            setError('A quiz with this title already exists. Please choose a different title.');
+          } else {
+            setError(errorMessage || 'Server error occurred');
+          }
         } else if (error.request) {
           // The request was made but no response was received
           setError('No response from server. Please check your connection.');
@@ -327,6 +336,7 @@ const QuizCreate = () => {
               setError={setError}
               filters={filters}
               setFilters={setFilters}
+              questions={questions}
             />
           </Box>
         </Box>
@@ -578,25 +588,7 @@ const QuizCreate = () => {
             </Box>
 
             {/* Add spot registration toggle for event quizzes */}
-            {user?.role === 'event' && (
-              <Grid item xs={12}>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={formData.allowSpotRegistration}
-                      onChange={(e) => setFormData({ ...formData, allowSpotRegistration: e.target.checked })}
-                      name="allowSpotRegistration"
-                    />
-                  }
-                  label="Allow Spot Registration"
-                />
-                {formData.allowSpotRegistration && (
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                    Students can register and take the quiz without prior account creation.
-                  </Typography>
-                )}
-              </Grid>
-            )}
+
           </>
         )}
       </Paper>

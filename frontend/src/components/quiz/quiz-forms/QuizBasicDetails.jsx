@@ -16,23 +16,91 @@ import {
   FormControlLabel,
   Radio,
   Switch,
-  FormGroup
+  FormGroup,
+  Paper
 } from '@mui/material';
 import { useAuth } from '../../../context/AuthContext';
 import api from '../../../config/axios';
 
-const QuizBasicDetails = ({ 
-  basicDetails, 
-  setBasicDetails, 
-  error, 
+const QuizBasicDetails = ({
+  basicDetails,
+  setBasicDetails,
+  error,
   setError,
   filters,
-  setFilters 
+  setFilters,
+  questions = []
 }) => {
   const { user } = useAuth();
   const [academicStructure, setAcademicStructure] = useState(null);
   const [loading, setLoading] = useState(true);
   const [subjects, setSubjects] = useState([]);
+  const [titleError, setTitleError] = useState('');
+  const [isCheckingTitle, setIsCheckingTitle] = useState(false);
+
+  // Real-time title validation
+  const checkTitleUniqueness = useCallback(async (title) => {
+    console.log('🔍 Checking title uniqueness for:', title);
+
+    if (!title || title.trim().length === 0) {
+      console.log('❌ Title is empty, clearing error');
+      setTitleError('');
+      return;
+    }
+
+    try {
+      setIsCheckingTitle(true);
+      console.log('🌐 Making API call to:', `/api/quiz/check-title/${encodeURIComponent(title.trim())}`);
+
+      const response = await api.get(`/api/quiz/check-title/${encodeURIComponent(title.trim())}`);
+      console.log('📡 Full API Response:', response);
+
+      // The axios interceptor returns response.data, so response is actually the data
+      const data = response;
+      console.log('📡 Processed Data:', data);
+
+      if (data && !data.isUnique) {
+        console.log('🔴 Title already exists, setting error');
+        setTitleError('A quiz with this title already exists');
+      } else if (data && data.isUnique) {
+        console.log('✅ Title is unique, clearing error');
+        setTitleError('');
+      } else {
+        console.log('⚠️ Unexpected response format:', data);
+        setTitleError('');
+      }
+    } catch (error) {
+      console.error('❌ Error checking title:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      setTitleError('');
+    } finally {
+      setIsCheckingTitle(false);
+    }
+  }, []);
+
+  // Debounced title check
+  useEffect(() => {
+    console.log('⏰ Title changed, setting up debounced check for:', basicDetails.title);
+
+    const timeoutId = setTimeout(() => {
+      console.log('🚀 Debounce timeout triggered, checking title:', basicDetails.title);
+      if (basicDetails.title) {
+        checkTitleUniqueness(basicDetails.title);
+      } else {
+        console.log('📝 Title is empty, clearing error');
+        setTitleError('');
+      }
+    }, 500); // 500ms delay
+
+    return () => {
+      console.log('🧹 Cleaning up timeout for title:', basicDetails.title);
+      clearTimeout(timeoutId);
+    };
+  }, [basicDetails.title, checkTitleUniqueness]);
 
   // Fetch academic structure
   useEffect(() => {
@@ -382,57 +450,107 @@ const QuizBasicDetails = ({
       }
     }
 
+    // Handle number fields properly
+    let processedValue = value;
+    if (name === 'questionLimit' || name === 'duration') {
+      if (name === 'questionLimit') {
+        // For question limit, allow any positive number or empty string
+        const numValue = parseInt(value);
+        if (value === '') {
+          processedValue = '';
+        } else if (!isNaN(numValue) && numValue > 0) {
+          processedValue = numValue;
+        } else {
+          processedValue = 1; // Minimum value
+        }
+      } else {
+        // For duration, keep existing logic
+        const numValue = parseInt(value);
+        processedValue = numValue || 30;
+      }
+    }
+
     setBasicDetails(prev => ({
       ...prev,
-      [name]: value
+      [name]: processedValue
     }));
   };
 
   return (
-    <Grid container spacing={2}>
+    <Box sx={{ p: 2 }}>
       {error && (
-        <Grid item xs={12}>
-          <Alert severity="error">{error}</Alert>
-        </Grid>
+        <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>
       )}
 
-      <Grid item xs={12}>
-        <TextField
-          fullWidth
-          label="Quiz Title"
-          name="title"
-          value={basicDetails.title}
-          onChange={handleBasicDetailsChange}
-          required
-        />
-      </Grid>
+      {/* Basic Information Section */}
+      <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h6" sx={{ mb: 3, color: 'primary.main', display: 'flex', alignItems: 'center' }}>
+          📝 Basic Information
+        </Typography>
 
-      <Grid item xs={12} sm={6}>
-        <FormControl fullWidth required>
-          <InputLabel>Department</InputLabel>
-          <Select
-            name="department"
-            value={filters.department}
-            onChange={handleFilterChange}
-            disabled={loading}
-          >
-            {academicStructure && Object.keys(academicStructure)
-              .filter(dept => {
-                // For faculty users, only show departments they have assignments in
-                if (user?.role === 'faculty') {
-                  return user?.assignments?.some(assignment => assignment.department === dept);
+        <Grid container spacing={3}>
+          <Grid item xs={12}>
+            <TextField
+              fullWidth
+              label="Quiz Title"
+              name="title"
+              value={basicDetails.title}
+              onChange={(e) => {
+                console.log('📝 Title input changed to:', e.target.value);
+                handleBasicDetailsChange(e);
+              }}
+              required
+              error={!!titleError || (error && error.toLowerCase().includes('title already exists'))}
+              helperText={titleError || (error && error.toLowerCase().includes('title already exists') ? error : '')}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  '&.Mui-error': {
+                    '& fieldset': {
+                      borderColor: 'error.main',
+                      borderWidth: 2
+                    }
+                  }
                 }
-                // For admin users, show all departments
-                return true;
-              })
-              .map(dept => (
-                <MenuItem key={dept} value={dept}>
-                  {dept}
-                </MenuItem>
-              ))}
-          </Select>
-        </FormControl>
-      </Grid>
+              }}
+            />
+          </Grid>
+
+        </Grid>
+      </Paper>
+
+      {/* Academic Details Section */}
+      <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h6" sx={{ mb: 3, color: 'primary.main', display: 'flex', alignItems: 'center' }}>
+          🎓 Academic Details
+        </Typography>
+
+        <Grid container spacing={3}>
+          <Grid item xs={12} sm={6}>
+            <FormControl fullWidth required>
+              <InputLabel>Department</InputLabel>
+              <Select
+                name="department"
+                value={filters.department}
+                onChange={handleFilterChange}
+                disabled={loading}
+              >
+                {academicStructure && Object.keys(academicStructure)
+                  .filter(dept => {
+                    // For faculty users, only show departments they have assignments in
+                    if (user?.role === 'faculty') {
+                      return user?.assignments?.some(assignment => assignment.department === dept);
+                    }
+                    // For admin users, show all departments
+                    return true;
+                  })
+                  .map(dept => (
+                    <MenuItem key={dept} value={dept}>
+                      {dept}
+                    </MenuItem>
+                  ))}
+              </Select>
+            </FormControl>
+          </Grid>
 
       <Grid item xs={12} sm={6}>
         <FormControl fullWidth required>
@@ -502,7 +620,19 @@ const QuizBasicDetails = ({
           <InputLabel>Subject</InputLabel>
           <Select
             name="subject"
-            value={basicDetails.subject?.code || basicDetails.subject || ''}
+            value={(() => {
+              const currentValue = basicDetails.subject?.code || basicDetails.subject || '';
+              // If subjects are loaded and current value exists in subjects, use it
+              if (subjects.length > 0 && subjects.some(s => s.code === currentValue)) {
+                return currentValue;
+              }
+              // If subjects are loaded but current value doesn't exist, clear it
+              if (subjects.length > 0) {
+                return '';
+              }
+              // If subjects haven't loaded yet, use current value (will be handled by loading state)
+              return currentValue;
+            })()}
             onChange={handleBasicDetailsChange}
             disabled={!filters.semester || loading}
           >
@@ -514,7 +644,9 @@ const QuizBasicDetails = ({
               ))
             ) : (
               <MenuItem disabled value="">
-                {user?.role === 'faculty'
+                {loading
+                  ? 'Loading subjects...'
+                  : user?.role === 'faculty'
                   ? 'No subjects assigned to you for this semester'
                   : 'No subjects available for this semester'
                 }
@@ -568,152 +700,242 @@ const QuizBasicDetails = ({
           💡 This setting indicates whether negative marking is allowed in this quiz. Individual negative marks will be set per question.
         </Typography>
       </Grid>
+        </Grid>
+      </Paper>
 
-      {/* Security Settings */}
-      <Grid item xs={12}>
-        <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
+      {/* Security Settings Section */}
+      <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h6" sx={{ mb: 3, color: 'primary.main', display: 'flex', alignItems: 'center' }}>
           🔒 Security Settings
         </Typography>
 
+        <Grid container spacing={3}>
+          <Grid item xs={12} sm={6}>
+            <FormGroup>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={basicDetails.securitySettings?.enableFullscreen || false}
+                    onChange={(e) => handleBasicDetailsChange({
+                      target: {
+                        name: 'securitySettings',
+                        value: {
+                          ...basicDetails.securitySettings,
+                          enableFullscreen: e.target.checked
+                        }
+                      }
+                    })}
+                    name="enableFullscreen"
+                  />
+                }
+                label="🖥️ Enable Fullscreen Mode"
+              />
+              <Typography variant="caption" color="text.secondary">
+                Forces quiz to open in fullscreen mode and prevents exiting
+              </Typography>
+            </FormGroup>
+          </Grid>
+
+          <Grid item xs={12} sm={6}>
+            <FormGroup>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={basicDetails.securitySettings?.disableRightClick || false}
+                    onChange={(e) => handleBasicDetailsChange({
+                      target: {
+                        name: 'securitySettings',
+                        value: {
+                          ...basicDetails.securitySettings,
+                          disableRightClick: e.target.checked
+                        }
+                      }
+                    })}
+                    name="disableRightClick"
+                  />
+                }
+                label="🚫 Disable Right Click"
+              />
+              <Typography variant="caption" color="text.secondary">
+                Prevents right-click context menu during quiz
+              </Typography>
+            </FormGroup>
+          </Grid>
+
+          <Grid item xs={12} sm={6}>
+            <FormGroup>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={basicDetails.securitySettings?.disableCopyPaste || false}
+                    onChange={(e) => handleBasicDetailsChange({
+                      target: {
+                        name: 'securitySettings',
+                        value: {
+                          ...basicDetails.securitySettings,
+                          disableCopyPaste: e.target.checked
+                        }
+                      }
+                    })}
+                    name="disableCopyPaste"
+                  />
+                }
+                label="📋 Disable Copy/Paste"
+              />
+              <Typography variant="caption" color="text.secondary">
+                Prevents copying and pasting during quiz
+              </Typography>
+            </FormGroup>
+          </Grid>
+
+          <Grid item xs={12} sm={6}>
+            <FormGroup>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={basicDetails.securitySettings?.disableTabSwitch || false}
+                    onChange={(e) => handleBasicDetailsChange({
+                      target: {
+                        name: 'securitySettings',
+                        value: {
+                          ...basicDetails.securitySettings,
+                          disableTabSwitch: e.target.checked
+                        }
+                      }
+                    })}
+                    name="disableTabSwitch"
+                  />
+                }
+                label="🔄 Disable Tab Switching"
+              />
+              <Typography variant="caption" color="text.secondary">
+                Warns when user tries to switch tabs or windows
+              </Typography>
+            </FormGroup>
+          </Grid>
+
+          <Grid item xs={12} sm={6}>
+            <FormGroup>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={basicDetails.securitySettings?.enableProctoringMode || false}
+                    onChange={(e) => handleBasicDetailsChange({
+                      target: {
+                        name: 'securitySettings',
+                        value: {
+                          ...basicDetails.securitySettings,
+                          enableProctoringMode: e.target.checked
+                        }
+                      }
+                    })}
+                    name="enableProctoringMode"
+                  />
+                }
+                label="👁️ Enable Proctoring Mode"
+              />
+              <Typography variant="caption" color="text.secondary">
+                Enables all security features and monitors user activity
+              </Typography>
+            </FormGroup>
+          </Grid>
+        </Grid>
+      </Paper>
+
+      {/* Question Selection Settings Section */}
+      <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h6" sx={{ mb: 3, color: 'primary.main', display: 'flex', alignItems: 'center' }}>
+          📊 Question Selection Settings
+        </Typography>
+
+        <Grid container spacing={3}>
+          <Grid item xs={12} sm={6}>
+            <FormGroup>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={basicDetails.shuffleQuestions || false}
+                    onChange={(e) => handleBasicDetailsChange({
+                      target: {
+                        name: 'shuffleQuestions',
+                        value: e.target.checked
+                      }
+                    })}
+                    name="shuffleQuestions"
+                  />
+                }
+                label="🔀 Shuffle Questions"
+              />
+              <Typography variant="caption" color="text.secondary">
+                Each student will receive questions in a different random order
+              </Typography>
+            </FormGroup>
+          </Grid>
+
+          <Grid item xs={12} sm={6}>
+            <FormGroup>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={basicDetails.questionLimitEnabled || false}
+                    onChange={(e) => handleBasicDetailsChange({
+                      target: {
+                        name: 'questionLimitEnabled',
+                        value: e.target.checked
+                      }
+                    })}
+                    name="questionLimitEnabled"
+                  />
+                }
+                label="🎯 Limit Number of Questions"
+              />
+              <Typography variant="caption" color="text.secondary">
+                Show only a subset of questions instead of all questions
+              </Typography>
+            </FormGroup>
+      </Grid>
+
+      {basicDetails.questionLimitEnabled && (
+        <Grid item xs={12} sm={6}>
+          <TextField
+            fullWidth
+            label="Number of Questions to Show"
+            name="questionLimit"
+            type="number"
+            value={basicDetails.questionLimit || ''}
+            onChange={handleBasicDetailsChange}
+            inputProps={{
+              min: 1,
+              max: questions.length > 0 ? questions.length : 100,
+              step: 1
+            }}
+            placeholder="Enter number of questions"
+            helperText={`Maximum questions each student will see${questions.length > 0 ? ` (out of ${questions.length} total)` : ''}`}
+            required
+          />
+        </Grid>
+      )}
+
+      <Grid item xs={12} sm={6}>
         <FormGroup>
           <FormControlLabel
             control={
               <Switch
-                checked={basicDetails.securitySettings?.enableFullscreen || false}
+                checked={basicDetails.randomizeQuestionsPerStudent || false}
                 onChange={(e) => handleBasicDetailsChange({
                   target: {
-                    name: 'securitySettings',
-                    value: {
-                      ...basicDetails.securitySettings,
-                      enableFullscreen: e.target.checked
-                    }
-                  }
-                })}
-                name="enableFullscreen"
-              />
-            }
-            label="Enable Fullscreen Mode"
-          />
-          <Typography variant="caption" color="text.secondary">
-            Forces quiz to open in fullscreen mode and prevents exiting
-          </Typography>
-        </FormGroup>
-
-        <FormGroup>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={basicDetails.securitySettings?.disableRightClick || false}
-                onChange={(e) => handleBasicDetailsChange({
-                  target: {
-                    name: 'securitySettings',
-                    value: {
-                      ...basicDetails.securitySettings,
-                      disableRightClick: e.target.checked
-                    }
-                  }
-                })}
-                name="disableRightClick"
-              />
-            }
-            label="Disable Right Click"
-          />
-          <Typography variant="caption" color="text.secondary">
-            Prevents right-click context menu during quiz
-          </Typography>
-        </FormGroup>
-
-        <FormGroup>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={basicDetails.securitySettings?.disableCopyPaste || false}
-                onChange={(e) => handleBasicDetailsChange({
-                  target: {
-                    name: 'securitySettings',
-                    value: {
-                      ...basicDetails.securitySettings,
-                      disableCopyPaste: e.target.checked
-                    }
-                  }
-                })}
-                name="disableCopyPaste"
-              />
-            }
-            label="Disable Copy/Paste"
-          />
-          <Typography variant="caption" color="text.secondary">
-            Prevents copying and pasting during quiz
-          </Typography>
-        </FormGroup>
-
-        <FormGroup>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={basicDetails.securitySettings?.disableTabSwitch || false}
-                onChange={(e) => handleBasicDetailsChange({
-                  target: {
-                    name: 'securitySettings',
-                    value: {
-                      ...basicDetails.securitySettings,
-                      disableTabSwitch: e.target.checked
-                    }
-                  }
-                })}
-                name="disableTabSwitch"
-              />
-            }
-            label="Disable Tab Switching"
-          />
-          <Typography variant="caption" color="text.secondary">
-            Warns when user tries to switch tabs or windows
-          </Typography>
-        </FormGroup>
-
-        <FormGroup>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={basicDetails.securitySettings?.enableProctoringMode || false}
-                onChange={(e) => handleBasicDetailsChange({
-                  target: {
-                    name: 'securitySettings',
-                    value: {
-                      ...basicDetails.securitySettings,
-                      enableProctoringMode: e.target.checked
-                    }
-                  }
-                })}
-                name="enableProctoringMode"
-              />
-            }
-            label="Enable Proctoring Mode"
-          />
-          <Typography variant="caption" color="text.secondary">
-            Enables all security features and monitors user activity
-          </Typography>
-        </FormGroup>
-
-        {/* Shuffle Questions Setting */}
-        <FormGroup sx={{ mt: 2 }}>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={basicDetails.shuffleQuestions || false}
-                onChange={(e) => handleBasicDetailsChange({
-                  target: {
-                    name: 'shuffleQuestions',
+                    name: 'randomizeQuestionsPerStudent',
                     value: e.target.checked
                   }
                 })}
-                name="shuffleQuestions"
+                name="randomizeQuestionsPerStudent"
+                disabled={!basicDetails.questionLimitEnabled}
               />
             }
-            label="🔀 Shuffle Questions"
+            label="🎲 Different Questions per Student"
           />
           <Typography variant="caption" color="text.secondary">
-            Each student will receive questions in a different random order
+            Each student gets different questions from the question pool
           </Typography>
         </FormGroup>
       </Grid>
@@ -741,34 +963,45 @@ const QuizBasicDetails = ({
             />
           </RadioGroup>
         </FormControl>
-      </Grid>
+          </Grid>
+        </Grid>
+      </Paper>
 
-      <Grid item xs={12} sm={6}>
-        <TextField
-          fullWidth
-          label="Start Time"
-          name="startTime"
-          type="datetime-local"
-          value={basicDetails.startTime}
-          onChange={handleBasicDetailsChange}
-          InputLabelProps={{ shrink: true }}
-          required
-        />
-      </Grid>
+      {/* Timing & Schedule Section */}
+      <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h6" sx={{ mb: 3, color: 'primary.main', display: 'flex', alignItems: 'center' }}>
+          ⏰ Timing & Schedule
+        </Typography>
 
-      <Grid item xs={12} sm={6}>
-        <TextField
-          fullWidth
-          label="End Time"
-          name="endTime"
-          type="datetime-local"
-          value={basicDetails.endTime}
-          onChange={handleBasicDetailsChange}
-          InputLabelProps={{ shrink: true }}
-          required
-        />
-      </Grid>
-    </Grid>
+        <Grid container spacing={3}>
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="Start Time"
+              name="startTime"
+              type="datetime-local"
+              value={basicDetails.startTime}
+              onChange={handleBasicDetailsChange}
+              InputLabelProps={{ shrink: true }}
+              required
+            />
+          </Grid>
+
+          <Grid item xs={12} sm={6}>
+            <TextField
+              fullWidth
+              label="End Time"
+              name="endTime"
+              type="datetime-local"
+              value={basicDetails.endTime}
+              onChange={handleBasicDetailsChange}
+              InputLabelProps={{ shrink: true }}
+              required
+            />
+          </Grid>
+        </Grid>
+      </Paper>
+    </Box>
   );
 };
 

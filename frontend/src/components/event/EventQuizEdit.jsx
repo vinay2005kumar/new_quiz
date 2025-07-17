@@ -21,12 +21,10 @@ import {
   Stack,
   Switch,
   Radio,
-  RadioGroup
+  RadioGroup,
+  FormGroup
 } from '@mui/material';
-import { Delete as DeleteIcon, Add as AddIcon } from '@mui/icons-material';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
+import { Delete as DeleteIcon, Add as AddIcon, ArrowBack as ArrowBackIcon } from '@mui/icons-material';
 import api from '../../config/axios';
 import AddQuestionModal from '../quiz/AddQuestionModal';
 
@@ -53,6 +51,21 @@ const EventQuizEdit = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Helper function to format date for datetime-local input
+  const formatDateForInput = (date) => {
+    if (!date) return '';
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return '';
+
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -98,6 +111,10 @@ const EventQuizEdit = () => {
     spotRegistrationEnabled: false,
     negativeMarkingEnabled: false,
     shuffleQuestions: false,
+    // Question limiting and randomization settings
+    questionLimitEnabled: false,
+    questionLimit: 10,
+    randomizeQuestionsPerStudent: false,
     securitySettings: {
       enableFullscreen: false,
       disableRightClick: false,
@@ -112,6 +129,8 @@ const EventQuizEdit = () => {
 
   // Add Question Modal state
   const [addQuestionModalOpen, setAddQuestionModalOpen] = useState(false);
+
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -152,6 +171,9 @@ const EventQuizEdit = () => {
           spotRegistrationEnabled: quizResponse.spotRegistrationEnabled !== undefined ? quizResponse.spotRegistrationEnabled : false,
           negativeMarkingEnabled: quizResponse.negativeMarkingEnabled !== undefined ? quizResponse.negativeMarkingEnabled : false,
           shuffleQuestions: quizResponse.shuffleQuestions !== undefined ? quizResponse.shuffleQuestions : false,
+          questionLimitEnabled: quizResponse.questionLimitEnabled !== undefined ? quizResponse.questionLimitEnabled : false,
+          questionLimit: quizResponse.questionLimit || 10,
+          randomizeQuestionsPerStudent: quizResponse.randomizeQuestionsPerStudent !== undefined ? quizResponse.randomizeQuestionsPerStudent : false,
           securitySettings: quizResponse.securitySettings || {
             enableFullscreen: false,
             disableRightClick: false,
@@ -311,12 +333,22 @@ const EventQuizEdit = () => {
     
     try {
       setLoading(true);
+
+
+
       await api.put(`/api/event-quiz/${id}`, formData);
       setSuccess('Quiz updated successfully');
       setTimeout(() => handleBackNavigation(), 1500);
     } catch (error) {
       console.error('Error updating quiz:', error);
-      setError(error.response?.data?.message || 'Failed to update quiz');
+
+      // Handle duplicate title error
+      const errorMessage = error.response?.data?.message || '';
+      if (errorMessage.includes('E11000') || errorMessage.includes('duplicate key') || errorMessage.includes('duplicate')) {
+        setError('An event quiz with this title already exists. Please choose a different title.');
+      } else {
+        setError(errorMessage || 'Failed to update quiz');
+      }
     } finally {
       setLoading(false);
     }
@@ -333,9 +365,18 @@ const EventQuizEdit = () => {
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
       <Paper sx={{ p: 3 }}>
-        <Typography variant="h5" gutterBottom>
-          Edit Event Quiz
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+          <IconButton
+            onClick={handleBackNavigation}
+            sx={{ mr: 2 }}
+            aria-label="Go back"
+          >
+            <ArrowBackIcon />
+          </IconButton>
+          <Typography variant="h5" gutterBottom sx={{ mb: 0 }}>
+            Edit Event Quiz
+          </Typography>
+        </Box>
 
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
@@ -359,6 +400,18 @@ const EventQuizEdit = () => {
                 name="title"
                 value={formData.title}
                 onChange={handleChange}
+                error={error && error.toLowerCase().includes('title already exists')}
+                helperText={error && error.toLowerCase().includes('title already exists') ? error : ''}
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    '&.Mui-error': {
+                      '& fieldset': {
+                        borderColor: 'error.main',
+                        borderWidth: 2
+                      }
+                    }
+                  }
+                }}
               />
             </Grid>
 
@@ -400,25 +453,29 @@ const EventQuizEdit = () => {
             </Grid>
 
             <Grid item xs={12} sm={6}>
-              <LocalizationProvider dateAdapter={AdapterDateFns}>
-                <DateTimePicker
-                  label="Start Time"
-                  value={formData.startTime}
-                  onChange={(value) => handleDateChange('startTime', value)}
-                  renderInput={(params) => <TextField {...params} fullWidth required />}
-                />
-              </LocalizationProvider>
+              <TextField
+                fullWidth
+                label="Start Time"
+                name="startTime"
+                type="datetime-local"
+                value={formatDateForInput(formData.startTime)}
+                onChange={handleChange}
+                InputLabelProps={{ shrink: true }}
+                required
+              />
             </Grid>
 
             <Grid item xs={12} sm={6}>
-              <LocalizationProvider dateAdapter={AdapterDateFns}>
-                <DateTimePicker
-                  label="End Time"
-                  value={formData.endTime}
-                  onChange={(value) => handleDateChange('endTime', value)}
-                  renderInput={(params) => <TextField {...params} fullWidth required />}
-                />
-              </LocalizationProvider>
+              <TextField
+                fullWidth
+                label="End Time"
+                name="endTime"
+                type="datetime-local"
+                value={formatDateForInput(formData.endTime)}
+                onChange={handleChange}
+                InputLabelProps={{ shrink: true }}
+                required
+              />
             </Grid>
 
             <Grid item xs={12} sm={6}>
@@ -516,143 +573,229 @@ const EventQuizEdit = () => {
               />
             </Grid>
 
-            {/* Security Settings */}
+            {/* Security Settings Section */}
             <Grid item xs={12}>
-              <Typography variant="subtitle1" gutterBottom sx={{ mt: 2 }}>
-                🔒 Security Settings
-              </Typography>
-
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={formData.securitySettings?.enableFullscreen || false}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          securitySettings: {
-                            ...prev.securitySettings,
-                            enableFullscreen: e.target.checked
-                          }
-                        }))}
-                        name="enableFullscreen"
-                      />
-                    }
-                    label="Enable Fullscreen Mode"
-                  />
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    Forces quiz to open in fullscreen mode and prevents exiting
-                  </Typography>
-                </Grid>
-
-                <Grid item xs={12} sm={6}>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={formData.securitySettings?.disableRightClick || false}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          securitySettings: {
-                            ...prev.securitySettings,
-                            disableRightClick: e.target.checked
-                          }
-                        }))}
-                        name="disableRightClick"
-                      />
-                    }
-                    label="Disable Right Click"
-                  />
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    Prevents right-click context menu during quiz
-                  </Typography>
-                </Grid>
-
-                <Grid item xs={12} sm={6}>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={formData.securitySettings?.disableCopyPaste || false}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          securitySettings: {
-                            ...prev.securitySettings,
-                            disableCopyPaste: e.target.checked
-                          }
-                        }))}
-                        name="disableCopyPaste"
-                      />
-                    }
-                    label="Disable Copy/Paste"
-                  />
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    Prevents copying and pasting during quiz
-                  </Typography>
-                </Grid>
-
-                <Grid item xs={12} sm={6}>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={formData.securitySettings?.disableTabSwitch || false}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          securitySettings: {
-                            ...prev.securitySettings,
-                            disableTabSwitch: e.target.checked
-                          }
-                        }))}
-                        name="disableTabSwitch"
-                      />
-                    }
-                    label="Disable Tab Switching"
-                  />
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    Warns when user tries to switch tabs or windows
-                  </Typography>
-                </Grid>
-
-                <Grid item xs={12} sm={6}>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={formData.securitySettings?.enableProctoringMode || false}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          securitySettings: {
-                            ...prev.securitySettings,
-                            enableProctoringMode: e.target.checked
-                          }
-                        }))}
-                        name="enableProctoringMode"
-                      />
-                    }
-                    label="Enable Proctoring Mode"
-                  />
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    Enables all security features and monitors user activity
-                  </Typography>
-                </Grid>
-              </Grid>
-
-              {/* Shuffle Questions Setting */}
-              <Grid item xs={12}>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={formData.shuffleQuestions || false}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        shuffleQuestions: e.target.checked
-                      }))}
-                      name="shuffleQuestions"
-                    />
-                  }
-                  label="🔀 Shuffle Questions"
-                />
-                <Typography variant="caption" color="text.secondary" display="block">
-                  Each participant will receive questions in a different random order
+              <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+                <Typography variant="h6" sx={{ mb: 3, color: 'primary.main', display: 'flex', alignItems: 'center' }}>
+                  🔒 Security Settings
                 </Typography>
-              </Grid>
+
+                <Grid container spacing={3}>
+                  <Grid item xs={12} sm={6}>
+                    <FormGroup>
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              checked={formData.securitySettings?.enableFullscreen || false}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                securitySettings: {
+                                  ...prev.securitySettings,
+                                  enableFullscreen: e.target.checked
+                                }
+                              }))}
+                              name="enableFullscreen"
+                            />
+                          }
+                          label="🖥️ Enable Fullscreen Mode"
+                        />
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Forces quiz to open in fullscreen mode and prevents exiting
+                        </Typography>
+                      </FormGroup>
+                    </Grid>
+
+                    <Grid item xs={12} sm={6}>
+                      <FormGroup>
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              checked={formData.securitySettings?.disableRightClick || false}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                securitySettings: {
+                                  ...prev.securitySettings,
+                                  disableRightClick: e.target.checked
+                                }
+                              }))}
+                              name="disableRightClick"
+                            />
+                          }
+                          label="🚫 Disable Right Click"
+                        />
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Prevents right-click context menu during quiz
+                        </Typography>
+                      </FormGroup>
+                    </Grid>
+
+                    <Grid item xs={12} sm={6}>
+                      <FormGroup>
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              checked={formData.securitySettings?.disableCopyPaste || false}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                securitySettings: {
+                                  ...prev.securitySettings,
+                                  disableCopyPaste: e.target.checked
+                                }
+                              }))}
+                              name="disableCopyPaste"
+                            />
+                          }
+                          label="📋 Disable Copy/Paste"
+                        />
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Prevents copying and pasting during quiz
+                        </Typography>
+                      </FormGroup>
+                    </Grid>
+
+                    <Grid item xs={12} sm={6}>
+                      <FormGroup>
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              checked={formData.securitySettings?.disableTabSwitch || false}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                securitySettings: {
+                                  ...prev.securitySettings,
+                                  disableTabSwitch: e.target.checked
+                                }
+                              }))}
+                              name="disableTabSwitch"
+                            />
+                          }
+                          label="🔄 Disable Tab Switching"
+                        />
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Warns when user tries to switch tabs or windows
+                        </Typography>
+                      </FormGroup>
+                    </Grid>
+
+                    <Grid item xs={12} sm={6}>
+                      <FormGroup>
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              checked={formData.securitySettings?.enableProctoringMode || false}
+                              onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                securitySettings: {
+                                  ...prev.securitySettings,
+                                  enableProctoringMode: e.target.checked
+                                }
+                              }))}
+                              name="enableProctoringMode"
+                            />
+                          }
+                          label="👁️ Enable Proctoring Mode"
+                        />
+                        <Typography variant="caption" color="text.secondary" display="block">
+                          Enables all security features and monitors user activity
+                        </Typography>
+                      </FormGroup>
+                    </Grid>
+                </Grid>
+              </Paper>
+            </Grid>
+
+            {/* Question Selection Settings Section */}
+            <Grid item xs={12}>
+              <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+                <Typography variant="h6" sx={{ mb: 3, color: 'primary.main', display: 'flex', alignItems: 'center' }}>
+                  📊 Question Selection Settings
+                </Typography>
+
+                <Grid container spacing={3}>
+                  <Grid item xs={12} sm={6}>
+                    <FormGroup>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={formData.shuffleQuestions || false}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              shuffleQuestions: e.target.checked
+                            }))}
+                            name="shuffleQuestions"
+                          />
+                        }
+                        label="🔀 Shuffle Questions"
+                      />
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        Each participant will receive questions in a different random order
+                      </Typography>
+                    </FormGroup>
+                  </Grid>
+
+                  <Grid item xs={12} sm={6}>
+                    <FormGroup>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={formData.questionLimitEnabled || false}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              questionLimitEnabled: e.target.checked
+                            }))}
+                            name="questionLimitEnabled"
+                          />
+                        }
+                        label="🎯 Limit Number of Questions"
+                      />
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        Show only a subset of questions instead of all questions
+                      </Typography>
+                    </FormGroup>
+                  </Grid>
+
+                  {formData.questionLimitEnabled && (
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        fullWidth
+                        label="Number of Questions to Show"
+                        name="questionLimit"
+                        type="number"
+                        value={formData.questionLimit || 10}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          questionLimit: parseInt(e.target.value) || 10
+                        }))}
+                        inputProps={{ min: 1, max: 100 }}
+                        helperText="Maximum questions each participant will see"
+                        required
+                      />
+                    </Grid>
+                  )}
+
+                  <Grid item xs={12} sm={6}>
+                    <FormGroup>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={formData.randomizeQuestionsPerStudent || false}
+                            onChange={(e) => setFormData(prev => ({
+                              ...prev,
+                              randomizeQuestionsPerStudent: e.target.checked
+                            }))}
+                            name="randomizeQuestionsPerStudent"
+                            disabled={!formData.questionLimitEnabled}
+                          />
+                        }
+                        label="🎲 Different Questions per Participant"
+                      />
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        Each participant gets different questions from the question pool
+                      </Typography>
+                    </FormGroup>
+                  </Grid>
+                </Grid>
+              </Paper>
             </Grid>
 
             {/* Participation Mode Section */}
@@ -964,7 +1107,6 @@ const EventQuizEdit = () => {
             </Grid>
           </Grid>
         </form>
-      </Paper>
 
       {/* Add Question Modal */}
       <AddQuestionModal
@@ -974,6 +1116,7 @@ const EventQuizEdit = () => {
         negativeMarkingEnabled={formData.negativeMarkingEnabled}
         isEventQuiz={true}
       />
+      </Paper>
     </Container>
   );
 };

@@ -131,7 +131,7 @@ const ReviewQuizzes = () => {
   const renderQuizCard = (submission) => {
     const quiz = submission.quiz;
     const score = submission.totalScore;
-    const maxScore = quiz.questions?.reduce((total, q) => total + q.marks, 0) || 0;
+    const maxScore = quiz.effectiveTotalMarks || quiz.questions?.reduce((total, q) => total + q.marks, 0) || 0;
     const percentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
     
     let performanceColor = 'error';

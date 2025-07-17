@@ -174,7 +174,7 @@ const QuizReview = () => {
             Quiz Review: {quizData?.title || 'N/A'}
           </Typography>
           <Typography variant="h5" color="primary" gutterBottom>
-            Score: {submission?.totalMarks || 0} / {quizData?.totalMarks || 0}
+            Score: {submission?.totalMarks || 0} / {quizData?.effectiveTotalMarks || quizData?.totalMarks || 0}
           </Typography>
           <Typography variant="body1" gutterBottom>
             Subject: {quizData?.subject?.name || 'N/A'}

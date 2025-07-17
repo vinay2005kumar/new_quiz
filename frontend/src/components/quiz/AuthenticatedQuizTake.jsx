@@ -69,6 +69,7 @@ const AuthenticatedQuizTake = () => {
     personalOverrideActive: false,
     reEnableSecurity: null
   });
+  const [collegeSettings, setCollegeSettings] = useState(null);
 
   useEffect(() => {
     // Check if we have the required data from login
@@ -90,6 +91,22 @@ const AuthenticatedQuizTake = () => {
 
     fetchQuestions();
   }, [quizId, location.state]);
+
+  // Fetch college settings for admin override
+  useEffect(() => {
+    const fetchCollegeSettings = async () => {
+      try {
+        console.log('🔧 AuthenticatedQuizTake: Fetching college settings...');
+        const response = await api.get('/api/admin/quiz-settings');
+        console.log('🔧 AuthenticatedQuizTake: College settings fetched:', response.data);
+        setCollegeSettings(response.data);
+      } catch (error) {
+        console.error('❌ AuthenticatedQuizTake: Failed to fetch college settings:', error);
+      }
+    };
+
+    fetchCollegeSettings();
+  }, []);
 
   // Enhanced full-screen security and prevention - TEMPORARILY DISABLED FOR TESTING
   /*
@@ -497,16 +514,34 @@ const AuthenticatedQuizTake = () => {
 
   return (
     <QuizSecurity
-      securitySettings={quiz.securitySettings || {
-        enableFullscreen: false,
-        disableRightClick: false,
-        disableCopyPaste: false,
-        disableTabSwitch: false,
-        enableProctoringMode: false
+      securitySettings={{
+        ...(quiz.securitySettings || {
+          enableFullscreen: false,
+          disableRightClick: false,
+          disableCopyPaste: false,
+          disableTabSwitch: false,
+          enableProctoringMode: false
+        }),
+        // Include college settings for admin override
+        adminOverride: collegeSettings?.adminOverride || {
+          enabled: false,
+          password: 'admin123',
+          triggerButtons: { button1: 'Ctrl', button2: '6' }
+        },
+        violationSettings: collegeSettings?.violationSettings || {
+          maxViolations: 5,
+          warningThreshold: 3,
+          autoTerminate: true,
+          strictMode: false
+        }
       }}
       onSecurityViolation={(violation) => {
         console.log('Security violation:', violation);
         // You can add additional handling here like logging to backend
+      }}
+      onAutoSubmit={() => {
+        console.log('🚨 Auto-submitting quiz due to security violations...');
+        confirmSubmit();
       }}
       quizTitle={quiz.title}
     >

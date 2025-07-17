@@ -47,7 +47,8 @@ const eventQuizSchema = new mongoose.Schema({
   title: {
     type: String,
     required: true,
-    trim: true
+    trim: true,
+    unique: true
   },
   description: {
     type: String,
@@ -147,6 +148,29 @@ const eventQuizSchema = new mongoose.Schema({
     default: false
   },
   shuffleQuestions: {
+    type: Boolean,
+    default: false
+  },
+  // Question limiting and randomization settings
+  questionLimitEnabled: {
+    type: Boolean,
+    default: false
+  },
+  questionLimit: {
+    type: Number,
+    min: 1,
+    validate: {
+      validator: function(value) {
+        // Only validate if question limiting is enabled and questions array exists
+        if (this.questionLimitEnabled && this.questions && this.questions.length > 0) {
+          return value && value <= this.questions.length;
+        }
+        return true;
+      },
+      message: 'Question limit cannot exceed total number of questions'
+    }
+  },
+  randomizeQuestionsPerStudent: {
     type: Boolean,
     default: false
   },
@@ -285,36 +309,51 @@ eventQuizSchema.methods.isStudentEligible = function(student) {
   return isDepartmentEligible && isYearEligible && isSemesterEligible && isSectionEligible;
 };
 
-// Method to shuffle questions for a specific participant
+// Method to get shuffled and limited questions for a specific participant (deterministic)
 eventQuizSchema.methods.getShuffledQuestions = function(participantId) {
-  if (!this.shuffleQuestions) {
-    return this.questions;
+  let questions = [...this.questions];
+
+  // If shuffling or randomization is enabled, shuffle the questions deterministically
+  if (this.shuffleQuestions || this.randomizeQuestionsPerStudent) {
+    // Create a deterministic shuffle based on quiz ID + participant ID
+    // This ensures the same participant always gets the same order
+    const seed = this._id.toString() + participantId.toString();
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+      const char = seed.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+
+    // Use the hash as seed for shuffling
+    const random = (seed) => {
+      const x = Math.sin(seed) * 10000;
+      return x - Math.floor(x);
+    };
+
+    // Fisher-Yates shuffle with deterministic random
+    for (let i = questions.length - 1; i > 0; i--) {
+      const j = Math.floor(random(hash + i) * (i + 1));
+      [questions[i], questions[j]] = [questions[j], questions[i]];
+    }
   }
 
-  // Create a deterministic shuffle based on quiz ID + participant ID
-  // This ensures the same participant always gets the same order
-  const seed = this._id.toString() + participantId.toString();
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) {
-    const char = seed.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32-bit integer
-  }
-
-  // Use the hash as seed for shuffling
-  const questions = [...this.questions];
-  const random = (seed) => {
-    const x = Math.sin(seed) * 10000;
-    return x - Math.floor(x);
-  };
-
-  // Fisher-Yates shuffle with deterministic random
-  for (let i = questions.length - 1; i > 0; i--) {
-    const j = Math.floor(random(hash + i) * (i + 1));
-    [questions[i], questions[j]] = [questions[j], questions[i]];
+  // If question limiting is enabled, limit the number of questions
+  if (this.questionLimitEnabled && this.questionLimit && this.questionLimit > 0) {
+    questions = questions.slice(0, this.questionLimit);
   }
 
   return questions;
+};
+
+// Method to get the effective total marks (considering question limit)
+eventQuizSchema.methods.getEffectiveTotalMarks = function() {
+  if (this.questionLimitEnabled && this.questionLimit && this.questionLimit > 0) {
+    // Calculate marks for limited questions only
+    const limitedQuestions = this.questions.slice(0, this.questionLimit);
+    return limitedQuestions.reduce((sum, question) => sum + question.marks, 0);
+  }
+  return this.totalMarks;
 };
 
 // Calculate total marks before saving
