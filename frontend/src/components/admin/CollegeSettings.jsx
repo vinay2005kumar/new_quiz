@@ -144,8 +144,7 @@ const CollegeSettings = () => {
     },
     violationSettings: {
       maxViolations: 5,
-      autoTerminate: true,
-      warningThreshold: 3
+      autoTerminate: true
     }
   });
   const [openQuizSettingsDialog, setOpenQuizSettingsDialog] = useState(false);
@@ -942,8 +941,7 @@ const CollegeSettings = () => {
           },
           violationSettings: cleanedSettings.violationSettings || {
             maxViolations: 5,
-            autoTerminate: true,
-            warningThreshold: 3
+            autoTerminate: true
           }
         };
 
@@ -2647,9 +2645,7 @@ const CollegeSettings = () => {
                       <Typography variant="body2">
                         <strong>Auto Submit:</strong> {quizSettings.violationSettings?.autoTerminate ? 'Yes' : 'No'}
                       </Typography>
-                      <Typography variant="body2">
-                        <strong>Warning Threshold:</strong> {quizSettings.violationSettings?.warningThreshold || 3}
-                      </Typography>
+
 
                       <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block', fontStyle: 'italic' }}>
                         {quizSettings.adminOverride?.enabled
@@ -2935,16 +2931,7 @@ const CollegeSettings = () => {
                     helperText="Quiz auto-submits after this many violations"
                   />
                 </Grid>
-                <Grid item xs={12} sm={4}>
-                  <TextField
-                    fullWidth
-                    label="Warning Threshold"
-                    type="number"
-                    value={quizSettings.violationSettings?.warningThreshold || 3}
-                    onChange={(e) => handleDirectQuizSettingsChange('violationSettings', 'warningThreshold', e.target.value)}
-                    helperText="Show final warning after this many violations"
-                  />
-                </Grid>
+
                 <Grid item xs={12} sm={4}>
                   <FormControlLabel
                     control={
@@ -3166,16 +3153,7 @@ const CollegeSettings = () => {
                       helperText="Quiz auto-submits after this many violations"
                     />
                   </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <TextField
-                      fullWidth
-                      label="Warning Threshold"
-                      type="number"
-                      value={quizSettings.violationSettings?.warningThreshold || 3}
-                      onChange={(e) => handleDirectQuizSettingsChange('violationSettings', 'warningThreshold', e.target.value)}
-                      helperText="Show final warning after this many violations"
-                    />
-                  </Grid>
+
                   <Grid item xs={12} sm={4}>
                     <FormControlLabel
                       control={

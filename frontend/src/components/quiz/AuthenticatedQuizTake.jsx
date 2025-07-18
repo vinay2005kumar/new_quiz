@@ -530,7 +530,6 @@ const AuthenticatedQuizTake = () => {
         },
         violationSettings: collegeSettings?.violationSettings || {
           maxViolations: 5,
-          warningThreshold: 3,
           autoTerminate: true,
           strictMode: false
         }

@@ -26,9 +26,12 @@ const QuizSecurity = ({
   // console.log('🔧 securitySettings prop received:', securitySettings);
 
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [violationCount, setViolationCount] = useState(0);
   const [violations, setViolations] = useState([]);
   const [showViolationDialog, setShowViolationDialog] = useState(false);
   const [currentViolation, setCurrentViolation] = useState('');
+  const lastViolationRef = useRef({ message: '', timestamp: 0 });
+  const fullscreenCooldownRef = useRef(0);
   const [showFullscreenPrompt, setShowFullscreenPrompt] = useState(false);
   const [showAutoSubmitDialog, setShowAutoSubmitDialog] = useState(false);
   const [autoSubmitReason, setAutoSubmitReason] = useState('');
@@ -43,6 +46,9 @@ const QuizSecurity = ({
   const [showAdminDialog, setShowAdminDialog] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [adminOverrideActive, setAdminOverrideActive] = useState(false);
+  const [showAdminSuccessDialog, setShowAdminSuccessDialog] = useState(false);
+  const [showSecurityReenabledDialog, setShowSecurityReenabledDialog] = useState(false);
+
   const adminTimeoutRef = useRef(null);
 
   // Quiz settings state - same as CollegeSettings
@@ -91,8 +97,7 @@ const QuizSecurity = ({
           },
           violationSettings: cleanedSettings.violationSettings || {
             maxViolations: 5,
-            autoTerminate: true,
-            warningThreshold: 3
+            autoTerminate: true
           }
         };
 
@@ -108,17 +113,22 @@ const QuizSecurity = ({
     }
   };
 
-  // Settings function - combines securitySettings and quizSettings
-  const getSettings = () => {
-    console.log('🔧 getSettings called - quizSettings:', quizSettings);
-    console.log('🔧 getSettings called - quizSettings?.adminOverride:', quizSettings?.adminOverride);
+  // Memoized settings to prevent infinite loops
+  const settings = useMemo(() => {
+    console.log('🔧 useMemo settings calculation - quizSettings:', quizSettings);
+
+    // Provide sensible defaults when quizSettings is not loaded yet
+    const defaultViolationSettings = {
+      maxViolations: 5,
+      autoTerminate: true,
+      strictMode: false
+    };
 
     const result = {
       violationSettings: {
-        maxViolations: securitySettings?.violationSettings?.maxViolations || quizSettings?.violationSettings?.maxViolations || 5,
-        warningThreshold: securitySettings?.violationSettings?.warningThreshold || quizSettings?.violationSettings?.warningThreshold || 3,
-        autoTerminate: securitySettings?.violationSettings?.autoTerminate !== false,
-        strictMode: securitySettings?.violationSettings?.strictMode || quizSettings?.violationSettings?.strictMode || false
+        maxViolations: securitySettings?.violationSettings?.maxViolations || quizSettings?.violationSettings?.maxViolations || defaultViolationSettings.maxViolations,
+        autoTerminate: securitySettings?.violationSettings?.autoTerminate !== undefined ? securitySettings.violationSettings.autoTerminate : (quizSettings?.violationSettings?.autoTerminate !== undefined ? quizSettings.violationSettings.autoTerminate : defaultViolationSettings.autoTerminate),
+        strictMode: securitySettings?.violationSettings?.strictMode || quizSettings?.violationSettings?.strictMode || defaultViolationSettings.strictMode
       },
       adminOverride: quizSettings?.adminOverride || {
         enabled: false,
@@ -127,12 +137,18 @@ const QuizSecurity = ({
       }
     };
 
-    console.log('🔧 getSettings returning:', result);
+    console.log('🔧 useMemo settings result:', result);
     return result;
+  }, [securitySettings, quizSettings]);
+
+  // Settings function - now just returns memoized settings
+  const getSettings = () => {
+    return settings;
   };
 
   // Load quiz settings on mount - same as CollegeSettings
   useEffect(() => {
+    console.log('🔧 QuizSecurity component mounted - ID:', Math.random().toString(36).substr(2, 9));
     fetchQuizSettings();
   }, []);
 
@@ -140,6 +156,11 @@ const QuizSecurity = ({
   useEffect(() => {
     console.log('🔧 adminOverrideSettings state changed:', adminOverrideSettings);
   }, [adminOverrideSettings]);
+
+  // Debug: Log when adminOverrideActive changes
+  useEffect(() => {
+    console.log('🔧 adminOverrideActive state changed:', adminOverrideActive);
+  }, [adminOverrideActive]);
 
   // Admin override detection - separate useEffect to avoid closure issues
   useEffect(() => {
@@ -180,6 +201,8 @@ const QuizSecurity = ({
       console.log('🔒 QuizSecurity: No security settings provided, skipping security setup');
       return;
     }
+
+    console.log('🔧 Setting up security with adminOverrideActive:', adminOverrideActive);
 
     // Check if any security features are actually enabled
     const hasAnySecurityEnabled = securitySettings.enableFullscreen ||
@@ -454,6 +477,7 @@ const QuizSecurity = ({
         );
 
         console.log('🖥️ Fullscreen state changed:', isCurrentlyFullscreen);
+        console.log('🔧 DEBUG: adminOverrideActive in fullscreen handler:', adminOverrideActive);
         setIsFullscreen(isCurrentlyFullscreen);
 
         if (!isCurrentlyFullscreen && (securitySettings.enableFullscreen || securitySettings.enableProctoringMode) && !adminOverrideActive) {
@@ -688,25 +712,7 @@ const QuizSecurity = ({
 
 
 
-      // 🔒 FULLSCREEN CHANGE MONITOR - Force Re-entry
-      const handleFullscreenChange = () => {
-        const isFullscreen = !!(
-          document.fullscreenElement ||
-          document.webkitFullscreenElement ||
-          document.mozFullScreenElement ||
-          document.msFullscreenElement
-        );
-
-        if (!isFullscreen && !adminOverrideActive) {
-          console.log('🚨 FULLSCREEN EXIT DETECTED - SHOWING RE-ENTRY PROMPT');
-
-          // Instead of forcing re-entry, show a prompt that requires user interaction
-          handleViolation('🚨 FULLSCREEN EXIT DETECTED!\n\n⚠️ UNAUTHORIZED FULLSCREEN EXIT!\n\nYou exited fullscreen mode which is not allowed during the quiz.\n\n🔒 Please click "OK" and then click the fullscreen button to continue.\n\n⚠️ This violation has been logged.');
-
-          // Show fullscreen prompt again to require user gesture
-          setShowFullscreenPrompt(true);
-        }
-      };
+      // 🔒 FULLSCREEN CHANGE MONITOR - Removed duplicate (using the one above)
 
       // 🌐 NEW WINDOW/TAB BLOCKER - Advanced Detection
       const blockNewWindows = (e) => {
@@ -935,11 +941,7 @@ const QuizSecurity = ({
       document.addEventListener('keydown', handleKeyDetection, { capture: true, passive: false });
       window.addEventListener('keydown', handleKeyDetection, { capture: true, passive: false });
 
-      // FULLSCREEN CHANGE MONITORS - FORCE RE-ENTRY
-      document.addEventListener('fullscreenchange', handleFullscreenChange);
-      document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-      document.addEventListener('mozfullscreenchange', handleFullscreenChange);
-      document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+      // FULLSCREEN CHANGE MONITORS - FORCE RE-ENTRY (Already added above, removing duplicate)
 
       // Other security event listeners
       document.addEventListener('keydown', blockNewWindows, { capture: true, passive: false });
@@ -969,6 +971,8 @@ const QuizSecurity = ({
 
       // Override all fullscreen exit methods
       document.exitFullscreen = function() {
+        console.log('🔧 exitFullscreen called - adminOverrideActive:', adminOverrideActive);
+
         // Allow fullscreen exit if admin override is active
         if (adminOverrideActive) {
           console.log('🔧 Admin override active - allowing fullscreen exit');
@@ -1038,11 +1042,7 @@ const QuizSecurity = ({
         document.removeEventListener('keydown', handleKeyDetection, { capture: true });
         window.removeEventListener('keydown', handleKeyDetection, { capture: true });
 
-        // Remove fullscreen change monitors
-        document.removeEventListener('fullscreenchange', handleFullscreenChange);
-        document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-        document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
-        document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+        // Remove fullscreen change monitors (Already removed above, removing duplicate)
 
         // Remove other security listeners
         document.removeEventListener('keydown', blockNewWindows, { capture: true });
@@ -1078,7 +1078,7 @@ const QuizSecurity = ({
         }
       }, 100);
     };
-  }, [securitySettings]);
+  }, [securitySettings, adminOverrideActive, violated]); // Re-run when admin override or violation state changes
 
   const enterFullscreen = async () => {
     // Always use document.documentElement to make the entire browser fullscreen
@@ -1221,6 +1221,28 @@ const QuizSecurity = ({
   };
 
   const handleViolation = (violation) => {
+    // Skip violations if admin override is active
+    if (adminOverrideActive) {
+      console.log('🔓 Admin override active - skipping violation:', violation);
+      return;
+    }
+
+    // Skip violations if quiz is already violated (auto-submitted)
+    if (violated) {
+      console.log('🔓 Quiz already violated - skipping additional violations:', violation);
+      return;
+    }
+
+    // Simple violation counting - increment by 1
+    const newCount = violationCount + 1;
+    setViolationCount(newCount);
+
+    console.log('� SIMPLE Violation count update:', {
+      previousCount: violationCount,
+      newCount: newCount,
+      violation: violation.split('\n')[0]
+    });
+
     const timestamp = new Date().toLocaleTimeString();
     const violationRecord = {
       type: violation,
@@ -1237,54 +1259,45 @@ const QuizSecurity = ({
     setCurrentViolation(violation);
     setShowViolationDialog(true);
 
-    // Enhanced violation management with college settings integration
-    const maxViolations = securitySettings?.violationSettings?.maxViolations || 5;
-    const warningThreshold = securitySettings?.violationSettings?.warningThreshold || 3;
-    const autoTerminate = securitySettings?.violationSettings?.autoTerminate !== false;
+    // Get max violations from admin settings (use actual settings)
+    const maxViolations = quizSettings?.violationSettings?.maxViolations || 1;
+    const autoTerminate = quizSettings?.violationSettings?.autoTerminate !== false;
 
-    // Show warning at threshold
-    if (newViolations.length === warningThreshold) {
-      setTimeout(() => {
-        alert(`⚠️ VIOLATION WARNING ⚠️\n\n` +
-              `You have ${newViolations.length} security violations.\n\n` +
-              `Maximum allowed: ${maxViolations}\n\n` +
-              `⚠️ You have ${maxViolations - newViolations.length} violations remaining before quiz termination.\n\n` +
-              `Please follow quiz security rules strictly!`);
-      }, 1000);
-    }
+    console.log('🔧 Settings check:', {
+      maxViolations,
+      autoTerminate,
+      currentCount: newCount
+    });
 
-    // Check if violation limit is reached
-    if (newViolations.length >= maxViolations && autoTerminate) {
-      // Show auto-submit dialog
+    // Auto-submit when limit reached
+    if (newCount >= maxViolations && autoTerminate) {
+      console.log('🚨 AUTO-SUBMIT TRIGGERED - Count:', newCount, 'Max:', maxViolations);
+      setViolated(true);
+
       const reason = `You have exceeded the maximum number of security violations (${maxViolations}).`;
       setAutoSubmitReason(reason);
       setShowAutoSubmitDialog(true);
 
-      // Log final violation report
-      console.log('🚨 QUIZ AUTO-SUBMITTED - Final Violation Report:', {
-        totalViolations: newViolations.length,
+      console.log('🚨 QUIZ AUTO-SUBMITTED - Final Report:', {
+        totalViolations: newCount,
         maxAllowed: maxViolations,
-        violations: newViolations,
         timestamp: new Date().toISOString()
       });
     }
 
-    // Enhanced logging for debugging and monitoring
+    // Simple logging
     console.log('🚨 Security Violation Details:', {
-      violation,
-      severity: violationRecord.severity,
-      count: newViolations.length,
+      violation: violation.split('\n')[0],
+      count: newCount,
       maxAllowed: maxViolations,
-      remaining: maxViolations - newViolations.length,
+      remaining: maxViolations - newCount,
       timestamp: violationRecord.timestamp
     });
 
     if (onSecurityViolation) {
       onSecurityViolation({
         ...violationRecord,
-        totalViolations: newViolations.length,
-        maxViolations,
-        isTerminating: newViolations.length >= maxViolations && autoTerminate
+        totalViolations: newCount
       });
     }
   };
@@ -1292,6 +1305,29 @@ const QuizSecurity = ({
   const handleViolationDialogClose = () => {
     setShowViolationDialog(false);
     setCurrentViolation('');
+  };
+
+  // Strict auto-submit function for immediate violations
+  const strictAutoSubmit = (reason) => {
+    // Skip auto-submit if admin override is active
+    if (adminOverrideActive) {
+      console.log('🔓 Admin override active - skipping strict auto-submit:', reason);
+      return;
+    }
+
+    console.log('🚨 STRICT AUTO-SUBMIT TRIGGERED:', reason);
+    setViolated(true);
+
+    // Set auto-submit reason and show dialog
+    setAutoSubmitReason(reason);
+    setShowAutoSubmitDialog(true);
+
+    // Log the strict violation
+    console.log('🚨 STRICT VIOLATION - IMMEDIATE SUBMISSION:', {
+      reason,
+      timestamp: new Date().toISOString(),
+      strictMode: true
+    });
   };
 
 
@@ -1331,23 +1367,25 @@ const QuizSecurity = ({
         // No automatic timeout - security stays disabled until manually re-enabled
         console.log('🔧 Admin override activated - no automatic timeout, manual re-enable required');
 
-        // Exit fullscreen if currently in fullscreen
-        try {
-          console.log('🔧 Checking fullscreen status:', !!document.fullscreenElement);
-          if (document.fullscreenElement) {
-            console.log('🔧 Attempting to exit fullscreen...');
-            await document.exitFullscreen();
-            console.log('🔧 Fullscreen exit completed');
-          } else {
-            console.log('🔧 Not in fullscreen, no need to exit');
+        // Wait a moment for state to update, then exit fullscreen
+        setTimeout(async () => {
+          try {
+            console.log('🔧 Checking fullscreen status:', !!document.fullscreenElement);
+            if (document.fullscreenElement) {
+              console.log('🔧 Attempting to exit fullscreen...');
+              await document.exitFullscreen();
+              console.log('🔧 Fullscreen exit completed');
+            } else {
+              console.log('🔧 Not in fullscreen, no need to exit');
+            }
+          } catch (error) {
+            console.warn('🔧 Error exiting fullscreen:', error);
           }
-        } catch (error) {
-          console.warn('🔧 Error exiting fullscreen:', error);
-        }
+        }, 100);
 
-        // Show success message
+        // Show success dialog instead of alert
         console.log('🔧 Admin access granted. Security disabled until manually re-enabled.');
-        alert('🔧 Admin Override Activated!\n\nSecurity measures have been disabled.\n\nYou can now:\n• Exit fullscreen\n• Use right-click\n• Switch tabs\n• Use copy/paste\n\n⚠️ Security will remain disabled until you manually click the "Re-enable Security" button.');
+        setShowAdminSuccessDialog(true);
       }
     } catch (error) {
       console.error('Admin override failed:', error);
@@ -1369,7 +1407,9 @@ const QuizSecurity = ({
 
     setAdminOverrideActive(false);
     console.log('🔧 Security manually re-enabled by admin');
-    alert('🔒 Security Re-enabled!\n\nAll security measures have been restored:\n• Fullscreen mode enforced\n• Right-click disabled\n• Tab switching blocked\n• Copy/paste disabled');
+
+    // Show dialog instead of alert and don't force fullscreen immediately
+    setShowSecurityReenabledDialog(true);
   };
 
   const handleAutoSubmitConfirm = () => {
@@ -1737,6 +1777,141 @@ const QuizSecurity = ({
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Admin Override Success Dialog */}
+      <Dialog
+        open={showAdminSuccessDialog}
+        onClose={() => setShowAdminSuccessDialog(false)}
+        maxWidth="sm"
+        fullWidth
+        disableEscapeKeyDown
+        PaperProps={{
+          sx: {
+            border: '3px solid',
+            borderColor: 'success.main',
+            borderRadius: 2,
+            bgcolor: 'success.light',
+            color: 'success.contrastText'
+          }
+        }}
+      >
+        <DialogTitle sx={{ color: 'success.main', textAlign: 'center', fontWeight: 'bold' }}>
+          🔧 Admin Override Activated
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="success" sx={{ mb: 2 }}>
+            <Typography variant="h6" sx={{ mb: 1 }}>
+              Quiz Security Successfully Overridden by Admin
+            </Typography>
+            <Typography variant="body2">
+              All security measures have been temporarily disabled.
+            </Typography>
+          </Alert>
+
+          <Typography variant="body1" sx={{ mb: 2, fontWeight: 'bold' }}>
+            You can now:
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 1, pl: 2 }}>
+            • Exit fullscreen mode
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 1, pl: 2 }}>
+            • Use right-click context menu
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 1, pl: 2 }}>
+            • Switch tabs and windows
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 1, pl: 2 }}>
+            • Use copy/paste operations
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 2, pl: 2 }}>
+            • Access developer tools
+          </Typography>
+
+          <Alert severity="warning" sx={{ mt: 2 }}>
+            <Typography variant="body2">
+              ⚠️ <strong>Important:</strong> Security will remain disabled until you manually re-enable it or the session expires.
+            </Typography>
+          </Alert>
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: 'center', pb: 3 }}>
+          <Button
+            onClick={() => setShowAdminSuccessDialog(false)}
+            color="success"
+            variant="contained"
+            size="large"
+            autoFocus
+          >
+            Continue with Override Active
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Security Re-enabled Dialog */}
+      <Dialog
+        open={showSecurityReenabledDialog}
+        onClose={() => setShowSecurityReenabledDialog(false)}
+        maxWidth="sm"
+        fullWidth
+        disableEscapeKeyDown
+        PaperProps={{
+          sx: {
+            border: '3px solid',
+            borderColor: 'warning.main',
+            borderRadius: 2,
+            bgcolor: 'warning.light',
+            color: 'warning.contrastText'
+          }
+        }}
+      >
+        <DialogTitle sx={{ color: 'warning.main', textAlign: 'center', fontWeight: 'bold' }}>
+          🔒 Security Re-enabled
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            <Typography variant="h6" sx={{ mb: 1 }}>
+              All Security Measures Restored
+            </Typography>
+            <Typography variant="body2">
+              Admin override has been deactivated and security is now fully active.
+            </Typography>
+          </Alert>
+
+          <Typography variant="body1" sx={{ mb: 2, fontWeight: 'bold' }}>
+            Security features now active:
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 1, pl: 2 }}>
+            • Right-click disabled
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 1, pl: 2 }}>
+            • Tab switching blocked
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 1, pl: 2 }}>
+            • Copy/paste disabled
+          </Typography>
+          <Typography variant="body2" sx={{ mb: 2, pl: 2 }}>
+            • Developer tools blocked
+          </Typography>
+
+          <Alert severity="info" sx={{ mt: 2 }}>
+            <Typography variant="body2">
+              ℹ️ <strong>Note:</strong> Fullscreen will be required when you navigate to a new quiz or refresh the page.
+            </Typography>
+          </Alert>
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: 'center', pb: 3 }}>
+          <Button
+            onClick={() => setShowSecurityReenabledDialog(false)}
+            color="warning"
+            variant="contained"
+            size="large"
+            autoFocus
+          >
+            Continue with Security Active
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+
 
     </div>
   );

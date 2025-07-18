@@ -268,6 +268,10 @@ const QuizAttempt = () => {
         console.log('Security violation:', violation);
         // You can add additional handling here like logging to backend
       }}
+      onAutoSubmit={() => {
+        console.log('🚨 Auto-submitting quiz due to security violations...');
+        handleSubmit();
+      }}
       quizTitle={quiz?.title}
       onOverrideStateChange={setOverrideState}
     >

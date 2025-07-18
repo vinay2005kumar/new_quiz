@@ -212,6 +212,10 @@ const PublicQuizTake = () => {
       onSecurityViolation={(violation) => {
         console.log('Security violation:', violation);
       }}
+      onAutoSubmit={() => {
+        console.log('🚨 Auto-submitting quiz due to security violations...');
+        confirmSubmit();
+      }}
       quizTitle={quiz?.title}
     >
       <Box sx={{

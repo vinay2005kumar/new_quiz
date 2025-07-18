@@ -52,12 +52,6 @@ const quizSettingsSchema = new mongoose.Schema({
     autoTerminate: {
       type: Boolean,
       default: true
-    },
-    warningThreshold: {
-      type: Number,
-      default: 3,
-      min: 1,
-      max: 10
     }
   },
   
