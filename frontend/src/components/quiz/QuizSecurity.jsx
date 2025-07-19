@@ -19,7 +19,9 @@ const QuizSecurity = ({
   onSecurityViolation,
   onAutoSubmit,
   quizTitle = "Quiz",
-
+  onOverrideStateChange,
+  adminOverrideActive = false,
+  onAdminOverrideChange
 }) => {
   // Remove the console logs that cause re-renders
   // console.log('🔧 QuizSecurity component mounted/rendered');
@@ -27,6 +29,7 @@ const QuizSecurity = ({
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [violationCount, setViolationCount] = useState(0);
+  const violationCountRef = useRef(0); // Persistent count across re-mounts
   const [violations, setViolations] = useState([]);
   const [showViolationDialog, setShowViolationDialog] = useState(false);
   const [currentViolation, setCurrentViolation] = useState('');
@@ -45,11 +48,20 @@ const QuizSecurity = ({
   // Admin override state - full functionality
   const [showAdminDialog, setShowAdminDialog] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
-  const [adminOverrideActive, setAdminOverrideActive] = useState(false);
+  // Use props for admin override instead of internal state
+  const adminOverrideActiveRef = useRef(adminOverrideActive);
+
+  // Sync ref with prop
+  useEffect(() => {
+    adminOverrideActiveRef.current = adminOverrideActive;
+    console.log('🔧 Admin override prop changed:', adminOverrideActive);
+  }, [adminOverrideActive]);
   const [showAdminSuccessDialog, setShowAdminSuccessDialog] = useState(false);
   const [showSecurityReenabledDialog, setShowSecurityReenabledDialog] = useState(false);
 
   const adminTimeoutRef = useRef(null);
+  const legitimateExitRef = useRef(false);
+  const consoleOpenRef = useRef(false);
 
   // Quiz settings state - same as CollegeSettings
   const [quizSettings, setQuizSettings] = useState(null);
@@ -204,6 +216,21 @@ const QuizSecurity = ({
 
     console.log('🔧 Setting up security with adminOverrideActive:', adminOverrideActive);
 
+    // Console detection to prevent infinite fullscreen loops
+    const detectConsole = () => {
+      const threshold = 160; // Threshold for detecting console
+      const widthThreshold = window.outerWidth - window.innerWidth > threshold;
+      const heightThreshold = window.outerHeight - window.innerHeight > threshold;
+      const consoleOpen = widthThreshold || heightThreshold;
+
+      if (consoleOpen !== consoleOpenRef.current) {
+        consoleOpenRef.current = consoleOpen;
+        console.log('🔧 Console detection:', consoleOpen ? 'OPEN' : 'CLOSED');
+      }
+
+      return consoleOpen;
+    };
+
     // Check if any security features are actually enabled
     const hasAnySecurityEnabled = securitySettings.enableFullscreen ||
                                   securitySettings.disableRightClick ||
@@ -228,14 +255,19 @@ const QuizSecurity = ({
     console.log('🔒 Security check:', {
       hasAnySecurityEnabled,
       fullscreen: securitySettings.enableFullscreen,
-      proctoring: securitySettings.enableProctoringMode
+      proctoring: securitySettings.enableProctoringMode,
+      adminOverride: adminOverrideActive
     });
 
-    if (securitySettings.enableFullscreen || securitySettings.enableProctoringMode) {
+    // Show fullscreen prompt if fullscreen is required AND admin override is not active
+    if ((securitySettings.enableFullscreen || securitySettings.enableProctoringMode) && !adminOverrideActive) {
       console.log('🖥️ Fullscreen mode required, showing prompt...');
       // Show fullscreen prompt instead of directly entering fullscreen
       // This ensures user interaction which is required by modern browsers
       setShowFullscreenPrompt(true);
+    } else if (adminOverrideActive) {
+      console.log('🔓 Admin override active - skipping fullscreen requirement');
+      setShowFullscreenPrompt(false);
     }
 
     // Set up security event listeners
@@ -246,6 +278,12 @@ const QuizSecurity = ({
     // Monitor window focus to detect tab switching attempts
     if (securitySettings.enableFullscreen || securitySettings.enableProctoringMode) {
       const handleWindowBlur = () => {
+        // Skip if admin override is active
+        if (adminOverrideActiveRef.current) {
+          console.log('🔓 Admin override active - skipping window blur violation');
+          return;
+        }
+
         handleViolation('⚠️ Window Focus Lost!\n\nThe quiz window lost focus. This may indicate an attempt to switch to another tab or application.\n\nPlease keep the quiz window focused at all times.');
 
         // Try to regain focus
@@ -477,10 +515,18 @@ const QuizSecurity = ({
         );
 
         console.log('🖥️ Fullscreen state changed:', isCurrentlyFullscreen);
-        console.log('🔧 DEBUG: adminOverrideActive in fullscreen handler:', adminOverrideActive);
+        console.log('🔧 DEBUG: adminOverrideActive in fullscreen handler:', adminOverrideActiveRef.current);
         setIsFullscreen(isCurrentlyFullscreen);
 
-        if (!isCurrentlyFullscreen && (securitySettings.enableFullscreen || securitySettings.enableProctoringMode) && !adminOverrideActive) {
+        if (!isCurrentlyFullscreen && (securitySettings.enableFullscreen || securitySettings.enableProctoringMode) && !adminOverrideActiveRef.current) {
+          // Check if console is open to prevent infinite loops
+          const consoleOpen = detectConsole();
+
+          if (consoleOpen) {
+            console.log('🔧 Console detected open - skipping fullscreen violation to prevent infinite loop');
+            return;
+          }
+
           console.log('🖥️ Fullscreen exited unexpectedly, showing violation');
           handleViolation('🚨 CRITICAL SECURITY VIOLATION!\n\n⚠️ FULLSCREEN MODE EXITED!\n\nYou have exited fullscreen mode. This is a serious security violation that compromises quiz integrity.\n\n🔄 Please click "OK" and then click the fullscreen button to continue.\n\n⚠️ Repeated violations may result in immediate quiz termination and academic consequences.\n\n🚫 Do NOT attempt to exit fullscreen again!');
 
@@ -516,7 +562,7 @@ const QuizSecurity = ({
       if (strictMode) {
         // STRICT MODE: Track and auto-submit on first fullscreen violation
         const handleStrictFullscreenChange = () => {
-          if (!document.fullscreenElement && !violated && !adminOverrideActive) {
+          if (!document.fullscreenElement && !violated && !adminOverrideActiveRef.current) {
             console.log('🚨 STRICT FULLSCREEN VIOLATION DETECTED');
             strictAutoSubmit('You exited full-screen mode. Quiz will be submitted.');
           }
@@ -548,7 +594,7 @@ const QuizSecurity = ({
       if (strictMode) {
         // STRICT MODE: Track and auto-submit on first tab switch violation
         const handleStrictVisibilityChange = () => {
-          if (document.visibilityState === 'hidden' && !violated && !adminOverrideActive) {
+          if (document.visibilityState === 'hidden' && !violated && !adminOverrideActiveRef.current) {
             console.log('🚨 STRICT TAB SWITCH VIOLATION DETECTED');
             strictAutoSubmit('You switched tabs. Quiz submitted.');
           }
@@ -608,7 +654,7 @@ const QuizSecurity = ({
       // Simple key detection with specific alerts
       const handleKeyDetection = (e) => {
         // Skip all other blocking if admin override is active
-        if (adminOverrideActive) {
+        if (adminOverrideActiveRef.current) {
           console.log('🔓 Admin override active - allowing key:', e.key);
           return;
         }
@@ -833,7 +879,7 @@ const QuizSecurity = ({
               document.msFullscreenElement
             );
 
-            if (!isCurrentlyFullscreen && !adminOverrideActive) {
+            if (!isCurrentlyFullscreen && !adminOverrideActiveRef.current) {
               console.log('🖥️ Escape detected - showing fullscreen prompt');
               handleViolation('🚨 ESCAPE KEY DETECTED!\n\n⚠️ You pressed the Escape key which can exit fullscreen mode.\n\n🔒 Please click "OK" and then click the fullscreen button to continue.\n\n⚠️ This action has been logged.');
               setShowFullscreenPrompt(true);
@@ -954,7 +1000,7 @@ const QuizSecurity = ({
 
       // Window event listeners for enhanced security
       const handleBeforeUnload = (e) => {
-        if (!adminOverrideActive) {
+        if (!adminOverrideActiveRef.current) {
           e.preventDefault();
           e.returnValue = '🚨 QUIZ IN PROGRESS!\n\nAre you sure you want to leave? This will be recorded as a security violation.';
           handleViolation('🚨 PAGE UNLOAD ATTEMPT!\n\n⚠️ Attempt to leave quiz page detected!\n\nThis action has been blocked and logged as a security violation.');
@@ -973,9 +1019,10 @@ const QuizSecurity = ({
       document.exitFullscreen = function() {
         console.log('🔧 exitFullscreen called - adminOverrideActive:', adminOverrideActive);
 
-        // Allow fullscreen exit if admin override is active
-        if (adminOverrideActive) {
-          console.log('🔧 Admin override active - allowing fullscreen exit');
+        // Allow fullscreen exit if admin override is active OR legitimate exit
+        if (adminOverrideActive || legitimateExitRef.current) {
+          console.log('🔧 Admin override active or legitimate exit - allowing fullscreen exit');
+          legitimateExitRef.current = false; // Reset flag
           return originalExitFullscreen.call(document);
         }
 
@@ -1029,7 +1076,7 @@ const QuizSecurity = ({
       // Enhanced popup blocker
       const originalOpen = window.open;
       window.open = function(...args) {
-        if (!adminOverrideActive) {
+        if (!adminOverrideActiveRef.current) {
           handleViolation('🚨 POPUP BLOCKED!\n\n⚠️ Attempt to open popup window detected!\n\nPopup windows are disabled during the quiz.\n\n🔒 This violation has been logged.');
           return null;
         }
@@ -1078,7 +1125,14 @@ const QuizSecurity = ({
         }
       }, 100);
     };
-  }, [securitySettings, adminOverrideActive, violated]); // Re-run when admin override or violation state changes
+  }, [
+    securitySettings?.enableFullscreen,
+    securitySettings?.disableRightClick,
+    securitySettings?.disableCopyPaste,
+    securitySettings?.disableTabSwitch,
+    securitySettings?.enableProctoringMode,
+    adminOverrideActive
+  ]); // Re-run only when specific security settings change (removed violated to prevent resets)
 
   const enterFullscreen = async () => {
     // Always use document.documentElement to make the entire browser fullscreen
@@ -1196,6 +1250,9 @@ const QuizSecurity = ({
     }
 
     try {
+      // Set legitimate exit flag to bypass blocking
+      legitimateExitRef.current = true;
+
       if (document.exitFullscreen) {
         console.log('🖥️ Using exitFullscreen');
         await document.exitFullscreen();
@@ -1222,7 +1279,8 @@ const QuizSecurity = ({
 
   const handleViolation = (violation) => {
     // Skip violations if admin override is active
-    if (adminOverrideActive) {
+    console.log('🔧 handleViolation called - adminOverrideActiveRef.current:', adminOverrideActiveRef.current);
+    if (adminOverrideActiveRef.current) {
       console.log('🔓 Admin override active - skipping violation:', violation);
       return;
     }
@@ -1233,12 +1291,13 @@ const QuizSecurity = ({
       return;
     }
 
-    // Simple violation counting - increment by 1
-    const newCount = violationCount + 1;
+    // Simple violation counting - increment by 1 using ref for persistence
+    violationCountRef.current = violationCountRef.current + 1;
+    const newCount = violationCountRef.current;
     setViolationCount(newCount);
 
     console.log('� SIMPLE Violation count update:', {
-      previousCount: violationCount,
+      previousCount: violationCountRef.current - 1,
       newCount: newCount,
       violation: violation.split('\n')[0]
     });
@@ -1259,9 +1318,9 @@ const QuizSecurity = ({
     setCurrentViolation(violation);
     setShowViolationDialog(true);
 
-    // Get max violations from admin settings (use actual settings)
-    const maxViolations = quizSettings?.violationSettings?.maxViolations || 1;
-    const autoTerminate = quizSettings?.violationSettings?.autoTerminate !== false;
+    // Get max violations from security settings (includes college-level settings)
+    const maxViolations = securitySettings?.violationSettings?.maxViolations || 1;
+    const autoTerminate = securitySettings?.violationSettings?.autoTerminate !== false;
 
     console.log('🔧 Settings check:', {
       maxViolations,
@@ -1310,7 +1369,7 @@ const QuizSecurity = ({
   // Strict auto-submit function for immediate violations
   const strictAutoSubmit = (reason) => {
     // Skip auto-submit if admin override is active
-    if (adminOverrideActive) {
+    if (adminOverrideActiveRef.current) {
       console.log('🔓 Admin override active - skipping strict auto-submit:', reason);
       return;
     }
@@ -1360,7 +1419,8 @@ const QuizSecurity = ({
 
       if (response.valid) {
         console.log('🔧 Admin override activated!');
-        setAdminOverrideActive(true);
+        onAdminOverrideChange(true);
+        adminOverrideActiveRef.current = true;
         setShowAdminDialog(false);
         setAdminPassword('');
 
@@ -1405,7 +1465,8 @@ const QuizSecurity = ({
       adminTimeoutRef.current = null;
     }
 
-    setAdminOverrideActive(false);
+    onAdminOverrideChange(false);
+    adminOverrideActiveRef.current = false;
     console.log('🔧 Security manually re-enabled by admin');
 
     // Show dialog instead of alert and don't force fullscreen immediately

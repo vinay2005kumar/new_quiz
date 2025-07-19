@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -64,9 +64,66 @@ const QuizAttempt = () => {
     personalOverrideActive: false,
     reEnableSecurity: null
   });
+  const [collegeSettings, setCollegeSettings] = useState(null);
+  const [violationCount, setViolationCount] = useState(0);
+  const [adminOverrideActive, setAdminOverrideActive] = useState(false);
+
+  // Reset violation count when admin override is activated
+  useEffect(() => {
+    if (adminOverrideActive) {
+      console.log('🔧 Admin override activated - resetting violation count');
+      setViolationCount(0);
+    }
+  }, [adminOverrideActive]);
   // Mobile sidebar states
   const [showDetailsSidebar, setShowDetailsSidebar] = useState(false);
   const [showQuestionsSidebar, setShowQuestionsSidebar] = useState(false);
+
+  // Memoize security settings to prevent infinite re-renders
+  const memoizedSecuritySettings = useMemo(() => {
+    if (!quiz || !collegeSettings) {
+      return {
+        enableFullscreen: false,
+        disableRightClick: false,
+        disableCopyPaste: false,
+        disableTabSwitch: false,
+        enableProctoringMode: false,
+        adminOverride: {
+          enabled: false,
+          password: 'admin123',
+          triggerButtons: { button1: 'Ctrl', button2: '6' }
+        },
+        violationSettings: {
+          maxViolations: 5,
+          autoTerminate: true,
+          strictMode: false
+        }
+      };
+    }
+
+    return {
+      ...(quiz.securitySettings || {
+        enableFullscreen: false,
+        disableRightClick: false,
+        disableCopyPaste: false,
+        disableTabSwitch: false,
+        enableProctoringMode: false
+      }),
+      // Include college settings for admin override
+      adminOverride: collegeSettings.adminOverride || {
+        enabled: false,
+        password: 'admin123',
+        triggerButtons: { button1: 'Ctrl', button2: '6' }
+      },
+      violationSettings: collegeSettings.violationSettings || {
+        maxViolations: 5,
+        autoTerminate: true,
+        strictMode: false
+      },
+      // Include admin override state to bypass security checks
+      adminOverrideActive: adminOverrideActive
+    };
+  }, [quiz, collegeSettings]); // Simplified dependencies
 
   useEffect(() => {
     let isMounted = true;
@@ -158,6 +215,35 @@ const QuizAttempt = () => {
       isMounted = false;
     };
   }, [id, navigate]);
+
+  // Fetch college settings for admin override
+  useEffect(() => {
+    const fetchCollegeSettings = async () => {
+      try {
+        console.log('🔧 Fetching college settings for QuizAttempt...');
+        const response = await api.get('/api/admin/quiz-settings');
+        console.log('🔧 College settings response:', response);
+        setCollegeSettings(response);
+      } catch (error) {
+        console.error('Error fetching college settings:', error);
+        // Set default settings if fetch fails
+        setCollegeSettings({
+          adminOverride: {
+            enabled: false,
+            password: 'admin123',
+            triggerButtons: { button1: 'Ctrl', button2: '6' }
+          },
+          violationSettings: {
+            maxViolations: 5,
+            autoTerminate: true,
+            strictMode: false
+          }
+        });
+      }
+    };
+
+    fetchCollegeSettings();
+  }, []);
 
   useEffect(() => {
     if (submission?.startTime && quiz?.duration) {
@@ -263,17 +349,41 @@ const QuizAttempt = () => {
 
   return (
     <QuizSecurity
-      securitySettings={quiz?.securitySettings || {}}
+      key={`quiz-security-${quiz?.id || 'loading'}`}
+      securitySettings={memoizedSecuritySettings}
       onSecurityViolation={(violation) => {
-        console.log('Security violation:', violation);
-        // You can add additional handling here like logging to backend
+        // Skip violations if admin override is active
+        if (adminOverrideActive) {
+          console.log('🔓 PARENT: Admin override active - skipping violation:', violation.type?.split('\n')[0] || violation);
+          return;
+        }
+
+        // Handle violation counting in parent component
+        const newCount = violationCount + 1;
+        setViolationCount(newCount);
+
+        console.log('🎯 VIOLATION COUNT:', {
+          previousCount: violationCount,
+          newCount: newCount,
+          violation: violation.type?.split('\n')[0] || violation
+        });
+
+        // Check for auto-submit
+        const maxViolations = memoizedSecuritySettings?.violationSettings?.maxViolations || 2;
+        const autoTerminate = memoizedSecuritySettings?.violationSettings?.autoTerminate !== false;
+
+        if (newCount >= maxViolations && autoTerminate) {
+          console.log('🚨 AUTO-SUBMIT TRIGGERED - Count:', newCount, 'Max:', maxViolations);
+          handleSubmit();
+        }
       }}
       onAutoSubmit={() => {
-        console.log('🚨 Auto-submitting quiz due to security violations...');
         handleSubmit();
       }}
       quizTitle={quiz?.title}
       onOverrideStateChange={setOverrideState}
+      adminOverrideActive={adminOverrideActive}
+      onAdminOverrideChange={setAdminOverrideActive}
     >
       <Box sx={{
         height: '100vh',

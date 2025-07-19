@@ -488,6 +488,64 @@ const EventQuizCard = ({
                 : 'One at a time'
               }
             </Typography>
+
+            {/* Security Settings - Show for event managers */}
+            {user?.role === 'event_manager' && quiz?.securitySettings && (
+              Object.values(quiz.securitySettings).some(Boolean) && (
+                <Box sx={{ mt: 1 }}>
+                  <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 'medium', mb: 0.5 }}>
+                    🔒 Security Features:
+                  </Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {quiz.securitySettings.enableFullscreen && (
+                      <Chip
+                        label="Fullscreen"
+                        size="small"
+                        color="error"
+                        variant="outlined"
+                        sx={{ fontSize: '0.65rem', height: '20px' }}
+                      />
+                    )}
+                    {quiz.securitySettings.disableRightClick && (
+                      <Chip
+                        label="No Right-Click"
+                        size="small"
+                        color="error"
+                        variant="outlined"
+                        sx={{ fontSize: '0.65rem', height: '20px' }}
+                      />
+                    )}
+                    {quiz.securitySettings.disableCopyPaste && (
+                      <Chip
+                        label="No Copy/Paste"
+                        size="small"
+                        color="error"
+                        variant="outlined"
+                        sx={{ fontSize: '0.65rem', height: '20px' }}
+                      />
+                    )}
+                    {quiz.securitySettings.disableTabSwitch && (
+                      <Chip
+                        label="No Tab Switch"
+                        size="small"
+                        color="error"
+                        variant="outlined"
+                        sx={{ fontSize: '0.65rem', height: '20px' }}
+                      />
+                    )}
+                    {quiz.securitySettings.enableProctoringMode && (
+                      <Chip
+                        label="Proctoring Mode"
+                        size="small"
+                        color="error"
+                        variant="filled"
+                        sx={{ fontSize: '0.65rem', height: '20px' }}
+                      />
+                    )}
+                  </Box>
+                </Box>
+              )
+            )}
           </Box>
         </CardContent>
 

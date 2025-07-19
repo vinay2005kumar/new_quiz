@@ -65,6 +65,16 @@ const PublicQuizTake = () => {
   // Mobile sidebar states
   const [showDetailsSidebar, setShowDetailsSidebar] = useState(false);
   const [showQuestionsSidebar, setShowQuestionsSidebar] = useState(false);
+  const [violationCount, setViolationCount] = useState(0);
+  const [adminOverrideActive, setAdminOverrideActive] = useState(false);
+
+  // Reset violation count when admin override is activated
+  useEffect(() => {
+    if (adminOverrideActive) {
+      console.log('🔧 PUBLIC: Admin override activated - resetting violation count');
+      setViolationCount(0);
+    }
+  }, [adminOverrideActive]);
 
   useEffect(() => {
     fetchQuiz();
@@ -208,15 +218,43 @@ const PublicQuizTake = () => {
 
   return (
     <QuizSecurity
-      securitySettings={quiz?.securitySettings || {}}
+      securitySettings={{
+        ...(quiz?.securitySettings || {}),
+        // Include admin override state to bypass security checks
+        adminOverrideActive: adminOverrideActive
+      }}
       onSecurityViolation={(violation) => {
-        console.log('Security violation:', violation);
+        // Skip violations if admin override is active
+        if (adminOverrideActive) {
+          console.log('🔓 PUBLIC: Admin override active - skipping violation:', violation.type?.split('\n')[0] || violation);
+          return;
+        }
+
+        // Handle violation counting in parent component
+        const newCount = violationCount + 1;
+        setViolationCount(newCount);
+
+        console.log('🎯 PUBLIC VIOLATION COUNT:', {
+          previousCount: violationCount,
+          newCount: newCount,
+          violation: violation.type?.split('\n')[0] || violation
+        });
+
+        // Check for auto-submit (use default settings for public quizzes)
+        const maxViolations = 2; // Default for public quizzes
+        const autoTerminate = true;
+
+        if (newCount >= maxViolations && autoTerminate) {
+          console.log('🚨 PUBLIC AUTO-SUBMIT TRIGGERED - Count:', newCount, 'Max:', maxViolations);
+          confirmSubmit();
+        }
       }}
       onAutoSubmit={() => {
-        console.log('🚨 Auto-submitting quiz due to security violations...');
         confirmSubmit();
       }}
       quizTitle={quiz?.title}
+      adminOverrideActive={adminOverrideActive}
+      onAdminOverrideChange={setAdminOverrideActive}
     >
       <Box sx={{
         height: '100vh',

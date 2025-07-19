@@ -70,6 +70,16 @@ const AuthenticatedQuizTake = () => {
     reEnableSecurity: null
   });
   const [collegeSettings, setCollegeSettings] = useState(null);
+  const [violationCount, setViolationCount] = useState(0);
+  const [adminOverrideActive, setAdminOverrideActive] = useState(false);
+
+  // Reset violation count when admin override is activated
+  useEffect(() => {
+    if (adminOverrideActive) {
+      console.log('🔧 EVENT: Admin override activated - resetting violation count');
+      setViolationCount(0);
+    }
+  }, [adminOverrideActive]);
 
   useEffect(() => {
     // Check if we have the required data from login
@@ -532,17 +542,42 @@ const AuthenticatedQuizTake = () => {
           maxViolations: 5,
           autoTerminate: true,
           strictMode: false
-        }
+        },
+        // Include admin override state to bypass security checks
+        adminOverrideActive: adminOverrideActive
       }}
       onSecurityViolation={(violation) => {
-        console.log('Security violation:', violation);
-        // You can add additional handling here like logging to backend
+        // Skip violations if admin override is active
+        if (adminOverrideActive) {
+          console.log('🔓 EVENT: Admin override active - skipping violation:', violation.type?.split('\n')[0] || violation);
+          return;
+        }
+
+        // Handle violation counting in parent component
+        const newCount = violationCount + 1;
+        setViolationCount(newCount);
+
+        console.log('🎯 EVENT VIOLATION COUNT:', {
+          previousCount: violationCount,
+          newCount: newCount,
+          violation: violation.type?.split('\n')[0] || violation
+        });
+
+        // Check for auto-submit
+        const maxViolations = collegeSettings?.violationSettings?.maxViolations || 2;
+        const autoTerminate = collegeSettings?.violationSettings?.autoTerminate !== false;
+
+        if (newCount >= maxViolations && autoTerminate) {
+          console.log('🚨 EVENT AUTO-SUBMIT TRIGGERED - Count:', newCount, 'Max:', maxViolations);
+          confirmSubmit();
+        }
       }}
       onAutoSubmit={() => {
-        console.log('🚨 Auto-submitting quiz due to security violations...');
         confirmSubmit();
       }}
       quizTitle={quiz.title}
+      adminOverrideActive={adminOverrideActive}
+      onAdminOverrideChange={setAdminOverrideActive}
     >
       <Box sx={{
         height: '100vh',
