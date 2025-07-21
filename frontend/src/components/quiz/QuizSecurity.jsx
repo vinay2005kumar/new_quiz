@@ -142,7 +142,7 @@ const QuizSecurity = ({
         autoTerminate: securitySettings?.violationSettings?.autoTerminate !== undefined ? securitySettings.violationSettings.autoTerminate : (quizSettings?.violationSettings?.autoTerminate !== undefined ? quizSettings.violationSettings.autoTerminate : defaultViolationSettings.autoTerminate),
         strictMode: securitySettings?.violationSettings?.strictMode || quizSettings?.violationSettings?.strictMode || defaultViolationSettings.strictMode
       },
-      adminOverride: quizSettings?.adminOverride || {
+      adminOverride: securitySettings?.adminOverride || quizSettings?.adminOverride || {
         enabled: false,
         triggerButtons: { button1: 'Alt', button2: '3' },
         password: 'admin123'
@@ -161,7 +161,18 @@ const QuizSecurity = ({
   // Load quiz settings on mount - same as CollegeSettings
   useEffect(() => {
     console.log('🔧 QuizSecurity component mounted - ID:', Math.random().toString(36).substr(2, 9));
-    fetchQuizSettings();
+
+    // Check if admin override settings are already provided via props (for event quizzes)
+    const hasAdminOverrideInProps = securitySettings?.adminOverride?.enabled !== undefined;
+
+    if (hasAdminOverrideInProps) {
+      console.log('🔧 Admin override settings provided via props, skipping internal fetch');
+      // Set the admin override settings from props
+      setAdminOverrideSettings(securitySettings.adminOverride);
+    } else {
+      console.log('🔧 No admin override in props, fetching from API');
+      fetchQuizSettings();
+    }
   }, []);
 
   // Debug: Log when adminOverrideSettings changes
@@ -238,10 +249,16 @@ const QuizSecurity = ({
                                   securitySettings.disableTabSwitch ||
                                   securitySettings.enableProctoringMode;
 
-    if (!hasAnySecurityEnabled) {
-      console.log('🔒 QuizSecurity: No security features enabled, skipping security setup');
+    // Check if admin override or violation settings are provided (for event quizzes)
+    const hasAdminOverrideSettings = securitySettings.adminOverride?.enabled !== undefined;
+    const hasViolationSettings = securitySettings.violationSettings?.maxViolations !== undefined;
+
+    if (!hasAnySecurityEnabled && !hasAdminOverrideSettings && !hasViolationSettings) {
+      console.log('🔒 QuizSecurity: No security features or admin settings enabled, skipping security setup');
       return;
     }
+
+    console.log('🔒 QuizSecurity: Setting up security - Basic features:', hasAnySecurityEnabled, 'Admin/Violation settings:', hasAdminOverrideSettings || hasViolationSettings);
 
     console.log('🔒 QuizSecurity mounted with settings:', securitySettings);
     console.log('🔒 Security settings breakdown:', {

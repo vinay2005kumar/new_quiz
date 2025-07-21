@@ -171,6 +171,8 @@ const EventQuizResults = () => {
           <TableHead>
             <TableRow>
               <TableCell>Name</TableCell>
+              <TableCell>Email</TableCell>
+              <TableCell>College</TableCell>
               <TableCell>Department</TableCell>
               <TableCell>Year</TableCell>
               <TableCell>Score</TableCell>
@@ -183,9 +185,11 @@ const EventQuizResults = () => {
               .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
               .map((result) => (
                 <TableRow key={result._id}>
-                  <TableCell>{result.student?.name || 'N/A'}</TableCell>
-                  <TableCell>{result.student?.department || 'N/A'}</TableCell>
-                  <TableCell>{result.student?.year || 'N/A'}</TableCell>
+                  <TableCell>{result.student?.name || result.participantInfo?.name || 'N/A'}</TableCell>
+                  <TableCell>{result.student?.email || result.participantInfo?.email || 'N/A'}</TableCell>
+                  <TableCell>{result.student?.college || result.participantInfo?.college || 'N/A'}</TableCell>
+                  <TableCell>{result.student?.department || result.participantInfo?.department || 'N/A'}</TableCell>
+                  <TableCell>{result.student?.year || result.participantInfo?.year || 'N/A'}</TableCell>
                   <TableCell>{result.score}</TableCell>
                   <TableCell>{result.timeTaken} minutes</TableCell>
                   <TableCell>

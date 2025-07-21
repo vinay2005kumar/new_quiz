@@ -60,16 +60,16 @@ const generateCredentials = (registrationData, quiz) => {
 
     // Generate password: first name + admission number or first name + phone digits
     const firstName = registrationData.name.split(' ')[0].toLowerCase();
-    if (registrationData.admissionNumber) {
+    if (registrationData.admissionNumber && registrationData.admissionNumber !== 'N/A') {
       password = `${firstName}${registrationData.admissionNumber}`;
-    } else if (registrationData.phoneNumber) {
+    } else if (registrationData.phoneNumber && registrationData.phoneNumber !== 'N/A') {
       // Use last 4 digits of phone number if no admission number
       const phoneDigits = registrationData.phoneNumber.slice(-4);
       password = `${firstName}${phoneDigits}`;
     } else {
-      // Generate random 4-digit number if no admission number or phone
-      const randomNum = Math.floor(1000 + Math.random() * 9000);
-      password = `${firstName}${randomNum}`;
+      // Use emergency password for follow-up quizzes when no original data available
+      password = emergencyPassword; // "Quiz@123"
+      console.log(`🔑 Using emergency password for follow-up quiz student: ${registrationData.email}`);
     }
   }
 
@@ -283,14 +283,25 @@ const sendIndividualRegistrationEmail = async (transporter, registrationData, qu
       minute: '2-digit'
     });
 
-    const emailSubject = `Registration Confirmed - ${quiz.title}`;
+    // Check if this is a follow-up quiz
+    const isFollowUpQuiz = registrationData.isFollowUpQuiz;
+    const sourceQuiz = registrationData.sourceQuiz;
+
+    const emailSubject = isFollowUpQuiz
+      ? `Follow-up Quiz Invitation - ${quiz.title}`
+      : `Registration Confirmed - ${quiz.title}`;
+
     const emailContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
-        <h2 style="color: #2e7d32; text-align: center;">🎉 Registration Successful!</h2>
+        <h2 style="color: #2e7d32; text-align: center;">${isFollowUpQuiz ? '🎯 Follow-up Quiz Invitation!' : '🎉 Registration Successful!'}</h2>
 
         <p>Dear <strong>${registrationData.name}</strong>,</p>
 
-        <p>Thank you for registering for the quiz <strong>"${quiz.title}"</strong>!</p>
+        ${isFollowUpQuiz
+          ? `<p>You have been selected to participate in a follow-up quiz <strong>"${quiz.title}"</strong> based on your performance in "${sourceQuiz}".</p>
+             <p>This is an exclusive opportunity to showcase your skills further!</p>`
+          : `<p>Thank you for registering for the quiz <strong>"${quiz.title}"</strong>!</p>`
+        }
 
         <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
           <h3 style="color: #1976d2; margin-top: 0;">📋 Quiz Details</h3>
@@ -304,15 +315,27 @@ const sendIndividualRegistrationEmail = async (transporter, registrationData, qu
         <div style="background-color: #e3f2fd; padding: 15px; border-radius: 5px; margin: 20px 0;">
           <h3 style="color: #d32f2f; margin-top: 0;">🔐 Login Credentials</h3>
           <p><strong>Username:</strong> <code style="background-color: #fff; padding: 2px 5px; border-radius: 3px;">${credentials.username}</code> (Your Email)</p>
-          <p><strong>Password:</strong> <code style="background-color: #fff; padding: 2px 5px; border-radius: 3px;">${credentials.password}</code></p>
-          <p style="color: #d32f2f; font-size: 14px;"><strong>⚠️ Important:</strong> Please keep these credentials safe.</p>
-          <p style="color: #666; font-size: 12px;">Password is based on: ${registrationData.phoneNumber ? 'Your phone number' : registrationData.admissionNumber ? 'Your admission number' : 'Common password (Quiz@123)'}</p>
+          ${isFollowUpQuiz
+            ? `<p><strong>Password:</strong> Use your <strong>original registration password</strong> from when you first registered</p>
+               <p style="color: #d32f2f; font-size: 14px;"><strong>⚠️ Important:</strong> Use the same password you used for the original quiz.</p>`
+            : `<p><strong>Password:</strong> <code style="background-color: #fff; padding: 2px 5px; border-radius: 3px;">${credentials.password}</code></p>
+               <p style="color: #d32f2f; font-size: 14px;"><strong>⚠️ Important:</strong> Please keep these credentials safe.</p>
+               <p style="color: #666; font-size: 12px;">Password is based on: ${registrationData.phoneNumber ? 'Your phone number' : registrationData.admissionNumber ? 'Your admission number' : 'Common password (Quiz@123)'}</p>`
+          }
         </div>
 
         ${quiz.emailInstructions ? `
         <div style="background-color: #f3e5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
           <h3 style="color: #7b1fa2; margin-top: 0;">📝 Special Instructions</h3>
           <p>${quiz.emailInstructions}</p>
+        </div>
+        ` : ''}
+
+        ${isFollowUpQuiz ? `
+        <div style="background-color: #fff3e0; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ff9800;">
+          <h3 style="color: #e65100; margin-top: 0;">🎯 Follow-up Quiz Information</h3>
+          <p><strong>Source Quiz:</strong> ${sourceQuiz}</p>
+          <p>You have been specially selected for this follow-up quiz based on your previous performance. This is an exclusive opportunity!</p>
         </div>
         ` : ''}
 
@@ -325,6 +348,7 @@ const sendIndividualRegistrationEmail = async (transporter, registrationData, qu
             <li>Ensure stable internet connection</li>
             <li>Have a backup device ready</li>
             <li>Contact support if you face any technical issues</li>
+            ${isFollowUpQuiz ? '<li><strong>This is a follow-up quiz - you have been specially selected!</strong></li>' : ''}
           </ul>
         </div>
 

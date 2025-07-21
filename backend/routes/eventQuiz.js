@@ -1,11 +1,53 @@
 const express = require('express');
 const router = express.Router();
+const mongoose = require('mongoose');
 const EventQuiz = require('../models/EventQuiz');
 const { auth, isEventAdmin, authorize } = require('../middleware/auth');
 const EventQuizAccount = require('../models/EventQuizAccount');
 const EventQuizResult = require('../models/EventQuizResult');
 const QuizCredentials = require('../models/QuizCredentials');
 const QuizSettings = require('../models/QuizSettings');
+
+// Get quiz settings for event quiz participants (for security features)
+router.get('/quiz-settings', async (req, res) => {
+  try {
+    console.log('🔧 EVENT: Fetching quiz settings for event quiz participant');
+
+    const settings = await QuizSettings.getOrCreateDefault();
+
+    // Return only the settings needed for security (no sensitive admin data)
+    const publicSettings = {
+      adminOverride: settings.adminOverride || {
+        enabled: false,
+        password: 'admin123',
+        triggerButtons: { button1: 'Ctrl', button2: '6' }
+      },
+      violationSettings: settings.violationSettings || {
+        maxViolations: 3,
+        autoTerminate: true,
+        strictMode: true
+      }
+    };
+
+    console.log('🔧 EVENT: Returning public quiz settings:', publicSettings);
+    res.json(publicSettings);
+  } catch (error) {
+    console.error('❌ EVENT: Error fetching quiz settings:', error);
+    // Return default settings if fetch fails
+    res.json({
+      adminOverride: {
+        enabled: false,
+        password: 'admin123',
+        triggerButtons: { button1: 'Ctrl', button2: '6' }
+      },
+      violationSettings: {
+        maxViolations: 3,
+        autoTerminate: true,
+        strictMode: true
+      }
+    });
+  }
+});
 const { generateCredentials, sendRegistrationEmail } = require('../services/emailService');
 const { encrypt, decrypt } = require('../utils/encryption');
 const multer = require('multer');
@@ -171,6 +213,10 @@ router.get('/check-title/:title', async (req, res) => {
 // Create a new event quiz
 router.post('/', auth, authorize('faculty', 'admin', 'event'), async (req, res) => {
   try {
+    console.log('🎯 EVENT QUIZ CREATION STARTED');
+    console.log('📋 Request body keys:', Object.keys(req.body));
+    console.log('👤 User:', req.user?.name, 'Role:', req.user?.role);
+
     // Validate questions
     if (!req.body.questions || !Array.isArray(req.body.questions) || req.body.questions.length === 0) {
       return res.status(400).json({ message: 'At least one question is required' });
@@ -218,6 +264,9 @@ router.post('/', auth, authorize('faculty', 'admin', 'event'), async (req, res) 
     console.log('Quiz after save:', quiz.toObject());
     console.log('Saved participantTypes:', quiz.participantTypes);
 
+    // Check prefilledStudents data
+    console.log('📋 Processing prefilledStudents:', req.body.prefilledStudents?.length || 0, 'students');
+
     // Handle pre-filled students if provided
     if (req.body.prefilledStudents && Array.isArray(req.body.prefilledStudents) && req.body.prefilledStudents.length > 0) {
       console.log(`🎯 Creating credentials for ${req.body.prefilledStudents.length} pre-filled students`);
@@ -227,24 +276,79 @@ router.post('/', auth, authorize('faculty', 'admin', 'event'), async (req, res) 
         let successCount = 0;
         let failureCount = 0;
 
-        for (const email of req.body.prefilledStudents) {
+        for (const studentData of req.body.prefilledStudents) {
+          // Handle both old format (just email string) and new format (complete student object)
+          const email = typeof studentData === 'string' ? studentData : studentData.email;
           try {
-            // Create a mock registration object for credential generation
-            const mockRegistration = {
-              email: email,
-              name: email.split('@')[0], // Use email prefix as name
-              participantType: 'external', // Default to external
-              college: 'Pre-selected Student',
-              department: 'N/A',
-              year: 'N/A',
-              phoneNumber: 'N/A',
-              admissionNumber: 'N/A',
-              isTeamRegistration: false,
-              registeredAt: new Date()
-            };
+            let registrationData;
+
+            if (typeof studentData === 'object' && studentData.name) {
+              // Use complete student data from submissions table
+              registrationData = {
+                email: studentData.email,
+                name: studentData.name,
+                participantType: studentData.participantType || 'external',
+                college: studentData.college,
+                department: studentData.department,
+                year: studentData.year,
+                phoneNumber: studentData.phoneNumber,
+                admissionNumber: studentData.admissionNumber,
+                isTeamRegistration: false,
+                registeredAt: new Date()
+              };
+              console.log(`✅ Using complete student data from submissions for ${email}:`, {
+                name: registrationData.name,
+                phone: registrationData.phoneNumber,
+                admission: registrationData.admissionNumber
+              });
+            } else {
+              // Fallback: Try to find the original registration for this student
+              let originalRegistration = await EventQuizAccount.findOne({
+                email: email.toLowerCase()
+              });
+
+              if (originalRegistration) {
+                // Use original registration data
+                registrationData = {
+                  email: originalRegistration.email,
+                  name: originalRegistration.name,
+                  participantType: originalRegistration.participantType || 'external',
+                  college: originalRegistration.college,
+                  department: originalRegistration.department,
+                  year: originalRegistration.year,
+                  phoneNumber: originalRegistration.phoneNumber,
+                  admissionNumber: originalRegistration.admissionNumber,
+                  isTeamRegistration: false,
+                  registeredAt: new Date()
+                };
+                console.log(`✅ Found original registration for ${email}`);
+              } else {
+                // Last resort: emergency password approach
+                registrationData = {
+                  email: email,
+                  name: email.split('@')[0], // Use email prefix as name
+                  participantType: 'external',
+                  college: 'Pre-selected Student',
+                  department: 'N/A',
+                  year: 'N/A',
+                  phoneNumber: null, // Use null to trigger emergency password
+                  admissionNumber: null, // Use null to trigger emergency password
+                  isTeamRegistration: false,
+                  registeredAt: new Date()
+                };
+                console.log(`⚠️ No student data or original registration found for ${email}, using emergency password`);
+              }
+            }
 
             // Generate credentials
-            const credentials = generateCredentials(mockRegistration, quiz);
+            const credentials = generateCredentials(registrationData, quiz);
+            console.log(`🔑 Generated credentials for ${email}:`, {
+              username: credentials.username,
+              password: credentials.password
+            });
+
+            // For follow-up quizzes, we don't need EventQuizAccount (that's for event managers)
+            // We'll create QuizCredentials directly and use the quiz registration ID as reference
 
             // Check if credentials already exist
             let quizCredentials = await QuizCredentials.findOne({
@@ -253,25 +357,80 @@ router.post('/', auth, authorize('faculty', 'admin', 'event'), async (req, res) 
             });
 
             if (!quizCredentials) {
-              // Create new credentials
+              // Create new credentials - use a placeholder registration ID for now
+              // We'll update it after adding to quiz.registrations
               quizCredentials = new QuizCredentials({
                 quiz: quiz._id,
+                registration: new mongoose.Types.ObjectId(), // Temporary placeholder
                 username: credentials.username,
                 password: credentials.password,
-                participantDetails: mockRegistration,
+                originalPassword: credentials.password, // Store original password for email
+                participantDetails: registrationData,
+                isActive: true,
                 createdAt: new Date()
               });
               await quizCredentials.save();
+              console.log(`✅ Created QuizCredentials for ${email} - can use original password or emergency password`);
+            } else {
+              console.log(`ℹ️ QuizCredentials already exist for ${email}`);
             }
 
-            // Send email with credentials
-            const emailSent = await sendRegistrationEmail(mockRegistration, quiz, credentials);
-            if (emailSent) {
-              successCount++;
-              console.log(`✅ Credentials created and email sent to: ${email}`);
+            // Add student to quiz registrations array
+            const registrationEntry = {
+              name: registrationData.name,
+              email: registrationData.email.toLowerCase(),
+              college: registrationData.college,
+              department: registrationData.department,
+              year: registrationData.year,
+              phoneNumber: registrationData.phoneNumber,
+              admissionNumber: registrationData.admissionNumber,
+              participantType: registrationData.participantType,
+              isTeamRegistration: false,
+              registeredAt: new Date()
+            };
+
+            // Check if student is already registered
+            const existingRegistration = quiz.registrations.find(reg =>
+              reg.email && reg.email.toLowerCase() === registrationData.email.toLowerCase()
+            );
+
+            if (!existingRegistration) {
+              // Add to registrations array
+              quiz.registrations.push(registrationEntry);
+              console.log(`✅ Added ${email} to quiz registrations`);
+
+              // Update the QuizCredentials with the actual registration ID
+              const addedRegistration = quiz.registrations[quiz.registrations.length - 1];
+              await QuizCredentials.updateOne(
+                { _id: quizCredentials._id },
+                { registration: addedRegistration._id }
+              );
+              console.log(`✅ Updated QuizCredentials registration reference for ${email}`);
             } else {
+              console.log(`ℹ️ Student ${email} already in registrations array`);
+            }
+
+            // Send follow-up quiz notification email
+            const followUpEmailData = {
+              ...registrationData,
+              isFollowUpQuiz: true,
+              sourceQuiz: req.body.sourceQuiz || 'Previous Quiz',
+              // For follow-up quizzes, they can use their original password or emergency password
+              useOriginalPassword: true
+            };
+
+            try {
+              const emailSent = await sendRegistrationEmail(followUpEmailData, quiz, credentials);
+              if (emailSent) {
+                successCount++;
+                console.log(`✅ Follow-up quiz notification sent to ${email} with password: ${credentials.password}`);
+              } else {
+                failureCount++;
+                console.log(`❌ Failed to send follow-up quiz email to: ${email}`);
+              }
+            } catch (emailError) {
               failureCount++;
-              console.log(`❌ Failed to send email to: ${email}`);
+              console.error(`❌ Email sending error for ${email}:`, emailError);
             }
           } catch (studentError) {
             failureCount++;
@@ -280,9 +439,19 @@ router.post('/', auth, authorize('faculty', 'admin', 'event'), async (req, res) 
         }
 
         console.log(`📊 Pre-filled students processing complete: ${successCount} successful, ${failureCount} failed`);
+
+        // Save the quiz with updated registrations
+        await quiz.save();
+        console.log(`✅ Quiz saved with ${quiz.registrations.length} total registrations`);
       } catch (error) {
         console.error('❌ Error processing pre-filled students:', error);
       }
+    } else {
+      console.log('❌ No pre-filled students to process - check data:', {
+        hasData: !!req.body.prefilledStudents,
+        isArray: Array.isArray(req.body.prefilledStudents),
+        length: req.body.prefilledStudents?.length || 0
+      });
     }
 
     res.status(201).json(quiz);
@@ -3511,8 +3680,27 @@ router.get('/:id/results', auth, async (req, res) => {
     const results = await EventQuizResult.find({ quiz: req.params.id })
       .populate('student', 'name email department year semester')
       .sort('-score');
-    
-    res.json(results);
+
+    // Transform results to ensure student data is available
+    // This handles both authenticated students (student field) and public participants (participantInfo field)
+    const transformedResults = results.map(result => {
+      const resultObj = result.toObject();
+
+      // If student field is empty but participantInfo exists, use participantInfo as student
+      if (!resultObj.student && resultObj.participantInfo) {
+        resultObj.student = {
+          name: resultObj.participantInfo.name,
+          email: resultObj.participantInfo.email,
+          department: resultObj.participantInfo.department,
+          year: resultObj.participantInfo.year,
+          college: resultObj.participantInfo.college
+        };
+      }
+
+      return resultObj;
+    });
+
+    res.json(transformedResults);
   } catch (error) {
     console.error('Error fetching quiz results:', error);
     res.status(500).json({ message: error.message });

@@ -346,7 +346,8 @@ const EventQuizCard = ({
   return (
     <>
       <Card sx={{
-        height: '100%',
+        height: { xs: 'auto', sm: '420px', md: '450px' },
+        minHeight: { xs: '350px', sm: '420px', md: '450px' },
         display: 'flex',
         flexDirection: 'column',
         width: '100%',
@@ -490,61 +491,86 @@ const EventQuizCard = ({
             </Typography>
 
             {/* Security Settings - Show for event managers */}
-            {user?.role === 'event_manager' && quiz?.securitySettings && (
-              Object.values(quiz.securitySettings).some(Boolean) && (
-                <Box sx={{ mt: 1 }}>
-                  <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 'medium', mb: 0.5 }}>
-                    🔒 Security Features:
-                  </Typography>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                    {quiz.securitySettings.enableFullscreen && (
-                      <Chip
-                        label="Fullscreen"
-                        size="small"
-                        color="error"
-                        variant="outlined"
-                        sx={{ fontSize: '0.65rem', height: '20px' }}
-                      />
-                    )}
-                    {quiz.securitySettings.disableRightClick && (
-                      <Chip
-                        label="No Right-Click"
-                        size="small"
-                        color="error"
-                        variant="outlined"
-                        sx={{ fontSize: '0.65rem', height: '20px' }}
-                      />
-                    )}
-                    {quiz.securitySettings.disableCopyPaste && (
-                      <Chip
-                        label="No Copy/Paste"
-                        size="small"
-                        color="error"
-                        variant="outlined"
-                        sx={{ fontSize: '0.65rem', height: '20px' }}
-                      />
-                    )}
-                    {quiz.securitySettings.disableTabSwitch && (
-                      <Chip
-                        label="No Tab Switch"
-                        size="small"
-                        color="error"
-                        variant="outlined"
-                        sx={{ fontSize: '0.65rem', height: '20px' }}
-                      />
-                    )}
-                    {quiz.securitySettings.enableProctoringMode && (
-                      <Chip
-                        label="Proctoring Mode"
-                        size="small"
-                        color="error"
-                        variant="filled"
-                        sx={{ fontSize: '0.65rem', height: '20px' }}
-                      />
-                    )}
-                  </Box>
-                </Box>
-              )
+            {user?.role === 'event' && (
+              <Box sx={{ mt: 1 }}>
+                {(() => {
+                  // Check if security settings exist and have any enabled features
+                  const securitySettings = quiz?.securitySettings || {};
+                  const hasAnySecurityEnabled = Object.values(securitySettings).some(Boolean);
+
+                  if (hasAnySecurityEnabled) {
+                    return (
+                      <>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 'medium', mb: 0.5 }}>
+                          🔒 Security Features:
+                        </Typography>
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                          {securitySettings.enableFullscreen && (
+                            <Chip
+                              label="Fullscreen"
+                              size="small"
+                              color="error"
+                              variant="outlined"
+                              sx={{ fontSize: '0.65rem', height: '20px' }}
+                            />
+                          )}
+                          {securitySettings.disableRightClick && (
+                            <Chip
+                              label="No Right-Click"
+                              size="small"
+                              color="error"
+                              variant="outlined"
+                              sx={{ fontSize: '0.65rem', height: '20px' }}
+                            />
+                          )}
+                          {securitySettings.disableCopyPaste && (
+                            <Chip
+                              label="No Copy/Paste"
+                              size="small"
+                              color="error"
+                              variant="outlined"
+                              sx={{ fontSize: '0.65rem', height: '20px' }}
+                            />
+                          )}
+                          {securitySettings.disableTabSwitch && (
+                            <Chip
+                              label="No Tab Switch"
+                              size="small"
+                              color="error"
+                              variant="outlined"
+                              sx={{ fontSize: '0.65rem', height: '20px' }}
+                            />
+                          )}
+                          {securitySettings.enableProctoringMode && (
+                            <Chip
+                              label="Proctoring Mode"
+                              size="small"
+                              color="error"
+                              variant="filled"
+                              sx={{ fontSize: '0.65rem', height: '20px' }}
+                            />
+                          )}
+                        </Box>
+                      </>
+                    );
+                  } else {
+                    return (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem', fontWeight: 'medium' }}>
+                          🔓 Security:
+                        </Typography>
+                        <Chip
+                          label="Disabled"
+                          size="small"
+                          color="success"
+                          variant="outlined"
+                          sx={{ fontSize: '0.65rem', height: '20px' }}
+                        />
+                      </Box>
+                    );
+                  }
+                })()}
+              </Box>
             )}
           </Box>
         </CardContent>

@@ -703,16 +703,29 @@ const EventQuizSubmissions = () => {
   // Create quiz functionality
   const handleCreateQuiz = () => {
     const currentData = showShortlisted ? shortlistedCandidates : sortedStudents;
-    const studentEmails = currentData.map(student => student.student.email);
 
-    if (studentEmails.length === 0) {
+    // Extract complete student data instead of just emails
+    const studentData = currentData.map(student => ({
+      email: student.student.email,
+      name: student.student.name,
+      college: student.student.college,
+      department: student.student.department,
+      year: student.student.year,
+      phoneNumber: student.student.phoneNumber,
+      admissionNumber: student.student.admissionNumber,
+      participantType: student.student.participantType || 'external'
+    }));
+
+    if (studentData.length === 0) {
       toast.error('No students selected for quiz creation!');
       return;
     }
 
-    // Navigate to create quiz page with pre-filled student list
+    console.log('🎯 Sending complete student data for follow-up quiz:', studentData);
+
+    // Navigate to create quiz page with complete student data
     const queryParams = new URLSearchParams({
-      prefilledStudents: JSON.stringify(studentEmails),
+      prefilledStudents: JSON.stringify(studentData),
       disableRegistration: 'true',
       sourceQuiz: quiz?.title || 'Previous Quiz'
     });

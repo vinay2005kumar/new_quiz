@@ -192,11 +192,14 @@ const EventQuizList = () => {
           </Alert>
         )}
 
-        {/* Search Filter */}
-        <Paper sx={{ 
-          p: { xs: 1.5, sm: 2 }, 
+        {/* Search Filter - Fixed Width */}
+        <Paper sx={{
+          p: { xs: 1.5, sm: 2 },
           mb: { xs: 2, sm: 3 },
-          borderRadius: { xs: 1, sm: 2 }
+          borderRadius: { xs: 1, sm: 2 },
+          width: '100%',
+          maxWidth: '1200px',
+          mx: 'auto'
         }}>
           <TextField
             fullWidth
@@ -221,31 +224,33 @@ const EventQuizList = () => {
             {searchTitle.trim() ? 'No event quizzes match your search.' : 'No event quizzes found.'}
           </Alert>
         ) : (
-          <Grid
-            container
-            spacing={isMobile ? 2 : 3}
+          <Box
             sx={{
+              display: 'grid',
+              gridTemplateColumns: {
+                xs: '1fr',
+                sm: 'repeat(2, 1fr)',
+                md: 'repeat(3, 1fr)'
+              },
+              gap: { xs: 2, sm: 3 },
               width: '100%',
-              margin: '0 auto',
-              overflow: 'hidden'
+              maxWidth: '1200px',
+              margin: '0 auto'
             }}
           >
             {getFilteredQuizzes().map((quiz) => (
-              <Grid 
-                item 
-                xs={12} 
-                sm={6} 
-                md={4} 
+              <Box
                 key={quiz._id}
                 sx={{
-                  width: { md: '33.333%' },
-                  flexShrink: 0
+                  width: '100%',
+                  maxWidth: { xs: '400px', sm: '100%', md: '100%' },
+                  mx: { xs: 'auto', sm: 0 }
                 }}
               >
                 <EventQuizCard quiz={quiz} onDelete={handleDelete} />
-              </Grid>
+              </Box>
             ))}
-          </Grid>
+          </Box>
         )}
       </Box>
     </Container>

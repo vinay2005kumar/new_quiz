@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Container,
@@ -632,11 +632,18 @@ const EventQuizCreate = () => {
                   This quiz will be available only to the following students:
                 </Typography>
                 <Box sx={{ maxHeight: 200, overflow: 'auto', bgcolor: 'background.paper', p: 2, borderRadius: 1 }}>
-                  {prefilledStudents.map((email, index) => (
-                    <Typography key={index} variant="body2" sx={{ mb: 0.5 }}>
-                      {index + 1}. {email}
-                    </Typography>
-                  ))}
+                  {prefilledStudents.map((student, index) => {
+                    // Handle both old format (string) and new format (object)
+                    const displayText = typeof student === 'string'
+                      ? student
+                      : `${student.name} (${student.email}) - ${student.college}`;
+
+                    return (
+                      <Typography key={index} variant="body2" sx={{ mb: 0.5 }}>
+                        {index + 1}. {displayText}
+                      </Typography>
+                    );
+                  })}
                 </Box>
                 <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
                   💡 These students will receive login credentials via email after quiz creation
@@ -1200,22 +1207,26 @@ const EventQuizCreate = () => {
       if (!formData.duration || formData.duration < 1) throw new Error('Valid duration is required');
       if (!formData.questions || formData.questions.length === 0) throw new Error('At least one question is required');
 
+      // Check if user is available
+      let createdById = user?.id || user?._id;
+
+      if (!user || !createdById) {
+        throw new Error('User not authenticated. Please refresh the page and try again.');
+      }
+
       const quizData = {
         ...formData,
         type: 'event',
         status: 'upcoming',
-        createdBy: user._id,
+        createdBy: createdById,
         totalMarks: formData.questions.reduce((sum, q) => sum + (q.marks || 1), 0),
         // Include pre-filled students if available
         prefilledStudents: prefilledStudents.length > 0 ? prefilledStudents : undefined
       };
 
-      console.log('Sending quiz data to backend:', quizData);
-      console.log('participantTypes being sent:', quizData.participantTypes);
-      console.log('prefilledStudents being sent:', quizData.prefilledStudents);
+      // Create the quiz
 
       const response = await api.post('/api/event-quiz', quizData);
-      console.log('Quiz created successfully:', response);
       navigate('/event/quizzes');
     } catch (error) {
       console.error('Error creating event quiz:', error);

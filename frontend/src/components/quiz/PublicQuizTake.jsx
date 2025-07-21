@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -67,6 +67,7 @@ const PublicQuizTake = () => {
   const [showQuestionsSidebar, setShowQuestionsSidebar] = useState(false);
   const [violationCount, setViolationCount] = useState(0);
   const [adminOverrideActive, setAdminOverrideActive] = useState(false);
+  const [collegeSettings, setCollegeSettings] = useState(null);
 
   // Reset violation count when admin override is activated
   useEffect(() => {
@@ -79,6 +80,35 @@ const PublicQuizTake = () => {
   useEffect(() => {
     fetchQuiz();
   }, [quizId]);
+
+  // Fetch college settings for admin override (same as AuthenticatedQuizTake.jsx)
+  useEffect(() => {
+    const fetchCollegeSettings = async () => {
+      try {
+        console.log('🔧 PublicQuizTake: Fetching quiz settings...');
+        const response = await api.get('/api/event-quiz/quiz-settings');
+        console.log('🔧 PublicQuizTake: Quiz settings fetched:', response);
+        setCollegeSettings(response);
+      } catch (error) {
+        console.error('❌ PublicQuizTake: Failed to fetch quiz settings:', error);
+        // Set default settings if fetch fails
+        setCollegeSettings({
+          adminOverride: {
+            enabled: false,
+            password: 'admin123',
+            triggerButtons: { button1: 'Ctrl', button2: '6' }
+          },
+          violationSettings: {
+            maxViolations: 3,
+            autoTerminate: true,
+            strictMode: true
+          }
+        });
+      }
+    };
+
+    fetchCollegeSettings();
+  }, []);
 
   useEffect(() => {
     if (quiz && timeRemaining > 0) {
@@ -216,13 +246,55 @@ const PublicQuizTake = () => {
     );
   }
 
+  // Memoize security settings to prevent infinite re-renders (same as QuizAttempt.jsx)
+  const memoizedSecuritySettings = useMemo(() => {
+    if (!quiz || !collegeSettings) {
+      return {
+        enableFullscreen: true,  // Enable fullscreen like academic quizzes
+        disableRightClick: true, // Enable right-click blocking
+        disableCopyPaste: true,  // Enable copy/paste blocking
+        disableTabSwitch: true,  // Enable tab switch detection
+        enableProctoringMode: true, // Enable proctoring mode
+        adminOverride: {
+          enabled: false,
+          password: 'admin123',
+          triggerButtons: { button1: 'Ctrl', button2: '6' }
+        },
+        violationSettings: {
+          maxViolations: 3,
+          autoTerminate: true,
+          strictMode: true
+        }
+      };
+    }
+
+    return {
+      ...(quiz.securitySettings || {
+        enableFullscreen: true,  // Enable fullscreen like academic quizzes
+        disableRightClick: true, // Enable right-click blocking
+        disableCopyPaste: true,  // Enable copy/paste blocking
+        disableTabSwitch: true,  // Enable tab switch detection
+        enableProctoringMode: true // Enable proctoring mode
+      }),
+      // Include college settings for admin override
+      adminOverride: collegeSettings.adminOverride || {
+        enabled: false,
+        password: 'admin123',
+        triggerButtons: { button1: 'Ctrl', button2: '6' }
+      },
+      violationSettings: collegeSettings.violationSettings || {
+        maxViolations: 3,
+        autoTerminate: true,
+        strictMode: true
+      },
+      // Include admin override state to bypass security checks
+      adminOverrideActive: adminOverrideActive
+    };
+  }, [quiz, collegeSettings]); // Simplified dependencies like QuizAttempt.jsx
+
   return (
     <QuizSecurity
-      securitySettings={{
-        ...(quiz?.securitySettings || {}),
-        // Include admin override state to bypass security checks
-        adminOverrideActive: adminOverrideActive
-      }}
+      securitySettings={memoizedSecuritySettings}
       onSecurityViolation={(violation) => {
         // Skip violations if admin override is active
         if (adminOverrideActive) {
