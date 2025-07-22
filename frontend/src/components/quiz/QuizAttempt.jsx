@@ -246,7 +246,8 @@ const QuizAttempt = () => {
   }, []);
 
   useEffect(() => {
-    if (submission?.startTime && quiz?.duration) {
+    // Only run timer if submission exists, quiz exists, AND admin override is NOT active
+    if (submission?.startTime && quiz?.duration && !adminOverrideActive) {
       const endTime = new Date(submission.startTime).getTime() + quiz.duration * 60000;
       const interval = setInterval(() => {
         const now = new Date().getTime();
@@ -262,7 +263,8 @@ const QuizAttempt = () => {
 
       return () => clearInterval(interval);
     }
-  }, [submission, quiz]);
+    // If admin override is active, timer is paused (no interval created)
+  }, [submission, quiz, adminOverrideActive]);
 
   const handleAnswerChange = (questionId, value) => {
     setAnswers(prev => ({

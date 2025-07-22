@@ -135,6 +135,12 @@ const sendTeamMemberEmail = async (transporter, member, registrationData, quiz, 
       hour: '2-digit',
       minute: '2-digit'
     });
+    const endDate = new Date(quiz.endTime).toLocaleDateString('en-IN', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
     const endTime = new Date(quiz.endTime).toLocaleTimeString('en-IN', {
       hour: '2-digit',
       minute: '2-digit'
@@ -278,6 +284,12 @@ const sendIndividualRegistrationEmail = async (transporter, registrationData, qu
       hour: '2-digit',
       minute: '2-digit'
     });
+    const endDate = new Date(quiz.endTime).toLocaleDateString('en-IN', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
     const endTime = new Date(quiz.endTime).toLocaleTimeString('en-IN', {
       hour: '2-digit',
       minute: '2-digit'
@@ -306,8 +318,8 @@ const sendIndividualRegistrationEmail = async (transporter, registrationData, qu
         <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
           <h3 style="color: #1976d2; margin-top: 0;">📋 Quiz Details</h3>
           <p><strong>Quiz:</strong> ${quiz.title}</p>
-          <p><strong>Date:</strong> ${startDate}</p>
-          <p><strong>Time:</strong> ${startTime} - ${endTime}</p>
+          <p><strong>Start:</strong> ${startDate} at ${startTime}</p>
+          <p><strong>End:</strong> ${endDate} at ${endTime}</p>
           <p><strong>Duration:</strong> ${quiz.duration} minutes</p>
           <p><strong>College:</strong> ${registrationData.college}</p>
         </div>
@@ -320,7 +332,7 @@ const sendIndividualRegistrationEmail = async (transporter, registrationData, qu
                <p style="color: #d32f2f; font-size: 14px;"><strong>⚠️ Important:</strong> Use the same password you used for the original quiz.</p>`
             : `<p><strong>Password:</strong> <code style="background-color: #fff; padding: 2px 5px; border-radius: 3px;">${credentials.password}</code></p>
                <p style="color: #d32f2f; font-size: 14px;"><strong>⚠️ Important:</strong> Please keep these credentials safe.</p>
-               <p style="color: #666; font-size: 12px;">Password is based on: ${registrationData.phoneNumber ? 'Your phone number' : registrationData.admissionNumber ? 'Your admission number' : 'Common password (Quiz@123)'}</p>`
+               <p style="color: #666; font-size: 12px;">Password is based on: ${registrationData.phoneNumber ? 'Your phone number' : registrationData.admissionNumber ? 'Your admission number' : 'System generated password'}</p>`
           }
         </div>
 
@@ -344,7 +356,7 @@ const sendIndividualRegistrationEmail = async (transporter, registrationData, qu
           <ul>
             <li>Login 10-15 minutes before the quiz starts</li>
             <li>Your username is your email address</li>
-            <li>Your password is either your phone number, admission number, or "Quiz@123"</li>
+            <li>Your password is based on your phone number, admission number, or system generated</li>
             <li>Ensure stable internet connection</li>
             <li>Have a backup device ready</li>
             <li>Contact support if you face any technical issues</li>

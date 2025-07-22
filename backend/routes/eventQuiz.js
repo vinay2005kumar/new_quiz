@@ -248,7 +248,10 @@ router.post('/', auth, authorize('faculty', 'admin', 'event'), async (req, res) 
       sections: req.body.sections || ['all'],
       createdBy: req.user._id,
       totalMarks: req.body.questions.reduce((sum, q) => sum + (q.marks || 1), 0),
-      status: 'upcoming'
+      status: 'upcoming',
+      // Set follow-up quiz fields if this is a follow-up quiz
+      isFollowUp: req.body.sourceQuiz ? true : false,
+      sourceQuiz: req.body.sourceQuiz || null
     };
 
     console.log('Creating quiz with data:', quizData);
@@ -265,7 +268,11 @@ router.post('/', auth, authorize('faculty', 'admin', 'event'), async (req, res) 
     console.log('Saved participantTypes:', quiz.participantTypes);
 
     // Check prefilledStudents data
-    console.log('📋 Processing prefilledStudents:', req.body.prefilledStudents?.length || 0, 'students');
+    console.log('📋 DEBUG: Processing prefilledStudents:', req.body.prefilledStudents?.length || 0, 'students');
+    console.log('📋 DEBUG: prefilledStudents data type:', typeof req.body.prefilledStudents);
+    console.log('📋 DEBUG: prefilledStudents is array:', Array.isArray(req.body.prefilledStudents));
+    console.log('📋 DEBUG: First student sample:', req.body.prefilledStudents?.[0]);
+    console.log('📋 DEBUG: Source quiz:', req.body.sourceQuiz);
 
     // Handle pre-filled students if provided
     if (req.body.prefilledStudents && Array.isArray(req.body.prefilledStudents) && req.body.prefilledStudents.length > 0) {
@@ -350,29 +357,81 @@ router.post('/', auth, authorize('faculty', 'admin', 'event'), async (req, res) 
             // For follow-up quizzes, we don't need EventQuizAccount (that's for event managers)
             // We'll create QuizCredentials directly and use the quiz registration ID as reference
 
-            // Check if credentials already exist
+            // Check if credentials already exist for this specific quiz
             let quizCredentials = await QuizCredentials.findOne({
               quiz: quiz._id,
               username: credentials.username
             });
 
             if (!quizCredentials) {
-              // Create new credentials - use a placeholder registration ID for now
-              // We'll update it after adding to quiz.registrations
+              // Create new credentials for this quiz
               quizCredentials = new QuizCredentials({
                 quiz: quiz._id,
                 registration: new mongoose.Types.ObjectId(), // Temporary placeholder
                 username: credentials.username,
                 password: credentials.password,
-                originalPassword: credentials.password, // Store original password for email
-                participantDetails: registrationData,
+                originalPassword: credentials.password,
+                participantDetails: registrationData.isTeamRegistration ? registrationData.teamLeader : registrationData,
+                isTeam: registrationData.isTeamRegistration || false,
+                teamName: registrationData.teamName || null,
+                teamMembers: registrationData.teamMembers || [],
                 isActive: true,
                 createdAt: new Date()
               });
-              await quizCredentials.save();
-              console.log(`✅ Created QuizCredentials for ${email} - can use original password or emergency password`);
+
+              try {
+                await quizCredentials.save();
+                console.log(`✅ Created QuizCredentials for ${email}`);
+              } catch (saveError) {
+                if (saveError.code === 11000) {
+                  // Handle duplicate key error - try to find existing credentials
+                  console.log(`⚠️ Duplicate key error for ${email}, searching for existing credentials...`);
+
+                  // Try to find existing credentials for this user in ANY quiz
+                  const existingCredentials = await QuizCredentials.findOne({
+                    username: credentials.username
+                  });
+
+                  if (existingCredentials) {
+                    console.log(`📋 Found existing credentials for ${email} in quiz ${existingCredentials.quiz}`);
+
+                    // Check if credentials exist for THIS specific quiz
+                    quizCredentials = await QuizCredentials.findOne({
+                      quiz: quiz._id,
+                      username: credentials.username
+                    });
+
+                    if (!quizCredentials) {
+                      // No credentials for this quiz - create with unique username to avoid conflict
+                      console.log(`❌ No credentials for ${email} in THIS quiz. Creating with unique username...`);
+                      const uniqueUsername = `${credentials.username}_${quiz._id.toString().slice(-6)}`;
+
+                      quizCredentials = new QuizCredentials({
+                        quiz: quiz._id,
+                        registration: new mongoose.Types.ObjectId(),
+                        username: uniqueUsername,
+                        originalUsername: credentials.username, // Store original email for login lookup
+                        password: credentials.password,
+                        originalPassword: credentials.password,
+                        participantDetails: registrationData,
+                        isActive: true,
+                        createdAt: new Date()
+                      });
+
+                      await quizCredentials.save();
+                      console.log(`✅ Created unique credentials for ${email} with username: ${uniqueUsername}`);
+                    } else {
+                      console.log(`✅ Found existing credentials for ${email} in this quiz`);
+                    }
+                  } else {
+                    throw saveError;
+                  }
+                } else {
+                  throw saveError;
+                }
+              }
             } else {
-              console.log(`ℹ️ QuizCredentials already exist for ${email}`);
+              console.log(`ℹ️ QuizCredentials already exist for ${email} in this quiz`);
             }
 
             // Add student to quiz registrations array
@@ -399,13 +458,17 @@ router.post('/', auth, authorize('faculty', 'admin', 'event'), async (req, res) 
               quiz.registrations.push(registrationEntry);
               console.log(`✅ Added ${email} to quiz registrations`);
 
-              // Update the QuizCredentials with the actual registration ID
-              const addedRegistration = quiz.registrations[quiz.registrations.length - 1];
-              await QuizCredentials.updateOne(
-                { _id: quizCredentials._id },
-                { registration: addedRegistration._id }
-              );
-              console.log(`✅ Updated QuizCredentials registration reference for ${email}`);
+              // Update the QuizCredentials with the actual registration ID (only if credentials exist)
+              if (quizCredentials && quizCredentials._id) {
+                const addedRegistration = quiz.registrations[quiz.registrations.length - 1];
+                await QuizCredentials.updateOne(
+                  { _id: quizCredentials._id },
+                  { registration: addedRegistration._id }
+                );
+                console.log(`✅ Updated QuizCredentials registration reference for ${email}`);
+              } else {
+                console.log(`⚠️ No QuizCredentials found to update for ${email}`);
+              }
             } else {
               console.log(`ℹ️ Student ${email} already in registrations array`);
             }
@@ -465,10 +528,11 @@ router.post('/', auth, authorize('faculty', 'admin', 'event'), async (req, res) 
 router.get('/', async (req, res) => {
   try {
     console.log('GET /api/event-quiz - Request received');
-    const { status, participantType } = req.query;
+    const { status, participantType, search } = req.query;
     const query = {};
 
     if (participantType) query.participantType = participantType;
+    if (search) query.title = { $regex: search, $options: 'i' };
 
     console.log('Query:', query);
     let quizzes = await EventQuiz.find(query)
@@ -1078,6 +1142,277 @@ router.get('/:id/debug-credentials', async (req, res) => {
   }
 });
 
+// Fix missing credentials for registered students
+router.post('/:id/fix-credentials', auth, authorize('faculty', 'admin', 'event'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const quiz = await EventQuiz.findById(id);
+
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    const { generateCredentials } = require('../services/emailService');
+    let fixed = 0;
+    let errors = 0;
+
+    // Find registered students without credentials
+    for (const registration of quiz.registrations) {
+      if (!registration.isTeamRegistration) {
+        // Check if credentials exist
+        const existingCredentials = await QuizCredentials.findOne({
+          quiz: id,
+          username: registration.email
+        });
+
+        if (!existingCredentials) {
+          console.log(`🔧 Creating missing credentials for ${registration.email}`);
+
+          // Generate credentials
+          const credentials = generateCredentials(registration, quiz);
+
+          try {
+            // Create unique credentials to avoid conflicts
+            const uniqueUsername = `${credentials.username}_${id.slice(-6)}`;
+
+            const quizCredentials = new QuizCredentials({
+              quiz: id,
+              registration: registration._id,
+              username: uniqueUsername,
+              originalUsername: credentials.username,
+              password: credentials.password,
+              originalPassword: credentials.password,
+              participantDetails: registration,
+              isActive: true,
+              createdAt: new Date()
+            });
+
+            await quizCredentials.save();
+            console.log(`✅ Fixed credentials for ${registration.email} with username: ${uniqueUsername}`);
+            fixed++;
+          } catch (error) {
+            console.error(`❌ Failed to fix credentials for ${registration.email}:`, error);
+            errors++;
+          }
+        }
+      }
+    }
+
+    res.json({
+      message: `Credential fix complete: ${fixed} fixed, ${errors} errors`,
+      fixed,
+      errors
+    });
+  } catch (error) {
+    console.error('Error fixing credentials:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Check if follow-up quiz exists for this quiz
+router.get('/:id/follow-up-quiz', auth, authorize('faculty', 'admin', 'event'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const quiz = await EventQuiz.findById(id);
+
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    // Find follow-up quiz that references this quiz
+    const followUpQuiz = await EventQuiz.findOne({
+      sourceQuiz: quiz.title,
+      isFollowUp: true
+    });
+
+    if (followUpQuiz) {
+      res.json({
+        hasFollowUp: true,
+        followUpQuiz: {
+          _id: followUpQuiz._id,
+          title: followUpQuiz.title,
+          registrations: followUpQuiz.registrations || []
+        }
+      });
+    } else {
+      res.json({ hasFollowUp: false });
+    }
+  } catch (error) {
+    console.error('Error checking follow-up quiz:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Add participants to follow-up quiz
+router.post('/:id/add-participants', auth, authorize('faculty', 'admin', 'event'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { participants } = req.body;
+
+    console.log(`📝 Adding ${participants.length} participants to follow-up quiz ${id}`);
+
+    const quiz = await EventQuiz.findById(id);
+    if (!quiz) {
+      return res.status(404).json({ message: 'Quiz not found' });
+    }
+
+    // Check if this is a follow-up quiz
+    if (!quiz.isFollowUp) {
+      return res.status(400).json({ message: 'This feature is only available for follow-up quizzes' });
+    }
+
+    const { generateCredentials, sendQuizNotificationEmail } = require('../services/emailService');
+    let successCount = 0;
+    let errorCount = 0;
+    const errors = [];
+
+    for (const participant of participants) {
+      try {
+        if (participant.isTeam) {
+          // Handle team registration
+          const { teamName, teamLeader, teamMembers } = participant;
+
+          // Check if team already exists
+          const existingTeam = quiz.registrations.find(reg =>
+            reg.isTeamRegistration && reg.teamName === teamName
+          );
+
+          if (existingTeam) {
+            errors.push(`Team "${teamName}" already registered`);
+            errorCount++;
+            continue;
+          }
+
+          // Add team registration
+          const teamRegistration = {
+            isTeamRegistration: true,
+            participantType: teamLeader.participantType || 'college',
+            teamName,
+            teamLeader,
+            teamMembers: teamMembers || [],
+            registeredAt: new Date()
+          };
+
+          quiz.registrations.push(teamRegistration);
+          const registrationId = quiz.registrations[quiz.registrations.length - 1]._id;
+
+          // Generate team credentials
+          const teamCredentials = generateCredentials(teamRegistration, quiz);
+
+          // Create QuizCredentials for team
+          const quizCredentials = new QuizCredentials({
+            quiz: quiz._id,
+            registration: registrationId,
+            username: teamCredentials.username,
+            password: teamCredentials.password,
+            originalPassword: teamCredentials.password,
+            isTeam: true,
+            teamName: teamName,
+            participantDetails: teamLeader,
+            teamMembers: teamMembers || [],
+            isActive: true,
+            createdAt: new Date()
+          });
+
+          await quizCredentials.save();
+
+          // Send email to team leader
+          await sendQuizNotificationEmail(
+            teamLeader.email,
+            quiz,
+            teamCredentials,
+            teamRegistration,
+            true // isFollowUpQuiz
+          );
+
+          console.log(`✅ Added team "${teamName}" to follow-up quiz`);
+          successCount++;
+
+        } else {
+          // Handle individual registration
+          const { email, name, college, department, year, phoneNumber, admissionNumber, participantType } = participant;
+
+          // Check if student already exists
+          const existingStudent = quiz.registrations.find(reg =>
+            !reg.isTeamRegistration && reg.email === email
+          );
+
+          if (existingStudent) {
+            errors.push(`Student "${email}" already registered`);
+            errorCount++;
+            continue;
+          }
+
+          // Add individual registration
+          const studentRegistration = {
+            email,
+            name,
+            college: college || 'College Student',
+            department,
+            year,
+            phoneNumber,
+            admissionNumber,
+            participantType: participantType || 'college',
+            isTeamRegistration: false,
+            registeredAt: new Date()
+          };
+
+          quiz.registrations.push(studentRegistration);
+          const registrationId = quiz.registrations[quiz.registrations.length - 1]._id;
+
+          // Generate student credentials
+          const studentCredentials = generateCredentials(studentRegistration, quiz);
+
+          // Create QuizCredentials for student
+          const quizCredentials = new QuizCredentials({
+            quiz: quiz._id,
+            registration: registrationId,
+            username: studentCredentials.username,
+            password: studentCredentials.password,
+            originalPassword: studentCredentials.password,
+            isTeam: false,
+            participantDetails: studentRegistration,
+            isActive: true,
+            createdAt: new Date()
+          });
+
+          await quizCredentials.save();
+
+          // Send email to student
+          await sendQuizNotificationEmail(
+            email,
+            quiz,
+            studentCredentials,
+            studentRegistration,
+            true // isFollowUpQuiz
+          );
+
+          console.log(`✅ Added student "${email}" to follow-up quiz`);
+          successCount++;
+        }
+      } catch (error) {
+        console.error(`❌ Error adding participant:`, error);
+        errors.push(`Failed to add participant: ${error.message}`);
+        errorCount++;
+      }
+    }
+
+    // Save quiz with new registrations
+    await quiz.save();
+
+    res.json({
+      message: `Successfully added ${successCount} participant(s). ${errorCount} errors.`,
+      successCount,
+      errorCount,
+      errors: errors.length > 0 ? errors : undefined
+    });
+
+  } catch (error) {
+    console.error('Error adding participants to follow-up quiz:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // Quiz participant login endpoint (required for taking quiz)
 router.post('/:id/login', async (req, res) => {
   try {
@@ -1115,23 +1450,18 @@ router.post('/:id/login', async (req, res) => {
     }
 
     // Find credentials for this quiz and username (email)
-    console.log(`🔑 LOGIN: Searching for credentials with username: ${username.toLowerCase().trim()}`);
-
     let credentials = await QuizCredentials.findOne({
       quiz: id,
       username: username.toLowerCase().trim(),
       isActive: true
     });
 
-    console.log(`🔑 LOGIN: Found credentials:`, credentials ? 'YES' : 'NO');
-
-    if (credentials) {
-      console.log(`🔑 LOGIN: Credentials details:`, {
-        username: credentials.username,
-        isTeam: credentials.isTeam,
-        teamName: credentials.teamName,
-        hasAttemptedQuiz: credentials.hasAttemptedQuiz,
-        isActive: credentials.isActive
+    // If not found with exact username, try to find with originalUsername (for follow-up quizzes)
+    if (!credentials) {
+      credentials = await QuizCredentials.findOne({
+        quiz: id,
+        originalUsername: username.toLowerCase().trim(),
+        isActive: true
       });
     }
 
@@ -1139,10 +1469,46 @@ router.post('/:id/login', async (req, res) => {
     const quizSettings = await QuizSettings.getOrCreateDefault();
     const isEmergencyPassword = quizSettings.validateEmergencyPassword(password);
 
-    // If no credentials found, return error (emergency password doesn't create fake credentials)
+    // If no credentials found, check if user is registered in quiz (for follow-up quizzes)
     if (!credentials) {
-      console.log(`🔑 LOGIN: No valid credentials found for username: ${username}`);
-      return res.status(401).json({ message: 'Invalid username or password' });
+
+      // Find registration in quiz.registrations array
+      const registration = quiz.registrations.find(reg =>
+        reg.email && reg.email.toLowerCase() === username.toLowerCase()
+      );
+
+      if (registration) {
+        console.log(`🔑 LOGIN: Found registration for ${username}, creating temporary credentials...`);
+
+        // Generate credentials for this registered user
+        const { generateCredentials } = require('../services/emailService');
+        const tempCredentials = generateCredentials(registration, quiz);
+
+        // Create temporary credentials object for login validation
+        credentials = {
+          _id: 'temp-' + registration._id,
+          quiz: quiz._id,
+          username: username.toLowerCase(),
+          password: tempCredentials.password, // This will be the plain text password for comparison
+          originalPassword: tempCredentials.password,
+          participantDetails: registration,
+          isActive: true,
+          isTeam: registration.isTeamRegistration || false,
+          teamName: registration.teamName || null,
+          hasAttemptedQuiz: false,
+          comparePassword: async function(candidatePassword) {
+            // For temporary credentials, do direct comparison since password isn't hashed
+            return candidatePassword === this.password;
+          },
+          isAccountLocked: function() { return false; },
+          incLoginAttempts: function() { return Promise.resolve(); }
+        };
+
+        console.log(`🔑 LOGIN: Created temporary credentials for ${username} with password: ${tempCredentials.password}`);
+      } else {
+        console.log(`🔑 LOGIN: No registration found for username: ${username}`);
+        return res.status(401).json({ message: 'Invalid username or password' });
+      }
     }
 
     // Check if account is locked (skip for emergency admin credentials)
@@ -1157,7 +1523,6 @@ router.post('/:id/login', async (req, res) => {
     if (isEmergencyPassword) {
       // Emergency password is always valid
       isPasswordValid = true;
-      console.log(`🔑 LOGIN: Emergency password used for quiz ${id} by user ${username}`);
     } else if (credentials._id !== 'emergency-admin') {
       // Regular password validation for real credentials
       isPasswordValid = await credentials.comparePassword(password);
@@ -1176,41 +1541,49 @@ router.post('/:id/login', async (req, res) => {
       return res.status(400).json({ message: 'You have already attempted this quiz' });
     }
 
-    // Additional check: Look for existing quiz results (allow emergency password to override)
-    if (!isEmergencyPassword) {
+    // Check if already submitted (emergency password allows override but still sends the flag)
+    let hasSubmitted = false;
+
+    // First check credentials flag
+    if (credentials.hasAttemptedQuiz && !credentials.canReattempt) {
+      hasSubmitted = true;
+    }
+
+    // Also check for existing quiz results as backup
+    if (!hasSubmitted) {
       const existingResult = await EventQuizResult.findOne({
         quiz: id,
         'participantInfo.email': credentials.participantDetails?.email || username
       });
 
       if (existingResult) {
-        console.log(`🔑 LOGIN: Found existing quiz result for ${username}, blocking login`);
-        return res.status(400).json({
-          message: 'You have already submitted this quiz',
-          submissionDetails: {
-            submittedAt: existingResult.submittedAt,
-            score: existingResult.score,
-            totalMarks: existingResult.totalMarks
-          }
-        });
+        hasSubmitted = true;
       }
-    } else {
-      console.log(`🔑 LOGIN: Emergency password used - allowing login even if already submitted`);
     }
 
-    // Reset login attempts on successful login
-    if (credentials.resetLoginAttempts) {
+    // Block login if already submitted (unless emergency password)
+    if (hasSubmitted && !isEmergencyPassword) {
+      return res.status(400).json({
+        message: 'You have already submitted this quiz'
+      });
+    }
+
+    // Reset login attempts on successful login (only for real credentials)
+    if (credentials.resetLoginAttempts && typeof credentials.resetLoginAttempts === 'function') {
       await credentials.resetLoginAttempts();
     }
 
     // Generate session token
     const sessionToken = require('crypto').randomBytes(32).toString('hex');
 
-    // Store session token in the credentials record
+    // Store session token in the credentials record (only for real credentials)
     credentials.sessionToken = sessionToken;
     credentials.lastLoginAt = new Date();
-    await credentials.save();
-    console.log(`🔑 LOGIN: Session token stored for user: ${username}`);
+
+    // Only save if it's a real QuizCredentials object (not temporary)
+    if (credentials.save && typeof credentials.save === 'function') {
+      await credentials.save();
+    }
 
     const responseData = {
       message: 'Login successful',
@@ -1233,16 +1606,8 @@ router.post('/:id/login', async (req, res) => {
         teamMembers: credentials.teamMembers,
         isEmergencyLogin: isEmergencyPassword
       },
-      hasAttemptedQuiz: credentials.hasAttemptedQuiz
+      hasAttemptedQuiz: hasSubmitted || credentials.hasAttemptedQuiz
     };
-
-    console.log(`🔑 LOGIN: Sending successful response:`, {
-      message: responseData.message,
-      sessionToken: responseData.sessionToken ? 'Generated' : 'Missing',
-      quizTitle: responseData.quiz?.title,
-      participantType: responseData.participant?.isTeam ? 'Team' : 'Individual',
-      hasAttemptedQuiz: responseData.hasAttemptedQuiz
-    });
 
     res.json(responseData);
   } catch (error) {
@@ -1600,10 +1965,6 @@ router.post('/:id/submit', async (req, res) => {
       return res.status(400).json({ message: 'Valid answers array is required' });
     }
 
-    console.log(`🚀 SUBMIT: Submission request for quiz ${id} from email: ${participantEmail || participantInfo?.email}`);
-    console.log(`🚀 SUBMIT: Request body:`, req.body);
-    console.log(`🚀 SUBMIT: Emergency submission flag: ${isEmergencySubmission ? 'YES' : 'NO'}`);
-
     const quiz = await EventQuiz.findById(id);
     if (!quiz) {
       return res.status(404).json({ message: 'Quiz not found' });
@@ -1623,24 +1984,10 @@ router.post('/:id/submit', async (req, res) => {
       isActive: true
     });
 
-    console.log(`🚀 SUBMIT: Looking for credentials with email: ${email}`);
-
-    if (credentials) {
-      console.log(`🚀 SUBMIT: Found credentials:`, {
-        id: credentials._id,
-        email: credentials.participantDetails?.email,
-        hasAttemptedQuiz: credentials.hasAttemptedQuiz,
-        isTeam: credentials.isTeam
-      });
-    } else {
-      console.log(`🚀 SUBMIT: No credentials found for email`);
-
+    if (!credentials) {
       // If this is an emergency submission, allow it to proceed
       if (isEmergencySubmission) {
-        console.log(`🚀 SUBMIT: Emergency submission detected, allowing submission without credentials`);
         credentials = null; // Will be handled later
-      } else {
-        console.log(`🚀 SUBMIT: Regular submission without credentials, checking if public quiz allowed`);
       }
     }
 
@@ -1653,38 +2000,24 @@ router.post('/:id/submit', async (req, res) => {
     }
 
     // Check if already submitted (only if credentials exist and no reattempt allowed)
-    console.log(`🚀 SUBMIT: Credentials check:`, {
-      hasCredentials: !!credentials,
-      hasAttemptedQuiz: credentials?.hasAttemptedQuiz,
-      canReattempt: credentials?.canReattempt
-    });
-
     if (credentials && credentials.hasAttemptedQuiz && !credentials.canReattempt) {
-      console.log(`🚀 SUBMIT: Blocking submission - already attempted and no reattempt allowed`);
       return res.status(400).json({ message: 'You have already submitted this quiz' });
     }
 
-    // Check if there's already a result for this participant
-    console.log(`🚀 SUBMIT: Checking for existing results for email: ${email}`);
+    // Only clean up existing results if this is a reattempt or emergency submission
+    if (credentials?.canReattempt || isEmergencySubmission) {
+      const deleteResult = await EventQuizResult.deleteMany({
+        quiz: id,
+        'participantInfo.email': email
+      });
 
-    // Clean up any existing results for this participant to avoid duplicate key errors
-    const deleteResult = await EventQuizResult.deleteMany({
-      quiz: id,
-      'participantInfo.email': email
-    });
-
-    console.log(`🚀 SUBMIT: Cleaned up existing results:`, {
-      deletedCount: deleteResult.deletedCount,
-      email: email
-    });
-
-    // Reset credentials if they exist
-    if (credentials) {
-      await QuizCredentials.updateOne(
-        { _id: credentials._id },
-        { hasAttemptedQuiz: false, canReattempt: false }
-      );
-      console.log(`🚀 SUBMIT: Reset credentials for fresh submission`);
+      // Reset credentials for reattempt
+      if (credentials) {
+        await QuizCredentials.updateOne(
+          { _id: credentials._id },
+          { hasAttemptedQuiz: false, canReattempt: false }
+        );
+      }
     }
 
     // Calculate score with negative marking support
@@ -1764,7 +2097,6 @@ router.post('/:id/submit', async (req, res) => {
         teamName: null,
         teamMembers: []
       };
-      console.log(`🚀 SUBMIT: Created emergency participant data for ${email}`);
     } else {
       return res.status(400).json({ message: 'Participant information is required' });
     }
@@ -1788,9 +2120,6 @@ router.post('/:id/submit', async (req, res) => {
       await result.save();
     } catch (saveError) {
       if (saveError.code === 11000) {
-        console.log(`🚀 SUBMIT: Duplicate key error detected:`, saveError.message);
-        console.log(`🚀 SUBMIT: Attempting to force cleanup and retry`);
-
         // Force delete any remaining results for this specific participant only
         await EventQuizResult.deleteMany({
           quiz: id,
@@ -1800,9 +2129,8 @@ router.post('/:id/submit', async (req, res) => {
         // Try to save again
         try {
           await result.save();
-          console.log(`🚀 SUBMIT: Submission successful after force cleanup`);
         } catch (retryError) {
-          console.error(`🚀 SUBMIT: Submission failed even after cleanup:`, retryError);
+          console.error('Submission failed even after cleanup:', retryError);
           return res.status(500).json({ message: 'Submission failed due to database conflict - please contact administrator' });
         }
       } else {

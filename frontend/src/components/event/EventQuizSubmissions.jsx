@@ -69,6 +69,13 @@ const EventQuizSubmissions = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Check if we're in "invite participants to follow-up quiz" mode
+  const urlParams = new URLSearchParams(location.search);
+  const followUpQuizId = urlParams.get('followUpQuizId');
+  const sourceQuizName = urlParams.get('sourceQuiz');
+  const inviteMode = urlParams.get('mode') === 'invite';
+  const isInviteMode = followUpQuizId && sourceQuizName && inviteMode;
   const { user } = useAuth();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -111,6 +118,11 @@ const EventQuizSubmissions = () => {
   // New state for additional features
   const [downloadMenuAnchor, setDownloadMenuAnchor] = useState(null);
   const [emailDialog, setEmailDialog] = useState({ open: false });
+
+  // Follow-up quiz functionality
+  const [followUpQuizInfo, setFollowUpQuizInfo] = useState(null);
+  const [hasFollowUpQuiz, setHasFollowUpQuiz] = useState(false);
+
   const [emailForm, setEmailForm] = useState({
     subject: '',
     message: '',
@@ -152,6 +164,7 @@ const EventQuizSubmissions = () => {
 
   useEffect(() => {
     fetchData();
+    checkForFollowUpQuiz();
   }, [id]);
 
   const fetchData = async () => {
@@ -283,6 +296,86 @@ const EventQuizSubmissions = () => {
       setError(error.response?.data?.message || error.message || 'Failed to load data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkForFollowUpQuiz = async () => {
+    try {
+      if (!id) {
+        setHasFollowUpQuiz(false);
+        setFollowUpQuizInfo(null);
+        return;
+      }
+
+      const response = await api.get(`/api/event-quiz/${id}/follow-up-quiz`);
+      const responseData = response.data || response;
+
+      if (responseData && responseData.hasFollowUp) {
+        setHasFollowUpQuiz(true);
+        setFollowUpQuizInfo(responseData.followUpQuiz);
+      } else {
+        setHasFollowUpQuiz(false);
+        setFollowUpQuizInfo(null);
+      }
+    } catch (error) {
+      setHasFollowUpQuiz(false);
+      setFollowUpQuizInfo(null);
+    }
+  };
+
+  // Function to invite participant to follow-up quiz
+  const handleInviteToFollowUp = async (studentData) => {
+    if (!followUpQuizInfo) {
+      toast.error('No follow-up quiz found');
+      return;
+    }
+
+    try {
+      const participantData = {
+        isTeam: studentData.student.isTeam || false,
+        ...(studentData.student.isTeam ? {
+          teamName: studentData.student.teamName,
+          teamLeader: studentData.student.teamLeader,
+          teamMembers: studentData.student.teamMembers || []
+        } : {
+          email: studentData.student.email,
+          name: studentData.student.name,
+          college: studentData.student.college,
+          department: studentData.student.department,
+          year: studentData.student.year,
+          phoneNumber: studentData.student.phoneNumber,
+          admissionNumber: studentData.student.admissionNumber,
+          participantType: studentData.student.participantType || 'college'
+        })
+      };
+
+      const response = await api.post(`/api/event-quiz/${followUpQuizInfo._id}/add-participants`, {
+        participants: [participantData]
+      });
+
+      toast.success(`Successfully invited ${studentData.student.isTeam ? 'team' : 'student'} to follow-up quiz "${followUpQuizInfo.title}"!`);
+
+      // Refresh follow-up quiz info to update registrations
+      checkForFollowUpQuiz();
+
+    } catch (error) {
+      console.error('Error inviting to follow-up quiz:', error);
+      toast.error(error.response?.data?.message || 'Failed to invite participant');
+    }
+  };
+
+  // Check if participant is already in follow-up quiz
+  const isAlreadyInFollowUp = (studentData) => {
+    if (!followUpQuizInfo || !followUpQuizInfo.registrations.length) return false;
+
+    if (studentData.student.isTeam) {
+      return followUpQuizInfo.registrations.some(reg =>
+        reg.isTeamRegistration && reg.teamName === studentData.student.teamName
+      );
+    } else {
+      return followUpQuizInfo.registrations.some(reg =>
+        !reg.isTeamRegistration && reg.email === studentData.student.email
+      );
     }
   };
 
@@ -721,6 +814,10 @@ const EventQuizSubmissions = () => {
       return;
     }
 
+    console.log('🎯 DEBUG: Creating follow-up quiz with data:');
+    console.log('📊 Student count:', studentData.length);
+    console.log('📋 First student sample:', studentData[0]);
+    console.log('🎯 Source quiz:', quiz?.title);
     console.log('🎯 Sending complete student data for follow-up quiz:', studentData);
 
     // Navigate to create quiz page with complete student data
@@ -730,6 +827,7 @@ const EventQuizSubmissions = () => {
       sourceQuiz: quiz?.title || 'Previous Quiz'
     });
 
+    console.log('🔗 Query params being sent:', queryParams.toString());
     navigate(`/event/quiz/create?${queryParams.toString()}`);
   };
 
@@ -933,13 +1031,18 @@ const EventQuizSubmissions = () => {
             mb: 2,
             gap: { xs: 1, sm: 0 }
           }}>
-            <Typography 
-              variant={isMobile ? "h5" : "h4"} 
+            <Typography
+              variant={isMobile ? "h5" : "h4"}
               gutterBottom
               sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
             >
-              {quiz?.title} - {showShortlisted ? 'Shortlisted Candidates' : 'Results & Registrations'}
+              {isInviteMode
+                ? `${quiz?.title} - Invite Participants to Follow-up Quiz`
+                : `${quiz?.title} - ${showShortlisted ? 'Shortlisted Candidates' : 'Results & Registrations'}`
+              }
             </Typography>
+
+
             <Box sx={{
               display: 'flex',
               flexDirection: { xs: 'row', sm: 'row' },
@@ -989,7 +1092,10 @@ const EventQuizSubmissions = () => {
                 color="success"
                 startIcon={isMobile ? null : <QuizIcon />}
                 onClick={handleCreateQuiz}
-                disabled={(showShortlisted ? shortlistedCandidates : sortedStudents).length === 0}
+                disabled={
+                  (showShortlisted ? shortlistedCandidates : sortedStudents).length === 0 ||
+                  hasFollowUpQuiz
+                }
                 size="small"
                 sx={{
                   fontSize: { xs: '0.75rem', sm: '1rem' },
@@ -999,7 +1105,10 @@ const EventQuizSubmissions = () => {
                   flex: { xs: 1, sm: 'none' }
                 }}
               >
-                {isMobile ? 'Quiz' : 'Create Quiz'}
+                {hasFollowUpQuiz
+                  ? (isMobile ? 'Follow-up Exists' : 'Follow-up Quiz Already Created')
+                  : (isMobile ? 'Quiz' : 'Create Quiz')
+                }
               </Button>
               <Button
                 variant="outlined"
@@ -1386,6 +1495,11 @@ const EventQuizSubmissions = () => {
                 <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Details</TableCell>
                 <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Actions</TableCell>
                 <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Reattempt</TableCell>
+                {hasFollowUpQuiz && (
+                  <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                    Add to Follow-up Quiz
+                  </TableCell>
+                )}
                 <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Delete</TableCell>
               </TableRow>
             </TableHead>
@@ -1572,7 +1686,7 @@ const EventQuizSubmissions = () => {
                       color="warning"
                       onClick={() => handleReattempt(studentData)}
                       disabled={!studentData.hasSubmitted}
-                      sx={{ 
+                      sx={{
                         fontSize: { xs: '0.625rem', sm: '0.75rem' },
                         px: { xs: 1, sm: 2 },
                         py: { xs: 0.5, sm: 1 }
@@ -1581,6 +1695,29 @@ const EventQuizSubmissions = () => {
                       {isMobile ? 'Retry' : 'Reattempt'}
                     </Button>
                   </TableCell>
+
+                  {/* Add to Follow-up Quiz Column */}
+                  {hasFollowUpQuiz && (
+                    <TableCell>
+                      <Button
+                        size={isMobile ? "small" : "small"}
+                        variant="contained"
+                        color="success"
+                        onClick={() => handleInviteToFollowUp(studentData)}
+                        disabled={isAlreadyInFollowUp(studentData)}
+                        sx={{
+                          fontSize: { xs: '0.625rem', sm: '0.75rem' },
+                          px: { xs: 1, sm: 2 },
+                          py: { xs: 0.5, sm: 1 }
+                        }}
+                      >
+                        {isAlreadyInFollowUp(studentData)
+                          ? (isMobile ? 'Added' : 'Already Added')
+                          : (isMobile ? 'Invite' : 'Invite')
+                        }
+                      </Button>
+                    </TableCell>
+                  )}
                   <TableCell>
                     <Button
                       size={isMobile ? "small" : "small"}
@@ -2724,6 +2861,15 @@ const EventQuizSubmissions = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Follow-up Quiz Info - Bottom Alert */}
+      {hasFollowUpQuiz && (
+        <Alert severity="info" sx={{ mt: 3 }}>
+          <Typography variant="body2">
+            <strong>Follow-up Quiz Available:</strong> "{followUpQuizInfo?.title}" - Use "Invite" buttons to add participants. Already added participants have disabled buttons.
+          </Typography>
+        </Alert>
+      )}
     </Container>
   );
 };

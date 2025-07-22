@@ -20,6 +20,7 @@ import {
   People as PeopleIcon,
   ArrowBack as ArrowBackIcon
 } from '@mui/icons-material';
+import { toast } from 'react-toastify';
 import api from '../../config/axios';
 
 const QuizLogin = () => {
@@ -47,27 +48,40 @@ const QuizLogin = () => {
     setError('');
 
     try {
-      console.log('🔑 Attempting login with:', { username: formData.username, password: '***' });
       const response = await api.post(`/api/event-quiz/${quizId}/login`, formData);
-
-      console.log('🔑 Login response:', response);
-      console.log('🔑 Response data:', response.data);
-      console.log('🔑 Response data type:', typeof response.data);
 
       // Handle different response formats
       let responseData = response.data;
       if (!responseData && response) {
-        console.log('🔑 Using response directly as data is undefined');
         responseData = response;
       }
 
       if (!responseData) {
-        console.error('🔑 No response data available');
         setError('Login response is empty. Please try again.');
         return;
       }
 
-      console.log('🔑 Using response data:', responseData);
+      // Check if user has already attempted the quiz (unless emergency login)
+      if (responseData.hasAttemptedQuiz && !responseData.participant?.isEmergencyLogin) {
+        toast.error('You have already submitted this quiz!', {
+          position: "top-center",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
+        setError('You have already submitted this quiz. Contact your instructor if you need to retake it.');
+        return;
+      }
+
+      // Show warning for emergency login
+      if (responseData.participant?.isEmergencyLogin) {
+        toast.warning('Emergency login detected. This session will be monitored.', {
+          position: "top-center",
+          autoClose: 7000,
+        });
+      }
 
       // Store session info
       const sessionData = {
@@ -77,7 +91,6 @@ const QuizLogin = () => {
         loginTime: new Date().toISOString()
       };
 
-      console.log('🔑 Storing session data:', sessionData);
       localStorage.setItem('quizSession', JSON.stringify(sessionData));
 
       // Navigate to authenticated quiz taking page
@@ -88,9 +101,6 @@ const QuizLogin = () => {
         sessionToken: responseData.sessionToken
       };
 
-      console.log('🔑 Navigating with state:', navigationState);
-      console.log('🔑 Navigation URL:', `/quiz/${quizId}/take-authenticated`);
-
       navigate(`/quiz/${quizId}/take-authenticated`, {
         state: navigationState
       });
@@ -98,15 +108,30 @@ const QuizLogin = () => {
       // Navigation completed
     } catch (error) {
 
-      // Check if it's an "already submitted" error with submission details
-      if (error.response?.data?.submissionDetails) {
-        const details = error.response.data.submissionDetails;
-        const submittedDate = new Date(details.submittedAt).toLocaleString();
-        setError(
-          `You have already submitted this quiz on ${submittedDate}. ` +
-          `Score: ${details.score}/${details.totalMarks}. ` +
-          `Use the emergency password if you need to resubmit.`
-        );
+      // Check if it's an "already submitted" error
+      if (error.response?.data?.message?.includes('already submitted')) {
+        // Show toast for already submitted
+        toast.error('You have already submitted this quiz!', {
+          position: "top-center",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
+
+        // Also set error message with details if available
+        if (error.response?.data?.submissionDetails) {
+          const details = error.response.data.submissionDetails;
+          const submittedDate = new Date(details.submittedAt).toLocaleString();
+          setError(
+            `You have already submitted this quiz on ${submittedDate}. ` +
+            `Score: ${details.score}/${details.totalMarks}. ` +
+            `Use the emergency password if you need to resubmit.`
+          );
+        } else {
+          setError('You have already submitted this quiz. Use the emergency password if you need to resubmit.');
+        }
       } else {
         setError(error.response?.data?.message || 'Login failed. Please try again.');
       }

@@ -289,6 +289,16 @@ const eventQuizSchema = new mongoose.Schema({
     type: String,
     enum: ['draft', 'upcoming', 'published', 'completed', 'cancelled'],
     default: 'draft'
+  },
+
+  // Follow-up quiz identification
+  isFollowUp: {
+    type: Boolean,
+    default: false
+  },
+  sourceQuiz: {
+    type: String, // Title of the original quiz this is a follow-up to
+    default: null
   }
 }, {
   timestamps: true

@@ -293,7 +293,8 @@ const AuthenticatedQuizTake = () => {
   */
 
   useEffect(() => {
-    if (timeRemaining > 0) {
+    // Only run timer if time remaining > 0 AND admin override is NOT active
+    if (timeRemaining > 0 && !adminOverrideActive) {
       const timer = setInterval(() => {
         setTimeRemaining(prev => {
           if (prev <= 1) {
@@ -305,7 +306,8 @@ const AuthenticatedQuizTake = () => {
       }, 1000);
       return () => clearInterval(timer);
     }
-  }, [timeRemaining]);
+    // If admin override is active, timer is paused (no interval created)
+  }, [timeRemaining, adminOverrideActive]);
 
   // Check if quiz still exists every 30 seconds
   useEffect(() => {
@@ -682,11 +684,20 @@ const AuthenticatedQuizTake = () => {
 
             <Chip
               icon={<TimerIcon sx={{ fontSize: { xs: '1rem', sm: '1.2rem' } }} />}
-              label={formatTime(timeRemaining)}
-              color={timeRemaining < 300000 ? 'error' : 'primary'}
+              label={adminOverrideActive ? `${formatTime(timeRemaining)} (PAUSED)` : formatTime(timeRemaining)}
+              color={adminOverrideActive ? 'warning' : (timeRemaining < 300000 ? 'error' : 'primary')}
               variant="filled"
               size={isMobile ? "small" : "medium"}
-              sx={{ fontSize: { xs: '0.875rem', sm: '1rem' }, fontWeight: 'bold' }}
+              sx={{
+                fontSize: { xs: '0.875rem', sm: '1rem' },
+                fontWeight: 'bold',
+                animation: adminOverrideActive ? 'pulse 2s infinite' : 'none',
+                '@keyframes pulse': {
+                  '0%': { opacity: 1 },
+                  '50%': { opacity: 0.7 },
+                  '100%': { opacity: 1 }
+                }
+              }}
             />
             <Button
               variant="contained"

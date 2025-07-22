@@ -176,13 +176,18 @@ const EventQuizCreate = () => {
 
     if (prefilledStudentsParam) {
       try {
-        const studentEmails = JSON.parse(prefilledStudentsParam);
-        setPrefilledStudents(studentEmails);
-        console.log('✅ Pre-filled students loaded:', studentEmails.length, 'students');
-        console.log('Student emails:', studentEmails);
+        const studentData = JSON.parse(prefilledStudentsParam);
+        setPrefilledStudents(studentData);
+        console.log('✅ DEBUG: Pre-filled students loaded successfully!');
+        console.log('📊 Student count:', studentData.length);
+        console.log('📋 First student sample:', studentData[0]);
+        console.log('📋 All student data:', studentData);
       } catch (error) {
-        console.error('❌ Error parsing pre-filled students:', error);
+        console.error('❌ DEBUG: Error parsing pre-filled students:', error);
+        console.error('❌ Raw data that failed to parse:', prefilledStudentsParam);
       }
+    } else {
+      console.log('⚠️ DEBUG: No prefilledStudents parameter found');
     }
 
     if (disableRegistrationParam === 'true') {
@@ -1221,11 +1226,17 @@ const EventQuizCreate = () => {
         createdBy: createdById,
         totalMarks: formData.questions.reduce((sum, q) => sum + (q.marks || 1), 0),
         // Include pre-filled students if available
-        prefilledStudents: prefilledStudents.length > 0 ? prefilledStudents : undefined
+        prefilledStudents: prefilledStudents.length > 0 ? prefilledStudents : undefined,
+        sourceQuiz: sourceQuizTitle // Add source quiz info
       };
 
-      // Create the quiz
+      console.log('🚀 DEBUG: Submitting quiz data to backend:');
+      console.log('📊 Quiz title:', quizData.title);
+      console.log('📊 Prefilled students count:', prefilledStudents.length);
+      console.log('📊 Source quiz:', sourceQuizTitle);
+      console.log('📊 Full quiz data:', quizData);
 
+      // Create the quiz
       const response = await api.post('/api/event-quiz', quizData);
       navigate('/event/quizzes');
     } catch (error) {

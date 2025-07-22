@@ -1436,6 +1436,7 @@ const QuizSecurity = ({
 
       if (response.valid) {
         console.log('🔧 Admin override activated!');
+        console.log('⏸️ Timer paused - quiz time will not count down until security is re-enabled');
         onAdminOverrideChange(true);
         adminOverrideActiveRef.current = true;
         setShowAdminDialog(false);
@@ -1485,6 +1486,7 @@ const QuizSecurity = ({
     onAdminOverrideChange(false);
     adminOverrideActiveRef.current = false;
     console.log('🔧 Security manually re-enabled by admin');
+    console.log('⏰ Timer resumed - quiz time will continue counting down');
 
     // Show dialog instead of alert and don't force fullscreen immediately
     setShowSecurityReenabledDialog(true);

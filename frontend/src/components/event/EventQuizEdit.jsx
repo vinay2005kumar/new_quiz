@@ -25,6 +25,7 @@ import {
   FormGroup
 } from '@mui/material';
 import { Delete as DeleteIcon, Add as AddIcon, ArrowBack as ArrowBackIcon } from '@mui/icons-material';
+import { toast } from 'react-toastify';
 import api from '../../config/axios';
 import AddQuestionModal from '../quiz/AddQuestionModal';
 
@@ -124,8 +125,14 @@ const EventQuizEdit = () => {
     },
     participationMode: 'individual',
     teamSize: 2,
-    questions: []
+    questions: [],
+    // Follow-up quiz fields
+    isFollowUp: false,
+    sourceQuiz: null
   });
+
+  // Check if this is a follow-up quiz
+  const [isFollowUpQuiz, setIsFollowUpQuiz] = useState(false);
 
   // Add Question Modal state
   const [addQuestionModalOpen, setAddQuestionModalOpen] = useState(false);
@@ -183,8 +190,14 @@ const EventQuizEdit = () => {
           },
           participationMode: quizResponse.participationMode || 'individual',
           teamSize: quizResponse.teamSize || 2,
-          questions: quizResponse.questions || []
+          questions: quizResponse.questions || [],
+          // Add follow-up quiz fields
+          isFollowUp: quizResponse.isFollowUp || false,
+          sourceQuiz: quizResponse.sourceQuiz || null
         });
+
+        // Set follow-up quiz flag
+        setIsFollowUpQuiz(quizResponse.isFollowUp || false);
       } catch (error) {
         console.error('Error fetching data:', error);
         setError(error.response?.data?.message || 'Failed to fetch data');
@@ -839,6 +852,19 @@ const EventQuizEdit = () => {
                 />
               </Grid>
             )}
+
+            {/* Follow-up Quiz Information */}
+            {isFollowUpQuiz && (
+              <Grid item xs={12}>
+                <Alert severity="info" sx={{ mb: 2 }}>
+                  <Typography variant="body2">
+                    <strong>📋 Follow-up Quiz</strong> - This quiz was created from: <strong>"{formData.sourceQuiz}"</strong>
+                  </Typography>
+                </Alert>
+              </Grid>
+            )}
+
+
 
             <Grid item xs={12} sm={6}>
               <TextField

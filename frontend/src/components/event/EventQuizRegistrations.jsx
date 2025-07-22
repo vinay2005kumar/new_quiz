@@ -146,11 +146,11 @@ const EventQuizRegistrations = () => {
     }
   };
 
-  const filteredRegistrations = registrations.filter(reg =>
-    reg.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    reg.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    reg.college.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    reg.department.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredRegistrations = (registrations || []).filter(reg =>
+    reg?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    reg?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    reg?.college?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    reg?.department?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (loading) {

@@ -111,7 +111,8 @@ const PublicQuizTake = () => {
   }, []);
 
   useEffect(() => {
-    if (quiz && timeRemaining > 0) {
+    // Only run timer if quiz exists, time remaining > 0, AND admin override is NOT active
+    if (quiz && timeRemaining > 0 && !adminOverrideActive) {
       const timer = setInterval(() => {
         setTimeRemaining(prev => {
           if (prev <= 1000) {
@@ -124,7 +125,8 @@ const PublicQuizTake = () => {
 
       return () => clearInterval(timer);
     }
-  }, [quiz, timeRemaining]);
+    // If admin override is active, timer is paused (no interval created)
+  }, [quiz, timeRemaining, adminOverrideActive]);
 
   const fetchQuiz = async () => {
     try {
@@ -391,8 +393,8 @@ const PublicQuizTake = () => {
 
               <Chip
                 icon={<TimerIcon sx={{ fontSize: { xs: '1rem', sm: '1.2rem' } }} />}
-                label={formatTime(timeRemaining)}
-                color={timeRemaining < 300000 ? 'error' : 'primary'}
+                label={adminOverrideActive ? `${formatTime(timeRemaining)} (PAUSED)` : formatTime(timeRemaining)}
+                color={adminOverrideActive ? 'warning' : (timeRemaining < 300000 ? 'error' : 'primary')}
                 variant="filled"
                 size={isMobile ? "small" : "medium"}
                 sx={{ fontSize: { xs: '0.875rem', sm: '1rem' }, fontWeight: 'bold' }}
