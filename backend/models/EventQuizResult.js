@@ -87,17 +87,9 @@ eventQuizResultSchema.index({
   }
 });
 
-// Create a compound unique index for authenticated submissions
-eventQuizResultSchema.index({
-  quiz: 1,
-  student: 1
-}, {
-  unique: true,
-  sparse: true,
-  partialFilterExpression: {
-    student: { $exists: true, $ne: null }
-  }
-});
+// Note: Removed the compound unique index for quiz + student to avoid conflicts
+// with emergency submissions where student can be null
+// The unique constraint is now handled by the quiz + email index above
 
 const EventQuizResult = mongoose.model('EventQuizResult', eventQuizResultSchema);
 

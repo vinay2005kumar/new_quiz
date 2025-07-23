@@ -71,7 +71,6 @@ const QuizAttempt = () => {
   // Reset violation count when admin override is activated
   useEffect(() => {
     if (adminOverrideActive) {
-      console.log('🔧 Admin override activated - resetting violation count');
       setViolationCount(0);
     }
   }, [adminOverrideActive]);
@@ -356,7 +355,6 @@ const QuizAttempt = () => {
       onSecurityViolation={(violation) => {
         // Skip violations if admin override is active
         if (adminOverrideActive) {
-          console.log('🔓 PARENT: Admin override active - skipping violation:', violation.type?.split('\n')[0] || violation);
           return;
         }
 
@@ -364,18 +362,12 @@ const QuizAttempt = () => {
         const newCount = violationCount + 1;
         setViolationCount(newCount);
 
-        console.log('🎯 VIOLATION COUNT:', {
-          previousCount: violationCount,
-          newCount: newCount,
-          violation: violation.type?.split('\n')[0] || violation
-        });
-
         // Check for auto-submit
         const maxViolations = memoizedSecuritySettings?.violationSettings?.maxViolations || 2;
         const autoTerminate = memoizedSecuritySettings?.violationSettings?.autoTerminate !== false;
 
         if (newCount >= maxViolations && autoTerminate) {
-          console.log('🚨 AUTO-SUBMIT TRIGGERED - Count:', newCount, 'Max:', maxViolations);
+          console.warn('Quiz auto-submitted due to security violations:', newCount);
           handleSubmit();
         }
       }}

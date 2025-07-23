@@ -1541,8 +1541,9 @@ router.post('/:id/login', async (req, res) => {
       return res.status(400).json({ message: 'You have already attempted this quiz' });
     }
 
-    // Check if already submitted (emergency password allows override but still sends the flag)
+    // Check if already submitted (block for both regular and emergency passwords)
     let hasSubmitted = false;
+    let submissionDetails = null;
 
     // First check credentials flag
     if (credentials.hasAttemptedQuiz && !credentials.canReattempt) {
@@ -1558,13 +1559,23 @@ router.post('/:id/login', async (req, res) => {
 
       if (existingResult) {
         hasSubmitted = true;
+        submissionDetails = {
+          submittedAt: existingResult.submittedAt,
+          score: existingResult.score,
+          totalMarks: existingResult.totalMarks
+        };
       }
     }
 
-    // Block login if already submitted (unless emergency password)
-    if (hasSubmitted && !isEmergencyPassword) {
+    // Block login if already submitted (for both regular and emergency passwords)
+    if (hasSubmitted) {
+      const responseMessage = isEmergencyPassword
+        ? 'You have already submitted this quiz. Emergency password cannot override completed submissions.'
+        : 'You have already submitted this quiz';
+
       return res.status(400).json({
-        message: 'You have already submitted this quiz'
+        message: responseMessage,
+        submissionDetails: submissionDetails
       });
     }
 
@@ -2004,20 +2015,18 @@ router.post('/:id/submit', async (req, res) => {
       return res.status(400).json({ message: 'You have already submitted this quiz' });
     }
 
-    // Only clean up existing results if this is a reattempt or emergency submission
-    if (credentials?.canReattempt || isEmergencySubmission) {
-      const deleteResult = await EventQuizResult.deleteMany({
-        quiz: id,
-        'participantInfo.email': email
-      });
+    // Always clean up existing results for this participant to avoid duplicates
+    const deleteResult = await EventQuizResult.deleteMany({
+      quiz: id,
+      'participantInfo.email': email
+    });
 
-      // Reset credentials for reattempt
-      if (credentials) {
-        await QuizCredentials.updateOne(
-          { _id: credentials._id },
-          { hasAttemptedQuiz: false, canReattempt: false }
-        );
-      }
+    // Reset credentials for reattempt
+    if (credentials && (credentials.canReattempt || isEmergencySubmission)) {
+      await QuizCredentials.updateOne(
+        { _id: credentials._id },
+        { hasAttemptedQuiz: false, canReattempt: false }
+      );
     }
 
     // Calculate score with negative marking support
@@ -2120,11 +2129,22 @@ router.post('/:id/submit', async (req, res) => {
       await result.save();
     } catch (saveError) {
       if (saveError.code === 11000) {
-        // Force delete any remaining results for this specific participant only
+        // Force delete any remaining results for this specific participant using multiple criteria
         await EventQuizResult.deleteMany({
-          quiz: id,
-          'participantInfo.email': email
+          $or: [
+            { quiz: id, 'participantInfo.email': email },
+            { quiz: id, student: null, 'participantInfo.email': email }
+          ]
         });
+
+        // Also delete any results with the same quiz and null student (for emergency submissions)
+        if (isEmergencySubmission) {
+          await EventQuizResult.deleteMany({
+            quiz: id,
+            student: null,
+            'participantInfo.email': email
+          });
+        }
 
         // Try to save again
         try {

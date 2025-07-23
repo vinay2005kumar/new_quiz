@@ -144,15 +144,10 @@ const EventQuizSubmissions = () => {
   // Function to determine the correct submission view path
   const getSubmissionViewPath = (studentId) => {
     const currentPath = location.pathname;
-    console.log('EventQuizSubmissions - Current path:', currentPath);
-    console.log('EventQuizSubmissions - Quiz ID:', id);
-    console.log('EventQuizSubmissions - Student ID:', studentId);
 
     // If accessed from admin routes, ALWAYS use admin path (plural "submissions")
     if (currentPath.includes('/admin/')) {
-      const adminPath = `/admin/event-quiz/${id}/submissions/${studentId}`;
-      console.log('EventQuizSubmissions - Generated admin path:', adminPath);
-      return adminPath;
+      return `/admin/event-quiz/${id}/submissions/${studentId}`;
     }
     // Default to event manager path (singular "submission")
     // This will be under /event/* routes which require 'event' role

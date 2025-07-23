@@ -43,7 +43,7 @@ const QuizSubmissionView = () => {
       setError('');
 
       const response = await api.get(`/api/quiz/${quizId}/submissions/${studentId}`);
-      setSubmission(response);
+      setSubmission(response.data || response);
     } catch (error) {
       console.error('Error fetching submission:', error);
       setError(error.response?.data?.message || error.message || 'Failed to load submission');
@@ -249,7 +249,7 @@ const QuizSubmissionView = () => {
                               borderColor: 'divider',
                               fontSize: { xs: '0.875rem', sm: '0.9rem' }
                             }}>
-                              <div dangerouslySetInnerHTML={{ __html: question.text }} />
+                              <div dangerouslySetInnerHTML={{ __html: question.question || question.text || 'Question text not available' }} />
                             </Box>
 
                             {/* Options */}
@@ -291,13 +291,21 @@ const QuizSubmissionView = () => {
                               backgroundColor: answerObj?.isCorrect ? 'success.light' : 'error.light',
                               color: answerObj?.isCorrect ? 'success.dark' : 'error.dark'
                             }}>
-                              <Typography 
+                              <Typography
                                 variant="body2"
                                 sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
                               >
                                 <strong>
                                   {answerObj?.isCorrect ? '✓ Correct' : '✗ Incorrect'}
                                 </strong>
+                                {studentAnswer && (
+                                  <span> - Selected: {studentAnswer}</span>
+                                )}
+                                {!studentAnswer && (
+                                  <span> - No answer selected</span>
+                                )}
+                                <br />
+                                <span>Correct Answer: {question.options?.[question.correctAnswer]}</span>
                                 {answerObj?.marks !== undefined && (
                                   <span> - {answerObj.marks} mark{answerObj.marks !== 1 ? 's' : ''} awarded</span>
                                 )}

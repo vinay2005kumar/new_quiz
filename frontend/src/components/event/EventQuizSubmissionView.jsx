@@ -25,10 +25,6 @@ import { ArrowBack as ArrowBackIcon } from '@mui/icons-material';
 import api from '../../config/axios';
 
 const EventQuizSubmissionView = () => {
-  console.log('🚀 EventQuizSubmissionView component is rendering!');
-  console.log('🔍 Current URL:', window.location.href);
-  console.log('🔍 Current pathname:', window.location.pathname);
-
   const params = useParams();
   const navigate = useNavigate();
   const theme = useTheme();
@@ -38,35 +34,14 @@ const EventQuizSubmissionView = () => {
   const [error, setError] = useState('');
   const [submission, setSubmission] = useState(null);
 
-  // Debug the parameters
-  console.log('🔍 EventQuizSubmissionView - All params:', params);
-  console.log('🔍 EventQuizSubmissionView - Current URL:', window.location.pathname);
-  console.log('🔍 EventQuizSubmissionView - Available keys:', Object.keys(params));
-
   // Extract parameters - the route is /quiz/:id/submission/:studentId
   const quizId = params.id;
   const studentId = params.studentId;
 
-  console.log('🔍 EventQuizSubmissionView - Extracted quizId:', quizId);
-  console.log('🔍 EventQuizSubmissionView - Extracted studentId:', studentId);
-
-  // Additional debugging
-  if (!quizId) {
-    console.error('❌ quizId is missing! Available params:', params);
-  }
-  if (!studentId) {
-    console.error('❌ studentId is missing! Available params:', params);
-  }
-
   useEffect(() => {
-    console.log('🔄 useEffect triggered with quizId:', quizId, 'studentId:', studentId);
-
     if (quizId && studentId) {
-      console.log('✅ Both parameters available, calling fetchSubmission');
       fetchSubmission();
     } else {
-      console.error('❌ Missing parameters - quizId:', quizId, 'studentId:', studentId);
-      console.error('❌ All available params:', params);
       setError(`Missing required parameters. QuizId: ${quizId}, StudentId: ${studentId}`);
       setLoading(false);
     }
@@ -77,28 +52,12 @@ const EventQuizSubmissionView = () => {
       setLoading(true);
       setError('');
 
-      console.log('🔍 EventQuizSubmissionView - Fetching submission with quizId:', quizId, 'studentId:', studentId);
+      const response = await api.get(`/api/event-quiz/${quizId}/submission/${studentId}`);
 
-      // The backend route is /:quizId/submission/:studentId
-      // So we need to call /api/event-quiz/{quizId}/submission/{studentId}
-      const apiUrl = `/api/event-quiz/${quizId}/submission/${studentId}`;
-      console.log('🔍 EventQuizSubmissionView - API URL:', apiUrl);
-
-      const response = await api.get(apiUrl);
-      console.log('✅ EventQuizSubmissionView - Response received:', response);
-      setSubmission(response);
+      // Handle different response structures
+      const submissionData = response.data || response;
+      setSubmission(submissionData);
     } catch (error) {
-      console.error('❌ EventQuizSubmissionView - Error fetching submission:', error);
-      console.error('❌ EventQuizSubmissionView - Error details:', {
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        message: error.response?.data?.message,
-        data: error.response?.data,
-        url: error.config?.url,
-        quizId: quizId,
-        studentId: studentId,
-        fullError: error.response
-      });
 
       // More detailed error message
       let errorMessage = 'Failed to load submission';
@@ -123,14 +82,18 @@ const EventQuizSubmissionView = () => {
     return new Date(dateString).toLocaleString();
   };
 
-  const formatDuration = (minutes) => {
-    if (!minutes && minutes !== 0) return 'N/A';
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
+  const formatDuration = (seconds) => {
+    if (!seconds && seconds !== 0) return 'N/A';
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = seconds % 60;
+
     if (hours > 0) {
-      return `${hours}h ${remainingMinutes}m`;
+      return `${hours}h ${minutes}m ${remainingSeconds}s`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${remainingSeconds}s`;
     }
-    return `${remainingMinutes}m`;
+    return `${remainingSeconds}s`;
   };
 
   if (loading) {
@@ -310,8 +273,9 @@ const EventQuizSubmissionView = () => {
                 </Typography>
                 <List sx={{ p: 0 }}>
                   {submission.quiz.questions?.map((question, index) => {
-                    const answerObj = submission.answers?.find(ans => ans.questionId === question._id);
-                    const studentAnswer = answerObj?.selectedOption;
+                    // Find answer by questionIndex (not questionId)
+                    const answerObj = submission.answers?.find(ans => ans.questionIndex === index);
+                    const studentAnswerIndex = answerObj?.selectedOption;
 
                     return (
                       <React.Fragment key={question._id}>
@@ -339,57 +303,75 @@ const EventQuizSubmissionView = () => {
                               borderColor: 'divider',
                               fontSize: { xs: '0.875rem', sm: '0.9rem' }
                             }}>
-                              <div dangerouslySetInnerHTML={{ __html: question.text }} />
+                              <div dangerouslySetInnerHTML={{ __html: question.question || question.text || 'Question text not available' }} />
                             </Box>
 
                             {/* Options */}
-                            <RadioGroup value={studentAnswer || ''} sx={{ mb: 2 }}>
-                              {question.options?.map((option, optionIndex) => (
-                                <FormControlLabel
-                                  key={optionIndex}
-                                  value={option}
-                                  control={<Radio />}
-                                  label={
-                                    <Box sx={{ 
-                                      fontSize: { xs: '0.875rem', sm: '1rem' },
-                                      wordBreak: 'break-word'
-                                    }}>
-                                      <div dangerouslySetInnerHTML={{ __html: option }} />
-                                    </Box>
-                                  }
-                                  sx={{
-                                    margin: 0,
-                                    padding: { xs: 0.5, sm: 1 },
-                                    borderRadius: 1,
-                                    backgroundColor: studentAnswer === option ? 'action.selected' : 'transparent',
-                                    border: studentAnswer === option ? '2px solid' : '1px solid',
-                                    borderColor: studentAnswer === option ? 'primary.main' : 'divider',
-                                    width: '100%',
-                                    '&:hover': {
-                                      backgroundColor: 'action.hover'
+                            <RadioGroup value={studentAnswerIndex !== null && studentAnswerIndex !== undefined ? studentAnswerIndex.toString() : ''} sx={{ mb: 2 }}>
+                              {question.options?.map((option, optionIndex) => {
+                                const isSelected = studentAnswerIndex === optionIndex;
+                                const isCorrect = question.correctAnswer === optionIndex;
+
+                                return (
+                                  <FormControlLabel
+                                    key={optionIndex}
+                                    value={optionIndex.toString()}
+                                    control={<Radio />}
+                                    label={
+                                      <Box sx={{
+                                        fontSize: { xs: '0.875rem', sm: '1rem' },
+                                        wordBreak: 'break-word'
+                                      }}>
+                                        <div dangerouslySetInnerHTML={{ __html: option }} />
+                                      </Box>
                                     }
-                                  }}
-                                />
-                              ))}
+                                    sx={{
+                                      margin: 0,
+                                      padding: { xs: 0.5, sm: 1 },
+                                      borderRadius: 1,
+                                      backgroundColor: isSelected
+                                        ? (isCorrect ? 'success.light' : 'error.light')
+                                        : (isCorrect ? 'success.main' : 'transparent'),
+                                      border: isSelected ? '2px solid' : '1px solid',
+                                      borderColor: isSelected
+                                        ? (isCorrect ? 'success.main' : 'error.main')
+                                        : (isCorrect ? 'success.main' : 'divider'),
+                                      width: '100%',
+                                      opacity: isCorrect ? 1 : (isSelected ? 0.8 : 0.6),
+                                      '&:hover': {
+                                        backgroundColor: 'action.hover'
+                                      }
+                                    }}
+                                  />
+                                );
+                              })}
                             </RadioGroup>
 
                             {/* Answer Status */}
-                            <Box sx={{ 
-                              mt: 2, 
-                              p: { xs: 1, sm: 1.5 }, 
+                            <Box sx={{
+                              mt: 2,
+                              p: { xs: 1, sm: 1.5 },
                               borderRadius: 1,
-                              backgroundColor: answerObj?.isCorrect ? 'success.light' : 'error.light',
-                              color: answerObj?.isCorrect ? 'success.dark' : 'error.dark'
+                              backgroundColor: (studentAnswerIndex === question.correctAnswer) ? 'success.light' : 'error.light',
+                              color: (studentAnswerIndex === question.correctAnswer) ? 'success.dark' : 'error.dark'
                             }}>
-                              <Typography 
+                              <Typography
                                 variant="body2"
                                 sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
                               >
                                 <strong>
-                                  {answerObj?.isCorrect ? '✓ Correct' : '✗ Incorrect'}
+                                  {studentAnswerIndex === question.correctAnswer ? '✓ Correct' : '✗ Incorrect'}
                                 </strong>
-                                {answerObj?.marks !== undefined && (
-                                  <span> - {answerObj.marks} mark{answerObj.marks !== 1 ? 's' : ''} awarded</span>
+                                {studentAnswerIndex !== null && studentAnswerIndex !== undefined && (
+                                  <span> - Selected: {question.options?.[studentAnswerIndex]}</span>
+                                )}
+                                {studentAnswerIndex === null || studentAnswerIndex === undefined && (
+                                  <span> - No answer selected</span>
+                                )}
+                                <br />
+                                <span>Correct Answer: {question.options?.[question.correctAnswer]}</span>
+                                {(studentAnswerIndex === question.correctAnswer ? question.marks : 0) !== undefined && (
+                                  <span> - {(studentAnswerIndex === question.correctAnswer ? question.marks : 0) || 0} mark{((studentAnswerIndex === question.correctAnswer ? question.marks : 0) || 0) !== 1 ? 's' : ''} awarded</span>
                                 )}
                               </Typography>
                             </Box>
