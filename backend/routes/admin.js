@@ -79,7 +79,7 @@ router.post('/event-quiz-accounts', isAdmin, async (req, res) => {
   try {
     const { name, department, email, password, eventType } = req.body;
 
-    console.log('Creating event quiz account:', { name, department, email, eventType });
+    
 
     // Validate required fields
     if (!email || !password || !eventType || !name) {

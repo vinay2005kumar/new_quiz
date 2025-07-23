@@ -8,11 +8,15 @@ import {
   Button,
   Paper,
   CircularProgress,
-  Link
+  Link,
+  InputAdornment,
+  IconButton
 } from '@mui/material';
 import { useAuth } from '../../context/AuthContext';
 import { useCollegeInfo } from '../../hooks/useCollegeInfo';
 import HomeIcon from '@mui/icons-material/Home';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 
 // Helper function to get dashboard path based on role
 const getDashboardPath = (role) => {
@@ -33,9 +37,10 @@ const getDashboardPath = (role) => {
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { login, user } = useAuth();
-  const { name: collegeName, email: collegeEmail, phone: collegePhone, address: collegeAddress } = useCollegeInfo();
+  const { name: collegeName, address: collegeAddress } = useCollegeInfo();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -46,6 +51,14 @@ const Login = () => {
       navigate(dashboardPath, { replace: true });
     }
   }, [user, navigate]);
+
+  const handleClickShowPassword = () => {
+    setShowPassword(!showPassword);
+  };
+
+  const handleMouseDownPassword = (event) => {
+    event.preventDefault();
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -123,12 +136,27 @@ const Login = () => {
               fullWidth
               name="password"
               label="Password"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               id="password"
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={isLoading}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label="toggle password visibility"
+                      onClick={handleClickShowPassword}
+                      onMouseDown={handleMouseDownPassword}
+                      edge="end"
+                      disabled={isLoading}
+                    >
+                      {!showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
             <Button
               type="submit"

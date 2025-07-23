@@ -11,6 +11,8 @@ import {
   CircularProgress,
   Card,
   CardContent,
+  InputAdornment,
+  IconButton,
   Divider
 } from '@mui/material';
 import {
@@ -18,7 +20,9 @@ import {
   Quiz as QuizIcon,
   AccessTime as TimeIcon,
   People as PeopleIcon,
-  ArrowBack as ArrowBackIcon
+  ArrowBack as ArrowBackIcon,
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon
 } from '@mui/icons-material';
 import { toast } from 'react-toastify';
 import api from '../../config/axios';
@@ -33,7 +37,14 @@ const QuizLogin = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [quizInfo, setQuizInfo] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
 
+  const handleClickShowPassword = () => {
+    setShowPassword(!showPassword);
+  };
+  const handleMouseDownPassword = (event) => {
+    event.preventDefault();
+  };
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -301,13 +312,28 @@ const QuizLogin = () => {
             fullWidth
             label="Password"
             name="password"
-            type="password"
+            type={showPassword ? 'text' : 'password'}
             value={formData.password}
             onChange={handleChange}
             required
             disabled={loading}
             sx={{ mb: 3 }}
             helperText="Enter the password provided in your registration email"
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label="toggle password visibility"
+                    onClick={handleClickShowPassword}
+                    onMouseDown={handleMouseDownPassword}
+                    edge="end"
+                    disabled={loading}
+                  >
+                    {!showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
           />
 
           <Button

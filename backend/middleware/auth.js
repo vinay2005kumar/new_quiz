@@ -4,27 +4,14 @@ const EventQuizAccount = require('../models/EventQuizAccount');
 
 const auth = async (req, res, next) => {
   try {
-    console.log('Auth middleware - Request path:', req.path);
-    
     const token = req.header('Authorization')?.replace('Bearer ', '');
-    console.log('Auth middleware - Token check:', {
-      hasToken: !!token,
-      tokenPreview: token ? `${token.substring(0, 10)}...` : null
-    });
-    
+
     if (!token) {
-      console.log('Auth middleware - No token provided');
       return res.status(401).json({ message: 'No token provided' });
     }
 
     try {
-      console.log('Auth middleware - Verifying token...');
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
-      console.log('Auth middleware - Token verified:', {
-        userId: decoded.userId,
-        exp: new Date(decoded.exp * 1000).toISOString(),
-        role: decoded.role
-      });
 
       let user;
       let isEventAccount = false;
@@ -42,25 +29,13 @@ const auth = async (req, res, next) => {
         user = await User.findById(decoded.userId);
       }
 
-      console.log('Auth middleware - User lookup:', {
-        found: !!user,
-        userId: decoded.userId,
-        isEventAccount,
-        role: isEventAccount ? 'event' : (user?.role || 'unknown')
-      });
-
       if (!user) {
-        console.log('Auth middleware - User not found for token');
         return res.status(401).json({ message: 'Invalid credentials' });
       }
 
       // Check token exp
       const currentTimestamp = Math.floor(Date.now() / 1000);
       if (decoded.exp && decoded.exp < currentTimestamp) {
-        console.log('Auth middleware - Token expired:', {
-          expiry: new Date(decoded.exp * 1000).toISOString(),
-          current: new Date().toISOString()
-        });
         return res.status(401).json({ message: 'Token has expired' });
       }
 
@@ -71,54 +46,24 @@ const auth = async (req, res, next) => {
       req.isEventAccount = isEventAccount;
       req.userRole = isEventAccount ? 'event' : user.role; // Add explicit role field
 
-      console.log('Auth middleware - Authentication successful:', {
-        userId: user._id,
-        role: req.userRole,
-        email: user.email,
-        isEventAccount,
-        tokenExp: new Date(decoded.exp * 1000).toISOString()
-      });
-
       next();
     } catch (jwtError) {
-      console.error('Auth middleware - JWT verification failed:', {
-        error: jwtError.message,
-        name: jwtError.name,
-        tokenPreview: token ? `${token.substring(0, 10)}...` : null
-      });
-      
-      return res.status(401).json({ 
+      return res.status(401).json({
         message: 'Invalid credentials',
         error: jwtError.name
       });
     }
   } catch (error) {
-    console.error('Auth middleware - Unexpected error:', {
-      error: error.message,
-      stack: error.stack
-    });
+    console.error('Auth middleware error:', error.message);
     res.status(500).json({ message: 'Server error during authentication' });
   }
 };
 
 const authorize = (...roles) => {
   return (req, res, next) => {
-    console.log('Authorize middleware:', {
-      userRole: req.userRole,
-      requiredRoles: roles,
-      path: req.path
-    });
-
     if (!roles.includes(req.userRole)) {
-      console.error('Authorization failed:', {
-        userRole: req.userRole,
-        requiredRoles: roles,
-        path: req.path
-      });
-      return res.status(403).json({ 
-        message: 'You do not have permission to perform this action',
-        userRole: req.userRole,
-        requiredRoles: roles
+      return res.status(403).json({
+        message: 'You do not have permission to perform this action'
       });
     }
     next();

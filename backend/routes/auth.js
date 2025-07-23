@@ -94,8 +94,6 @@ router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    console.log('Login attempt for email:', email);
-
     if (!email || !password) {
       return res.status(400).json({
         success: false,
@@ -115,7 +113,6 @@ router.post('/login', async (req, res) => {
     }
 
     if (!user) {
-      console.log('Login failed: User not found for email:', email);
       return res.status(404).json({
         success: false,
         message: 'No account found with this email address'
@@ -125,7 +122,6 @@ router.post('/login', async (req, res) => {
     // Check password
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      console.log('Login failed: Invalid password for email:', email);
       return res.status(401).json({
         success: false,
         message: 'Incorrect password. Please try again.'
@@ -148,14 +144,6 @@ router.post('/login', async (req, res) => {
 
     // Verify token immediately to ensure it's valid
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
-    
-    console.log('Login successful:', {
-      userId: user._id,
-      email: user.email,
-      role: isEventAccount ? 'event' : user.role,
-      tokenExp: new Date(decoded.exp * 1000).toISOString(),
-      tokenPreview: `${token.substring(0, 10)}...`
-    });
 
     // Prepare response based on account type
     const userResponse = isEventAccount ? {
@@ -783,38 +771,6 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
-// Test email endpoint (for debugging)
-router.post('/test-email', async (req, res) => {
-  try {
-    const { email } = req.body;
 
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email is required for testing'
-      });
-    }
-
-    console.log(`🧪 Testing email functionality for: ${email}`);
-
-    // Test sending email
-    const testCode = '123456';
-    await sendForgotPasswordEmail(email, 'Test User', testCode);
-
-    res.json({
-      success: true,
-      message: 'Test email sent successfully',
-      testCode: testCode
-    });
-
-  } catch (error) {
-    console.error('❌ Test email failed:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Test email failed',
-      error: error.message
-    });
-  }
-});
 
 module.exports = router;

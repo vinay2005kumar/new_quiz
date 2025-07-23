@@ -3,18 +3,11 @@ const crypto = require('crypto');
 
 // Create transporter for sending emails
 const createTransporter = () => {
-  console.log('🔧 EMAIL: Creating transporter with nodemailer.createTransport');
-
   const emailUser = process.env.EMAIL_USER;
   const emailPass = process.env.EMAIL_PASS;
 
-  console.log('📧 Email configuration:', {
-    user: emailUser ? `${emailUser.substring(0, 3)}***@${emailUser.split('@')[1]}` : 'NOT SET',
-    pass: emailPass ? '***SET***' : 'NOT SET'
-  });
-
   if (!emailUser || !emailPass) {
-    console.warn('⚠️ Email credentials not properly configured in environment variables');
+    console.warn('⚠️ Email credentials not configured');
   }
 
   return nodemailer.createTransport({
@@ -69,7 +62,6 @@ const generateCredentials = (registrationData, quiz) => {
     } else {
       // Use emergency password for follow-up quizzes when no original data available
       password = emergencyPassword; // "Quiz@123"
-      console.log(`🔑 Using emergency password for follow-up quiz student: ${registrationData.email}`);
     }
   }
 
@@ -79,14 +71,6 @@ const generateCredentials = (registrationData, quiz) => {
 // Send registration confirmation email to all team members
 const sendRegistrationEmail = async (registrationData, quiz, credentials) => {
   try {
-    console.log('📧 Starting email sending process...');
-    console.log('Registration data:', {
-      isTeam: registrationData.isTeamRegistration,
-      teamName: registrationData.teamName,
-      teamLeaderEmail: registrationData.teamLeader?.email,
-      teamMembersCount: registrationData.teamMembers?.length
-    });
-
     const transporter = createTransporter();
     const isTeam = registrationData.isTeamRegistration;
 
@@ -96,8 +80,6 @@ const sendRegistrationEmail = async (registrationData, quiz, credentials) => {
         { ...registrationData.teamLeader, role: 'Team Leader' },
         ...registrationData.teamMembers.map(member => ({ ...member, role: 'Team Member' }))
       ];
-
-      console.log(`📧 Preparing to send emails to ${allMembers.length} team members:`);
       allMembers.forEach((member, index) => {
         console.log(`  ${index + 1}. ${member.name} (${member.email}) - ${member.role}`);
       });
@@ -379,10 +361,9 @@ const sendIndividualRegistrationEmail = async (transporter, registrationData, qu
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`Registration email sent to: ${registrationData.email}`);
     return true;
   } catch (error) {
-    console.error('Error sending individual registration email:', error);
+    console.error('Error sending registration email:', error.message);
     return false;
   }
 };
@@ -392,10 +373,6 @@ const sendIndividualRegistrationEmail = async (transporter, registrationData, qu
 // Send bulk email to multiple recipients
 const sendBulkEmail = async ({ emails, subject, message, quizTitle, senderName }) => {
   try {
-    console.log('📧 Starting bulk email sending process...');
-    console.log(`Recipients: ${emails.length} emails`);
-    console.log(`Subject: ${subject}`);
-
     const transporter = createTransporter();
 
     let successCount = 0;
@@ -439,10 +416,9 @@ const sendBulkEmail = async ({ emails, subject, message, quizTitle, senderName }
         };
 
         await transporter.sendMail(mailOptions);
-        console.log(`✅ Email sent successfully to: ${email}`);
         successCount++;
       } catch (emailError) {
-        console.error(`❌ Failed to send email to ${email}:`, emailError.message);
+        console.error(`Failed to send email to ${email}:`, emailError.message);
         failureCount++;
         failures.push({
           email,
@@ -451,8 +427,6 @@ const sendBulkEmail = async ({ emails, subject, message, quizTitle, senderName }
       }
     }
 
-    console.log(`📊 Bulk email summary: ${successCount} successful, ${failureCount} failed`);
-
     return {
       success: successCount > 0,
       successCount,
@@ -460,7 +434,7 @@ const sendBulkEmail = async ({ emails, subject, message, quizTitle, senderName }
       failures
     };
   } catch (error) {
-    console.error('❌ Error in bulk email sending:', error);
+    console.error('Bulk email error:', error.message);
     return {
       success: false,
       successCount: 0,
