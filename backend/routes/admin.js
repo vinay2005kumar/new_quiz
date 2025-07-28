@@ -7,7 +7,7 @@ const QuizSubmission = require('../models/QuizSubmission');
 const multer = require('multer');
 const XLSX = require('xlsx');
 const bcrypt = require('bcryptjs');
-const EventQuizAccount = require('../models/EventQuizAccount');
+// EventQuizAccount model removed - now using User model with role: 'event'
 const Department = require('../models/Department');
 const AcademicDetail = require('../models/AcademicDetail');
 const College = require('../models/College');
@@ -61,12 +61,24 @@ router.get('/student-counts', auth, authorize('admin'), async (req, res) => {
   }
 });
 
-// Get all event quiz accounts
+// Get all event quiz accounts (now from User model)
 router.get('/event-quiz-accounts', isAdmin, async (req, res) => {
   try {
-    const accounts = await EventQuizAccount.find()
-      .select('-password')
+    const users = await User.find({ role: 'event' })
       .sort({ createdAt: -1 });
+
+    // Transform data to match frontend expectations
+    const accounts = users.map(user => ({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      eventType: user.eventType,
+      department: user.departments?.[0] || '', // Extract first department from array
+      isActive: user.isActive,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    }));
+
     res.json({ accounts });
   } catch (error) {
     console.error('Error fetching event accounts:', error);
@@ -74,16 +86,14 @@ router.get('/event-quiz-accounts', isAdmin, async (req, res) => {
   }
 });
 
-// Create event quiz account
+// Create event quiz account (now using User model)
 router.post('/event-quiz-accounts', isAdmin, async (req, res) => {
   try {
     const { name, department, email, password, eventType } = req.body;
 
-    
-
     // Validate required fields
     if (!email || !password || !eventType || !name) {
-      console.log('Missing required fields:', { name: !!name, email, password: !!password, eventType });
+      //console.log('Missing required fields:', { name: !!name, email, password: !!password, eventType });
       return res.status(400).json({ message: 'Please provide all required fields' });
     }
 
@@ -93,20 +103,33 @@ router.post('/event-quiz-accounts', isAdmin, async (req, res) => {
     }
 
     // Check if account already exists
-    const existingAccount = await EventQuizAccount.findOne({ email });
+    const existingAccount = await User.findOne({ email });
     if (existingAccount) {
-      console.log('Account already exists:', email);
+      //console.log('Account already exists:', email);
       return res.status(400).json({ message: 'Account with this email already exists' });
     }
 
-    // Create new account
-    const account = new EventQuizAccount({
+    // Create new user with event role
+    const account = new User({
       name,
-      department,
       email,
       password,
+      role: 'event',
       eventType,
-      createdBy: req.user._id
+      isEventQuizAccount: true,
+      isActive: true,
+      // Set required fields for event users
+      departments: eventType === 'department' && department ? [department] : ['General'],
+      years: ['1', '2', '3', '4'],
+      semesters: ['1', '2', '3', '4', '5', '6', '7', '8'],
+      sections: ['A', 'B', 'C'], // Valid sections (A-Z)
+      assignments: [{
+        department: department || 'General',
+        year: '1',
+        semester: '1',
+        sections: ['A'],
+        subjects: []
+      }]
     });
 
     // Validate against schema
@@ -121,11 +144,19 @@ router.post('/event-quiz-accounts', isAdmin, async (req, res) => {
 
     await account.save();
 
-    // Return account without password
-    const accountToReturn = account.toObject();
-    delete accountToReturn.password;
+    // Transform response to match frontend expectations
+    const accountToReturn = {
+      _id: account._id,
+      name: account.name,
+      email: account.email,
+      eventType: account.eventType,
+      department: account.departments?.[0] || '', // Extract first department from array
+      isActive: account.isActive,
+      createdAt: account.createdAt,
+      updatedAt: account.updatedAt
+    };
 
-    console.log('Account created successfully:', accountToReturn._id);
+    //console.log('Account created successfully:', accountToReturn._id);
     res.status(201).json(accountToReturn);
   } catch (error) {
     console.error('Error creating event account:', error);
@@ -133,7 +164,7 @@ router.post('/event-quiz-accounts', isAdmin, async (req, res) => {
   }
 });
 
-// Update event quiz account
+// Update event quiz account (now using User model)
 router.put('/event-quiz-accounts/:id', isAdmin, async (req, res) => {
   try {
     const { name, department, email, password, eventType, isActive } = req.body;
@@ -144,22 +175,36 @@ router.put('/event-quiz-accounts/:id', isAdmin, async (req, res) => {
       isActive
     };
 
-    // Only include department if event type is department
+    // Update departments array for event users
     if (eventType === 'department') {
       if (!department) {
         return res.status(400).json({ message: 'Department is required for department events' });
       }
-      updateData.department = department;
+      updateData.departments = [department];
+      updateData.assignments = [{
+        department: department,
+        year: '1',
+        semester: '1',
+        sections: ['A'],
+        subjects: []
+      }];
+    } else {
+      updateData.departments = ['General'];
+      updateData.assignments = [{
+        department: 'General',
+        year: '1',
+        semester: '1',
+        sections: ['A'],
+        subjects: []
+      }];
     }
 
-    // If password is provided, hash it
+    // If password is provided, include it (let model middleware handle hashing)
     if (password) {
-      const salt = await bcrypt.genSalt(10);
-      updateData.password = await bcrypt.hash(password, salt);
-      updateData.originalPassword = encrypt(password);
+      updateData.password = password;
     }
 
-    const account = await EventQuizAccount.findByIdAndUpdate(
+    const account = await User.findByIdAndUpdate(
       req.params.id,
       updateData,
       { new: true, runValidators: true }
@@ -169,23 +214,35 @@ router.put('/event-quiz-accounts/:id', isAdmin, async (req, res) => {
       return res.status(404).json({ message: 'Account not found' });
     }
 
-    res.json({ message: 'Account updated successfully', account });
+    // Transform response to match frontend expectations
+    const transformedAccount = {
+      _id: account._id,
+      name: account.name,
+      email: account.email,
+      eventType: account.eventType,
+      department: account.departments?.[0] || '', // Extract first department from array
+      isActive: account.isActive,
+      createdAt: account.createdAt,
+      updatedAt: account.updatedAt
+    };
+
+    res.json({ message: 'Account updated successfully', account: transformedAccount });
   } catch (error) {
     console.error('Error updating event account:', error);
     res.status(500).json({ message: 'Error updating account', error: error.message });
   }
 });
 
-// Delete event quiz account
+// Delete event quiz account (now using User model)
 router.delete('/event-quiz-accounts/:id', isAdmin, async (req, res) => {
   try {
-    console.log('Deleting event quiz account:', req.params.id);
-    const account = await EventQuizAccount.findByIdAndDelete(req.params.id);
+    //console.log('Deleting event quiz account:', req.params.id);
+    const account = await User.findByIdAndDelete(req.params.id);
     if (!account) {
-      console.log('Account not found:', req.params.id);
+      //console.log('Account not found:', req.params.id);
       return res.status(404).json({ message: 'Account not found' });
     }
-    console.log('Account deleted successfully:', req.params.id);
+    //console.log('Account deleted successfully:', req.params.id);
     res.json({ message: 'Account deleted successfully' });
   } catch (error) {
     console.error('Error deleting event account:', error);
@@ -202,7 +259,7 @@ router.post('/event-quiz-accounts/bulk', isAdmin, async (req, res) => {
       return res.status(400).json({ message: 'Invalid data format. Expected an array of accounts.' });
     }
 
-    console.log(`Processing ${accounts.length} accounts for bulk creation`);
+    //console.log(`Processing ${accounts.length} accounts for bulk creation`);
 
     // Validate all accounts before creating any
     const errors = [];
@@ -239,8 +296,8 @@ router.post('/event-quiz-accounts/bulk', isAdmin, async (req, res) => {
       }
     }
 
-    // Check for existing emails in database
-    const existingEmails = await EventQuizAccount.find({
+    // Check for existing emails in database (now using User model)
+    const existingEmails = await User.find({
       email: { $in: Array.from(emailSet) }
     }).select('email');
 
@@ -255,18 +312,31 @@ router.post('/event-quiz-accounts/bulk', isAdmin, async (req, res) => {
       });
     }
 
-    // Process accounts for creation
+    // Process accounts for creation (now as User with event role)
     const processedAccounts = accounts.map(account => ({
       name: account.name.trim(),
       email: account.email.trim().toLowerCase(),
-      password: account.password || Math.random().toString(36).slice(-8), // Generate password if not provided
+      password: account.password || Math.random().toString(36).slice(-8),
+      role: 'event',
       eventType: account.eventType,
-      department: account.eventType === 'department' ? account.department : undefined,
-      createdBy: req.user._id
+      isEventQuizAccount: true,
+      isActive: true,
+      // Set required fields for event users
+      departments: account.eventType === 'department' && account.department ? [account.department] : ['General'],
+      years: ['1', '2', '3', '4'],
+      semesters: ['1', '2', '3', '4', '5', '6', '7', '8'],
+      sections: ['A', 'B', 'C'],
+      assignments: [{
+        department: account.department || 'General',
+        year: '1',
+        semester: '1',
+        sections: ['A'],
+        subjects: []
+      }]
     }));
 
     // Create all accounts
-    const createdAccounts = await EventQuizAccount.create(processedAccounts);
+    const createdAccounts = await User.create(processedAccounts);
 
     // Return success response with account details (excluding sensitive data)
     const sanitizedAccounts = createdAccounts.map(account => ({
@@ -274,8 +344,8 @@ router.post('/event-quiz-accounts/bulk', isAdmin, async (req, res) => {
       name: account.name,
       email: account.email,
       eventType: account.eventType,
-      department: account.department,
-      password: account.originalPassword ? decrypt(account.originalPassword) : 'Generated'
+      department: account.department
+      // Password excluded for security
     }));
 
     res.status(201).json({
@@ -309,20 +379,32 @@ router.post('/event-quiz-accounts/bulk-file', isAdmin, upload.single('file'), as
 
     for (const row of data) {
       try {
-        const existingAccount = await EventQuizAccount.findOne({ email: row.email });
+        const existingAccount = await User.findOne({ email: row.email });
         if (existingAccount) {
           errors.push(`Account with email ${row.email} already exists`);
           continue;
         }
 
-        const account = new EventQuizAccount({
+        const account = new User({
           name: row.name,
-          department: row.department,
           email: row.email,
           password: row.password,
+          role: 'event',
           eventType: row.eventType || 'department',
-          isActive: row.isActive !== false, // default to true if not specified
-          createdBy: req.user._id
+          isEventQuizAccount: true,
+          isActive: row.isActive !== false,
+          // Set required fields for event users
+          departments: row.eventType === 'department' && row.department ? [row.department] : ['General'],
+          years: ['1', '2', '3', '4'],
+          semesters: ['1', '2', '3', '4', '5', '6', '7', '8'],
+          sections: ['A', 'B', 'C'],
+          assignments: [{
+            department: row.department || 'General',
+            year: '1',
+            semester: '1',
+            sections: ['A'],
+            subjects: []
+          }]
         });
 
         await account.save();
@@ -351,13 +433,13 @@ router.get('/accounts', isAdmin, async (req, res) => {
     const { role } = req.query;
     const query = role ? { role } : {};
 
-    console.log('Fetching accounts with query:', query);
+    //console.log('Fetching accounts with query:', query);
 
     const accounts = await User.find(query)
       .select('-password')
       .sort({ createdAt: -1 });
 
-    console.log(`Found ${accounts.length} accounts`);
+    //console.log(`Found ${accounts.length} accounts`);
 
     // For faculty accounts, ensure arrays are properly initialized
     const processedAccounts = accounts.map(account => {
@@ -868,11 +950,11 @@ router.get('/accounts/:id/password', isAdmin, async (req, res) => {
   }
 });
 
-// Get all event account passwords
+// Get all event account passwords (now using User model)
 router.get('/event-quiz-accounts/passwords', isAdmin, async (req, res) => {
   try {
     // Get accounts with both password fields
-    const accounts = await EventQuizAccount.find().select('_id password originalPassword');
+    const accounts = await User.find({ role: 'event' }).select('_id password originalPassword');
     const passwords = {};
     
     accounts.forEach(account => {
@@ -892,14 +974,14 @@ router.get('/event-quiz-accounts/passwords', isAdmin, async (req, res) => {
         } else {
           passwords[account._id] = '********';
         }
-        console.log(`Password for account ${account._id}:`, passwords[account._id]); // Debug log
+
       } catch (err) {
         console.error('Error processing password for account:', account._id, err);
         passwords[account._id] = '********';
       }
     });
     
-    console.log('Sending passwords:', passwords); // Debug log
+
     res.json({ passwords });
   } catch (error) {
     console.error('Error fetching event account passwords:', error);
@@ -907,10 +989,10 @@ router.get('/event-quiz-accounts/passwords', isAdmin, async (req, res) => {
   }
 });
 
-// Get password for a specific event quiz account
+// Get password for a specific event quiz account (now using User model)
 router.get('/event-quiz-accounts/passwords/:id', isAdmin, async (req, res) => {
   try {
-    const account = await EventQuizAccount.findById(req.params.id).select('+password +originalPassword');
+    const account = await User.findById(req.params.id).select('+password +originalPassword');
     if (!account) {
       return res.status(404).json({ message: 'Account not found' });
     }
@@ -929,6 +1011,8 @@ router.get('/event-quiz-accounts/passwords/:id', isAdmin, async (req, res) => {
         console.error('Error decrypting password:', error);
         password = '********';
       }
+    } else {
+      //console.log('No originalPassword found, cannot retrieve plain text password');
     }
 
     res.json({ password });
@@ -937,6 +1021,8 @@ router.get('/event-quiz-accounts/passwords/:id', isAdmin, async (req, res) => {
     res.status(500).json({ message: 'Error fetching password' });
   }
 });
+
+
 
 // Department routes - Made public so all users can access college settings
 router.get('/settings/departments', async (req, res) => {
@@ -951,10 +1037,10 @@ router.get('/settings/departments', async (req, res) => {
 
 router.post('/settings/departments', isAdmin, async (req, res) => {
   try {
-    console.log('Creating department with data:', req.body);
+    //console.log('Creating department with data:', req.body);
     const department = new Department(req.body);
     await department.save();
-    console.log('Department created successfully:', department);
+    //console.log('Department created successfully:', department);
     res.status(201).json(department);
   } catch (error) {
     console.error('Error creating department:', error);
@@ -968,7 +1054,7 @@ router.post('/settings/departments', isAdmin, async (req, res) => {
 
 router.put('/settings/departments/:id', isAdmin, async (req, res) => {
   try {
-    console.log('Updating department with ID:', req.params.id, 'Data:', req.body);
+    //console.log('Updating department with ID:', req.params.id, 'Data:', req.body);
     const department = await Department.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -977,7 +1063,7 @@ router.put('/settings/departments/:id', isAdmin, async (req, res) => {
     if (!department) {
       return res.status(404).json({ message: 'Department not found' });
     }
-    console.log('Department updated successfully:', department);
+    //console.log('Department updated successfully:', department);
     res.json(department);
   } catch (error) {
     console.error('Error updating department:', error);
@@ -991,14 +1077,14 @@ router.put('/settings/departments/:id', isAdmin, async (req, res) => {
 
 router.delete('/settings/departments/:id', isAdmin, async (req, res) => {
   try {
-    console.log('Deleting department with ID:', req.params.id);
+    //console.log('Deleting department with ID:', req.params.id);
     const department = await Department.findByIdAndDelete(req.params.id);
     if (!department) {
       return res.status(404).json({ message: 'Department not found' });
     }
     // Also delete all sections for this department
     await AcademicDetail.deleteMany({ department: department.name });
-    console.log('Department deleted successfully:', department.name);
+    //console.log('Department deleted successfully:', department.name);
     res.json({ message: 'Department deleted successfully' });
   } catch (error) {
     console.error('Error deleting department:', error);
@@ -1098,7 +1184,7 @@ router.post('/academic-details/years-semesters', isAdmin, async (req, res) => {
       departments = allDepartments.map(dept => dept.name);
     }
 
-    console.log('Found departments for year/semester configuration:', departments);
+    //console.log('Found departments for year/semester configuration:', departments);
 
     if (departments.length === 0) {
       return res.status(400).json({
@@ -1179,14 +1265,14 @@ router.delete('/academic-details/year/:year', isAdmin, async (req, res) => {
   try {
     const { year } = req.params;
 
-    console.log(`Deleting all academic details for year ${year}`);
+    //console.log(`Deleting all academic details for year ${year}`);
 
     // Delete all academic details for the given year across all departments
     const result = await AcademicDetail.deleteMany({
       year: parseInt(year)
     });
 
-    console.log(`Deleted ${result.deletedCount} academic details for year ${year}`);
+    //console.log(`Deleted ${result.deletedCount} academic details for year ${year}`);
 
     if (result.deletedCount === 0) {
       return res.status(404).json({
@@ -1217,13 +1303,13 @@ router.delete('/academic-details/year/:year/semester/:semester', isAdmin, async 
   try {
     const { year, semester } = req.params;
 
-    console.log(`🗑️ DELETE REQUEST: Deleting all academic details for year ${year}, semester ${semester}`);
-    console.log('Request params:', req.params);
-    console.log('User:', req.user?.email, 'Role:', req.user?.role);
+    //console.log(`🗑️ DELETE REQUEST: Deleting all academic details for year ${year}, semester ${semester}`);
+    //console.log('Request params:', req.params);
+    //console.log('User:', req.user?.email, 'Role:', req.user?.role);
 
     // Validate parameters
     if (!year || !semester) {
-      console.log('❌ Missing parameters');
+      //console.log('❌ Missing parameters');
       return res.status(400).json({
         message: 'Year and semester parameters are required'
       });
@@ -1233,13 +1319,13 @@ router.delete('/academic-details/year/:year/semester/:semester', isAdmin, async 
     const semesterNum = parseInt(semester);
 
     if (isNaN(yearNum) || isNaN(semesterNum)) {
-      console.log('❌ Invalid parameters');
+      //console.log('❌ Invalid parameters');
       return res.status(400).json({
         message: 'Year and semester must be valid numbers'
       });
     }
 
-    console.log(`🔍 Looking for academic details with year=${yearNum}, semester=${semesterNum}`);
+
 
     // First, check what we're about to delete
     const toDelete = await AcademicDetail.find({
@@ -1247,7 +1333,7 @@ router.delete('/academic-details/year/:year/semester/:semester', isAdmin, async 
       semester: semesterNum
     });
 
-    console.log(`📋 Found ${toDelete.length} academic details to delete:`, toDelete.map(d => `${d.department}-Y${d.year}-S${d.semester}`));
+
 
     // Delete all academic details for the given year and semester across all departments
     const result = await AcademicDetail.deleteMany({
@@ -1255,10 +1341,10 @@ router.delete('/academic-details/year/:year/semester/:semester', isAdmin, async 
       semester: semesterNum
     });
 
-    console.log(`✅ Deleted ${result.deletedCount} academic details for year ${year}, semester ${semester}`);
+    //console.log(`✅ Deleted ${result.deletedCount} academic details for year ${year}, semester ${semester}`);
 
     if (result.deletedCount === 0) {
-      console.log('⚠️ No academic details found to delete');
+      //console.log('⚠️ No academic details found to delete');
       return res.status(404).json({
         message: 'No academic details found for the given year and semester'
       });
@@ -1597,12 +1683,12 @@ router.post('/students/bulk-promotion', auth, authorize('admin'), async (req, re
   try {
     const { studentIds, toYear, toSemester } = req.body;
 
-    console.log('🎓 BULK PROMOTION REQUEST:', {
-      studentIds: studentIds?.length,
-      toYear,
-      toSemester,
-      requestBody: req.body
-    });
+    // console.log('🎓 BULK PROMOTION REQUEST:', {
+    //   studentIds: studentIds?.length,
+    //   toYear,
+    //   toSemester,
+    //   requestBody: req.body
+    // });
 
     // Validation
     if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
@@ -1640,16 +1726,16 @@ router.post('/students/bulk-promotion', auth, authorize('admin'), async (req, re
       role: 'student'
     });
 
-    console.log('📚 STUDENTS TO PROMOTE:', {
-      found: studentsToPromote.length,
-      requested: studentIds.length,
-      students: studentsToPromote.map(s => ({
-        name: s.name,
-        currentYear: s.year,
-        currentSemester: s.semester,
-        department: s.department
-      }))
-    });
+    // console.log('📚 STUDENTS TO PROMOTE:', {
+    //   found: studentsToPromote.length,
+    //   requested: studentIds.length,
+    //   students: studentsToPromote.map(s => ({
+    //     name: s.name,
+    //     currentYear: s.year,
+    //     currentSemester: s.semester,
+    //     department: s.department
+    //   }))
+    // });
 
     if (studentsToPromote.length === 0) {
       return res.status(404).json({
@@ -1672,29 +1758,29 @@ router.post('/students/bulk-promotion', auth, authorize('admin'), async (req, re
       }
     );
 
-    console.log('✅ PROMOTION RESULT:', {
-      matchedCount: updateResult.matchedCount,
-      modifiedCount: updateResult.modifiedCount,
-      acknowledged: updateResult.acknowledged
-    });
+    //console.log('✅ PROMOTION RESULT:', {
+    //   matchedCount: updateResult.matchedCount,
+    //   modifiedCount: updateResult.modifiedCount,
+    //   acknowledged: updateResult.acknowledged
+    // });
 
     // Log the promotion for audit purposes
-    console.log('📝 ACADEMIC PROMOTION LOG:', {
-      adminId: req.user._id,
-      adminName: req.user.name,
-      timestamp: new Date(),
-      studentsPromoted: studentsToPromote.length,
-      toYear,
-      toSemester,
-      studentDetails: studentsToPromote.map(s => ({
-        id: s._id,
-        name: s.name,
-        admissionNumber: s.admissionNumber,
-        fromYear: s.year,
-        fromSemester: s.semester,
-        department: s.department
-      }))
-    });
+    //console.log('📝 ACADEMIC PROMOTION LOG:', {
+    //   adminId: req.user._id,
+    //   adminName: req.user.name,
+    //   timestamp: new Date(),
+    //   studentsPromoted: studentsToPromote.length,
+    //   toYear,
+    //   toSemester,
+    //   studentDetails: studentsToPromote.map(s => ({
+    //     id: s._id,
+    //     name: s.name,
+    //     admissionNumber: s.admissionNumber,
+    //     fromYear: s.year,
+    //     fromSemester: s.semester,
+    //     department: s.department
+    //   }))
+    // });
 
     res.json({
       success: true,
@@ -1833,10 +1919,10 @@ router.get('/quiz-settings', auth, async (req, res) => {
 // Update quiz settings
 router.put('/quiz-settings', isAdmin, async (req, res) => {
   try {
-    console.log('Updating quiz settings with data:', req.body);
+    //console.log('Updating quiz settings with data:', req.body);
 
     const settings = await QuizSettings.getOrCreateDefault();
-    console.log('Current settings:', settings);
+    //console.log('Current settings:', settings);
 
     // Update settings more carefully
     if (req.body.adminOverride) {
@@ -1866,7 +1952,28 @@ router.put('/quiz-settings', isAdmin, async (req, res) => {
       }
     }
 
+    // Handle emergencyAccess settings
+    if (req.body.emergencyAccess) {
+      // Ensure emergencyAccess exists with defaults
+      if (!settings.emergencyAccess) {
+        settings.emergencyAccess = {
+          enabled: true,
+          password: 'Quiz@123',
+          description: 'Emergency password allows admin access to any quiz even without registered credentials'
+        };
+      }
 
+      // Update emergencyAccess fields
+      if (req.body.emergencyAccess.hasOwnProperty('enabled')) {
+        settings.emergencyAccess.enabled = req.body.emergencyAccess.enabled;
+      }
+      if (req.body.emergencyAccess.hasOwnProperty('password')) {
+        settings.emergencyAccess.password = req.body.emergencyAccess.password;
+      }
+      if (req.body.emergencyAccess.hasOwnProperty('description')) {
+        settings.emergencyAccess.description = req.body.emergencyAccess.description;
+      }
+    }
 
     if (req.body.violationSettings) {
       settings.violationSettings = {
@@ -1884,7 +1991,7 @@ router.put('/quiz-settings', isAdmin, async (req, res) => {
 
     settings.lastUpdatedBy = req.user._id;
 
-    console.log('Saving updated settings:', settings);
+    //console.log('Saving updated settings:', settings);
     await settings.save();
 
     res.json({
@@ -1912,7 +2019,7 @@ router.post('/quiz-settings/validate-admin', async (req, res) => {
 
     if (isValid) {
       // Log the admin override usage
-      console.log(`Admin override used at ${new Date().toISOString()}`);
+      //console.log(`Admin override used at ${new Date().toISOString()}`);
 
       res.json({
         valid: true,

@@ -153,7 +153,7 @@ const EventQuizSubmissions = () => {
     // This will be under /event/* routes which require 'event' role
     // Need to use absolute path to ensure proper routing
     const eventPath = `/event/quiz/${id}/submission/${studentId}`;
-    console.log('EventQuizSubmissions - Generated event path:', eventPath);
+    //console.log('EventQuizSubmissions - Generated event path:', eventPath);
     return eventPath;
   };
 
@@ -191,12 +191,12 @@ const EventQuizSubmissions = () => {
         const registrations = Array.isArray(registrationsResponse) ? registrationsResponse : [];
         const submissions = Array.isArray(submissionsResponse) ? submissionsResponse : [];
 
-        console.log('📊 SUBMISSIONS DEBUG:', {
-          registrationsCount: registrations.length,
-          submissionsCount: submissions.length,
-          submissions: submissions,
-          registrations: registrations
-        });
+        //console.log('📊 SUBMISSIONS DEBUG:', {
+        //   registrationsCount: registrations.length,
+        //   submissionsCount: submissions.length,
+        //   submissions: submissions,
+        //   registrations: registrations
+        // });
 
         // Create a map of submissions by email for quick lookup
         const submissionMap = new Map();
@@ -276,7 +276,7 @@ const EventQuizSubmissions = () => {
           };
         }).filter(Boolean);
 
-        console.log('Transformed students data:', transformedStudents);
+        //console.log('Transformed students data:', transformedStudents);
         setStudents(transformedStudents);
       } catch (dataError) {
         console.error('Error fetching data:', dataError);
@@ -809,11 +809,11 @@ const EventQuizSubmissions = () => {
       return;
     }
 
-    console.log('🎯 DEBUG: Creating follow-up quiz with data:');
-    console.log('📊 Student count:', studentData.length);
-    console.log('📋 First student sample:', studentData[0]);
-    console.log('🎯 Source quiz:', quiz?.title);
-    console.log('🎯 Sending complete student data for follow-up quiz:', studentData);
+    //console.log('🎯 DEBUG: Creating follow-up quiz with data:');
+    //console.log('📊 Student count:', studentData.length);
+    //console.log('📋 First student sample:', studentData[0]);
+    //console.log('🎯 Source quiz:', quiz?.title);
+    //console.log('🎯 Sending complete student data for follow-up quiz:', studentData);
 
     // Navigate to create quiz page with complete student data
     const queryParams = new URLSearchParams({
@@ -822,7 +822,7 @@ const EventQuizSubmissions = () => {
       sourceQuiz: quiz?.title || 'Previous Quiz'
     });
 
-    console.log('🔗 Query params being sent:', queryParams.toString());
+    //console.log('🔗 Query params being sent:', queryParams.toString());
     navigate(`/event/quiz/create?${queryParams.toString()}`);
   };
 
@@ -996,10 +996,10 @@ const EventQuizSubmissions = () => {
   }
 
   return (
-    <Container 
-      maxWidth="lg" 
-      sx={{ 
-        mt: { xs: 2, sm: 3, md: 4 }, 
+    <Container
+      maxWidth="xl"
+      sx={{
+        mt: { xs: 2, sm: 3, md: 4 },
         mb: { xs: 2, sm: 3, md: 4 },
         px: { xs: 1, sm: 2, md: 3 }
       }}
@@ -1420,8 +1420,8 @@ const EventQuizSubmissions = () => {
                     size={isMobile ? "small" : "medium"}
                   />
                 </TableCell>
-                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Shortlist</TableCell>
-                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minWidth: 80 }}>Shortlist</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minWidth: 150 }}>
                   <Tooltip title="Sort by Name">
                     <IconButton size="small" onClick={() => requestSort('name')}>
                       {renderSortIcon('name')}
@@ -1429,7 +1429,7 @@ const EventQuizSubmissions = () => {
                   </Tooltip>
                   Name
                 </TableCell>
-                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minWidth: 200 }}>
                   <Tooltip title="Sort by Email">
                     <IconButton size="small" onClick={() => requestSort('email')}>
                       {renderSortIcon('email')}
@@ -1438,7 +1438,7 @@ const EventQuizSubmissions = () => {
                   Email
                 </TableCell>
                 {!isMobile && (
-                  <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                  <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minWidth: 180 }}>
                     <Tooltip title="Sort by College">
                       <IconButton size="small" onClick={() => requestSort('college')}>
                         {renderSortIcon('college')}
@@ -1447,7 +1447,7 @@ const EventQuizSubmissions = () => {
                     College
                   </TableCell>
                 )}
-                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minWidth: 180 }}>
                   <Tooltip title="Sort by Department">
                     <IconButton size="small" onClick={() => requestSort('department')}>
                       {renderSortIcon('department')}
@@ -1455,7 +1455,7 @@ const EventQuizSubmissions = () => {
                   </Tooltip>
                   {isMobile ? 'Dept.' : 'Department'}
                 </TableCell>
-                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minWidth: 60 }}>
                   <Tooltip title="Sort by Year">
                     <IconButton size="small" onClick={() => requestSort('year')}>
                       {renderSortIcon('year')}
@@ -1465,13 +1465,13 @@ const EventQuizSubmissions = () => {
                 </TableCell>
                 {quiz?.participationMode === 'team' && !isMobile && (
                   <>
-                    <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Team Name</TableCell>
-                    <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Team Members</TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minWidth: 150 }}>Team Name</TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minWidth: 120 }}>Team Members</TableCell>
                   </>
                 )}
-                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Type</TableCell>
-                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Status</TableCell>
-                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minWidth: 80 }}>Type</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minWidth: 100 }}>Status</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minWidth: 100 }}>
                   <Tooltip title="Sort by Score">
                     <IconButton size="small" onClick={() => requestSort('score')}>
                       {renderSortIcon('score')}
@@ -1479,7 +1479,7 @@ const EventQuizSubmissions = () => {
                   </Tooltip>
                   Score
                 </TableCell>
-                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minWidth: 100 }}>
                   <Tooltip title="Sort by Duration">
                     <IconButton size="small" onClick={() => requestSort('duration')}>
                       {renderSortIcon('duration')}
@@ -1487,7 +1487,7 @@ const EventQuizSubmissions = () => {
                   </Tooltip>
                   Duration
                 </TableCell>
-                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Details</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minWidth: 150 }}>Details</TableCell>
                 <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Actions</TableCell>
                 <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Reattempt</TableCell>
                 {hasFollowUpQuiz && (
@@ -1654,14 +1654,14 @@ const EventQuizSubmissions = () => {
                         // Use email instead of registration ID for better backend lookup
                         const studentIdentifier = studentData.student.email;
                         const path = getSubmissionViewPath(studentIdentifier);
-                        console.log('🚀 NAVIGATION DEBUG:');
-                        console.log('🚀 Current location:', location.pathname);
-                        console.log('🚀 Generated path:', path);
-                        console.log('🚀 Student Email (identifier):', studentIdentifier);
-                        console.log('🚀 Student Registration ID:', studentData.student._id);
-                        console.log('🚀 Quiz ID:', id);
-                        console.log('🚀 Is admin path?', location.pathname.includes('/admin/'));
-                        console.log('🚀 Full URL will be:', window.location.origin + path);
+                        //console.log('🚀 NAVIGATION DEBUG:');
+                        //console.log('🚀 Current location:', location.pathname);
+                        //console.log('🚀 Generated path:', path);
+                        //console.log('🚀 Student Email (identifier):', studentIdentifier);
+                        //console.log('🚀 Student Registration ID:', studentData.student._id);
+                        //console.log('🚀 Quiz ID:', id);
+                        //console.log('🚀 Is admin path?', location.pathname.includes('/admin/'));
+                        //console.log('🚀 Full URL will be:', window.location.origin + path);
                         navigate(path);
                       }}
                       disabled={!studentData.hasSubmitted}

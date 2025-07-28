@@ -4,8 +4,8 @@ import { toast } from 'react-toastify';
 import api from '../config/axios';
 
 // Debug: Check if toast is properly imported
-console.log('Toast imported:', toast);
-console.log('Toast methods:', Object.keys(toast));
+//console.log('Toast imported:', toast);
+//console.log('Toast methods:', Object.keys(toast));
 
 // Create the auth context
 const AuthContext = createContext(null);
@@ -25,13 +25,13 @@ export const AuthProvider = ({ children }) => {
       try {
         const token = localStorage.getItem('token');
         if (!token) {
-          console.log('No token found in localStorage');
+          //console.log('No token found in localStorage');
           setUser(null);
           setLoading(false);
           return;
         }
 
-        console.log('Verifying token and fetching user data...');
+        //console.log('Verifying token and fetching user data...');
         // Make API call to verify token and get user data
         const response = await api.get('/api/auth/me');
         
@@ -39,16 +39,16 @@ export const AuthProvider = ({ children }) => {
         const userData = response.data?.user || response.user;
         
         if (userData) {
-          console.log('User data received:', {
-            id: userData.id,
-            role: userData.role,
-            department: userData.department,
-            year: userData.year,
-            section: userData.section
-          });
+          //console.log('User data received:', {
+          //   id: userData.id,
+          //   role: userData.role,
+          //   department: userData.department,
+          //   year: userData.year,
+          //   section: userData.section
+          // });
           setUser(userData);
         } else {
-          console.log('No user data received, clearing auth state');
+          //console.log('No user data received, clearing auth state');
           // If no user data, clear token and user state
           localStorage.removeItem('token');
           setUser(null);
@@ -61,7 +61,7 @@ export const AuthProvider = ({ children }) => {
         });
         // Only clear auth if it's an auth error (401/403)
         if (error.response?.status === 401 || error.response?.status === 403) {
-          console.log('Auth error - clearing user state');
+          //console.log('Auth error - clearing user state');
           localStorage.removeItem('token');
           setUser(null);
         }
@@ -99,13 +99,17 @@ export const AuthProvider = ({ children }) => {
         throw new Error(errorMsg);
       }
 
-      console.log('Login successful:', {
-        userId: user.id,
-        role: user.role,
-        department: user.department,
-        year: user.year,
-        section: user.section
-      });
+      //console.log('Login successful:', {
+      //   userId: user.id,
+      //   role: user.role,
+      //   department: user.department,
+      //   year: user.year,
+      //   section: user.section
+      // });
+
+      // Clear any existing cached data before setting new user
+      sessionStorage.clear();
+      localStorage.removeItem('quizSession');
 
       // Store token and update user state
       localStorage.setItem('token', token);
@@ -143,9 +147,22 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    console.log('Logging out user');
+    //console.log('Logging out user');
+
+    // Clear authentication token
     localStorage.removeItem('token');
+
+    // Clear quiz session data
+    localStorage.removeItem('quizSession');
+
+    // Clear all sessionStorage cache (landing page, navigation flags, etc.)
+    sessionStorage.clear();
+
+    // Clear user state
     setUser(null);
+    setAuthError(null);
+
+    // Navigate to home page
     navigate('/');
   };
 

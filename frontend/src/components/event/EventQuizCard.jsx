@@ -144,10 +144,10 @@ const EventQuizCard = ({
       setLoading(true);
       setError(''); // Clear any previous errors
 
-      console.log('Deleting quiz:', quiz._id);
+      //console.log('Deleting quiz:', quiz._id);
       const response = await api.delete(`/api/event-quiz/${quiz._id}`);
 
-      console.log('Quiz deleted successfully');
+      //console.log('Quiz deleted successfully');
 
       // Show success toast with deletion info
       const deletionInfo = response?.deletionInfo || response?.data?.deletionInfo;
@@ -249,19 +249,19 @@ const EventQuizCard = ({
 
   // Debug logging (remove this after testing)
   if (quiz?.title === 'ai') {
-    console.log('EventQuizCard Debug for AI quiz:', {
-      quizId: quiz?._id,
-      quizTitle: quiz?.title,
-      quizStatus: quiz?.status,
-      dynamicStatus: quiz?.dynamicStatus,
-      calculatedStatus: getDynamicStatus(),
-      currentStatus,
-      startTime: quiz?.startTime,
-      endTime: quiz?.endTime,
-      userRole: user?.role,
-      shouldShowRegistrations: (currentStatus === 'upcoming' || currentStatus === 'draft' || !currentStatus),
-      shouldShowResults: (currentStatus === 'active' || currentStatus === 'completed')
-    });
+    //console.log('EventQuizCard Debug for AI quiz:', {
+    //   quizId: quiz?._id,
+    //   quizTitle: quiz?.title,
+    //   quizStatus: quiz?.status,
+    //   dynamicStatus: quiz?.dynamicStatus,
+    //   calculatedStatus: getDynamicStatus(),
+    //   currentStatus,
+    //   startTime: quiz?.startTime,
+    //   endTime: quiz?.endTime,
+    //   userRole: user?.role,
+    //   shouldShowRegistrations: (currentStatus === 'upcoming' || currentStatus === 'draft' || !currentStatus),
+    //   shouldShowResults: (currentStatus === 'active' || currentStatus === 'completed')
+    // });
   }
 
   const formatParticipantTypes = (quiz) => {
@@ -290,17 +290,17 @@ const EventQuizCard = ({
   const formatEligibility = (quiz) => {
     if (!quiz) return 'Open to All';
 
-    console.log('formatEligibility - quiz.departments:', quiz.departments);
-    console.log('formatEligibility - quiz.years:', quiz.years);
-    console.log('formatEligibility - quiz.semesters:', quiz.semesters);
+    //console.log('formatEligibility - quiz.departments:', quiz.departments);
+    //console.log('formatEligibility - quiz.years:', quiz.years);
+    //console.log('formatEligibility - quiz.semesters:', quiz.semesters);
 
     const parts = [];
 
     if (quiz.departments?.includes('all')) {
-      console.log('Departments includes "all", showing All Departments');
+      //console.log('Departments includes "all", showing All Departments');
       parts.push('All Departments');
     } else if (Array.isArray(quiz.departments) && quiz.departments.length > 0) {
-      console.log('Specific departments found:', quiz.departments);
+      //console.log('Specific departments found:', quiz.departments);
       const deptNames = quiz.departments.map(dept => {
         const deptDetail = academicDetails.find(d => d.department === dept);
         return deptDetail ? deptDetail.department : dept;

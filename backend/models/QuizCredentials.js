@@ -16,6 +16,10 @@ const quizCredentialsSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  originalUsername: {
+    type: String,
+    trim: true
+  },
   password: {
     type: String,
     required: true
@@ -110,6 +114,7 @@ const quizCredentialsSchema = new mongoose.Schema({
 // Index for efficient queries
 quizCredentialsSchema.index({ quiz: 1, username: 1 }, { unique: true }); // Compound unique index
 quizCredentialsSchema.index({ quiz: 1, isActive: 1 });
+quizCredentialsSchema.index({ quiz: 1, originalUsername: 1 }); // Index for originalUsername lookup
 
 // Hash password before saving
 quizCredentialsSchema.pre('save', async function(next) {

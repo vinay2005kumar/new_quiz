@@ -98,21 +98,37 @@ const EventQuizAccounts = () => {
     fetchDepartments();
   }, []);
 
+
+
   const fetchDepartments = async () => {
     try {
-      const response = await api.get('/api/academic-details');
-      if (response && Array.isArray(response)) {
-        // Extract unique departments
-        const uniqueDepartments = [...new Set(
-          response
-            .filter(detail => detail && detail.department)
-            .map(detail => detail.department)
-        )].sort();
-        setDepartments(uniqueDepartments);
+      // Use the same department source as AcademicFilter
+      const deptResponse = await api.get('/api/admin/settings/departments');
+
+      let departments = [];
+      if (deptResponse && deptResponse.departments && Array.isArray(deptResponse.departments)) {
+        departments = deptResponse.departments.map(dept => dept.name);
       }
+
+      setDepartments(departments);
     } catch (error) {
       console.error('Error fetching departments:', error);
       setError('Failed to fetch departments');
+
+      // Fallback to academic details if settings API fails
+      try {
+        const response = await api.get('/api/academic-details');
+        if (response && Array.isArray(response)) {
+          const uniqueDepartments = [...new Set(
+            response
+              .filter(detail => detail && detail.department)
+              .map(detail => detail.department)
+          )].sort();
+          setDepartments(uniqueDepartments);
+        }
+      } catch (fallbackError) {
+        console.error('Fallback also failed:', fallbackError);
+      }
     }
   };
 
@@ -136,6 +152,7 @@ const EventQuizAccounts = () => {
       setLoading(true);
       setError('');
       const response = await api.get('/api/admin/event-quiz-accounts');
+
       if (Array.isArray(response)) {
         setAccounts(response);
       } else if (response && Array.isArray(response.accounts)) {
@@ -224,11 +241,11 @@ const EventQuizAccounts = () => {
     setNewAccount({
       name: account.name,
       email: account.email,
-      password: '', // Don't show existing password
-      department: account.department,
+      password: '', // Always empty - user must enter new password
+      department: account.department || '', // Backend already transforms departments[0] to department
       eventType: account.eventType || 'department'
     });
-    setOpenDialog(true); // Open the dialog for editing
+    setOpenDialog(true);
   };
 
   const handleUpdateAccount = async () => {
@@ -308,7 +325,14 @@ const EventQuizAccounts = () => {
       if (!visiblePasswords[accountId]) {
         // Fetch password only if not already visible
         const response = await api.get(`/api/admin/event-quiz-accounts/passwords/${accountId}`);
+
         if (response && response.password) {
+          // Check if the returned password is a hash (indicates backend issue)
+          if (response.password.startsWith('$2a$') || response.password.startsWith('$2b$')) {
+            setError('Error: Received encrypted password. Please try editing the account with a new password first.');
+            return;
+          }
+
           setVisiblePasswords(prev => ({
             ...prev,
             [accountId]: response.password
@@ -329,6 +353,8 @@ const EventQuizAccounts = () => {
       setError('Failed to fetch password');
     }
   };
+
+
 
   const handleDownloadPDF = () => {
     const doc = new jsPDF();
@@ -451,7 +477,7 @@ const EventQuizAccounts = () => {
 
       setUploadProgress(100);
       setUploadStatus('success');
-      console.log('Bulk upload response:', response);
+      //console.log('Bulk upload response:', response);
       
       // Close dialog and refresh accounts list after short delay
       setTimeout(() => {
@@ -731,10 +757,13 @@ const EventQuizAccounts = () => {
               <FormControl fullWidth error={!!validationErrors.department}>
                 <InputLabel>Department</InputLabel>
                 <Select
-                  value={newAccount.department}
+                  value={newAccount.department || ''}
                   onChange={(e) => setNewAccount({ ...newAccount, department: e.target.value })}
                   label="Department"
                 >
+                  <MenuItem value="">
+                    <em>Select Department</em>
+                  </MenuItem>
                   {departments.map((dept) => (
                     <MenuItem key={dept} value={dept}>
                       {dept}

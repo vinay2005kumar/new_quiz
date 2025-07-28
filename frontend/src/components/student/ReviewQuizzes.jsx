@@ -42,19 +42,19 @@ const ReviewQuizzes = () => {
       setLoading(true);
       setError('');
 
-      console.log('🚀 REVIEW QUIZZES - FETCHING SUBMISSIONS...');
+      //console.log('🚀 REVIEW QUIZZES - FETCHING SUBMISSIONS...');
       const submissionsResponse = await api.get('/api/quiz/my-submissions');
 
       // Handle different response formats (same as QuizList)
       const responseData = submissionsResponse.data || submissionsResponse || [];
 
-      console.log('📥 REVIEW QUIZZES - FRONTEND RECEIVED:', {
-        fullResponse: submissionsResponse,
-        responseData: responseData,
-        dataType: typeof responseData,
-        isArray: Array.isArray(responseData),
-        length: Array.isArray(responseData) ? responseData.length : 'N/A'
-      });
+      //console.log('📥 REVIEW QUIZZES - FRONTEND RECEIVED:', {
+      //   fullResponse: submissionsResponse,
+      //   responseData: responseData,
+      //   dataType: typeof responseData,
+      //   isArray: Array.isArray(responseData),
+      //   length: Array.isArray(responseData) ? responseData.length : 'N/A'
+      // });
 
       if (Array.isArray(responseData)) {
         // Filter for evaluated submissions only and process them
@@ -63,13 +63,13 @@ const ReviewQuizzes = () => {
             const isEvaluated = submission.status === 'evaluated';
             const hasQuiz = !!submission.quiz;
 
-            console.log('📝 REVIEW QUIZZES - FILTERING SUBMISSION:', {
-              hasQuiz: hasQuiz,
-              status: submission.status,
-              isEvaluated: isEvaluated,
-              quizTitle: submission.quiz?.title,
-              willInclude: isEvaluated && hasQuiz
-            });
+            //console.log('📝 REVIEW QUIZZES - FILTERING SUBMISSION:', {
+            //   hasQuiz: hasQuiz,
+            //   status: submission.status,
+            //   isEvaluated: isEvaluated,
+            //   quizTitle: submission.quiz?.title,
+            //   willInclude: isEvaluated && hasQuiz
+            // });
 
             return isEvaluated && hasQuiz;
           })
@@ -85,23 +85,23 @@ const ReviewQuizzes = () => {
               totalScore
             };
 
-            console.log('✅ REVIEW QUIZZES - PROCESSED SUBMISSION:', {
-              quizTitle: submission.quiz.title,
-              status: submission.status,
-              totalScore: totalScore
-            });
+            //console.log('✅ REVIEW QUIZZES - PROCESSED SUBMISSION:', {
+            //   quizTitle: submission.quiz.title,
+            //   status: submission.status,
+            //   totalScore: totalScore
+            // });
 
             return processedSubmission;
           });
 
-        console.log('🎯 REVIEW QUIZZES - FINAL EVALUATED SUBMISSIONS:', {
-          total: validSubmissions.length,
-          submissions: validSubmissions.map(s => ({ title: s.quiz.title, status: s.status }))
-        });
+        //console.log('🎯 REVIEW QUIZZES - FINAL EVALUATED SUBMISSIONS:', {
+        //   total: validSubmissions.length,
+        //   submissions: validSubmissions.map(s => ({ title: s.quiz.title, status: s.status }))
+        // });
 
         setSubmittedQuizzes(validSubmissions);
       } else {
-        console.log('❌ REVIEW QUIZZES - RESPONSE DATA IS NOT ARRAY:', responseData);
+        //console.log('❌ REVIEW QUIZZES - RESPONSE DATA IS NOT ARRAY:', responseData);
         setSubmittedQuizzes([]);
       }
     } catch (error) {

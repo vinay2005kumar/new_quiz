@@ -16,8 +16,10 @@ import {
   Radio,
   RadioGroup,
   FormControlLabel,
+  FormControl,
   Card,
   CardContent,
+  Chip,
   useTheme,
   useMediaQuery
 } from '@mui/material';
@@ -153,12 +155,32 @@ const EventQuizSubmissionView = () => {
             Back
           </Button>
 
-          <Typography 
-            variant={isMobile ? "h5" : "h4"} 
-            gutterBottom
-            sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
-          >
-            {submission.quiz.title} - Submission Details
+          <Typography variant="h4" gutterBottom>
+            Quiz Review: {submission.quiz?.title || 'N/A'}
+          </Typography>
+          <Typography variant="h5" color="primary" gutterBottom>
+            Score: {submission?.totalMarks || 0} / {submission.quiz?.effectiveTotalMarks || submission.quiz?.totalMarks || 0}
+          </Typography>
+          <Typography variant="body1" gutterBottom>
+            Subject: {submission.quiz?.subject?.name || 'N/A'}
+          </Typography>
+          <Typography variant="body1" gutterBottom>
+            Started: {submission.startTime ? new Date(submission.startTime).toLocaleString() : 'N/A'}
+          </Typography>
+          <Typography variant="body1" gutterBottom>
+            Submitted: {submission.submitTime ? new Date(submission.submitTime).toLocaleString() : 'N/A'}
+          </Typography>
+          <Typography variant="body1" gutterBottom>
+            Duration: {submission.duration ? `${submission.duration} minutes` : 'N/A'}
+          </Typography>
+          <Typography variant="body1" gutterBottom>
+            <strong>Student:</strong> {submission.student?.name} ({submission.student?.admissionNumber})
+          </Typography>
+          <Typography variant="body1" gutterBottom>
+            <strong>Department:</strong> {submission.student?.department}, Year {submission.student?.year}, Section {submission.student?.section}
+          </Typography>
+          <Typography variant="body1" gutterBottom sx={{ mb: 3 }}>
+            <strong>Status:</strong> <Chip label="evaluated" size="small" color="success" />
           </Typography>
         </Box>
 
@@ -236,8 +258,12 @@ const EventQuizSubmissionView = () => {
                 <Grid container spacing={isMobile ? 1 : 2}>
                   <Grid item xs={12} sm={6} md={3}>
                     <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                      <strong>Score:</strong> {submission.totalMarks}/{submission.quiz.effectiveTotalMarks || submission.quiz.totalMarks}
-                      {' '}({Math.round((submission.totalMarks / (submission.quiz.effectiveTotalMarks || submission.quiz.totalMarks)) * 100)}%)
+                      <strong>Score:</strong> {submission?.totalMarks || 0}/{submission.quiz?.effectiveTotalMarks || submission.quiz?.totalMarks || 0} ({(() => {
+                        const totalScore = submission?.totalMarks || 0;
+                        const maxScore = submission.quiz?.effectiveTotalMarks || submission.quiz?.totalMarks || 0;
+                        const percentage = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
+                        return percentage;
+                      })()}%)
                     </Typography>
                   </Grid>
                   <Grid item xs={12} sm={6} md={3}>
@@ -271,119 +297,132 @@ const EventQuizSubmissionView = () => {
                 >
                   Questions and Answers
                 </Typography>
-                <List sx={{ p: 0 }}>
+                <Box sx={{ p: 0 }}>
                   {submission.quiz.questions?.map((question, index) => {
                     // Find answer by questionIndex (not questionId)
                     const answerObj = submission.answers?.find(ans => ans.questionIndex === index);
                     const studentAnswerIndex = answerObj?.selectedOption;
+                    const studentAnswer = question.options?.[studentAnswerIndex];
+                    const correctAnswer = question.options?.[question.correctAnswer];
+                    const isCorrect = studentAnswerIndex === question.correctAnswer;
+                    const marksAwarded = isCorrect ? (question.marks || 1) : 0;
 
                     return (
-                      <React.Fragment key={question._id}>
-                        <ListItem sx={{ 
-                          flexDirection: 'column', 
-                          alignItems: 'flex-start',
-                          p: { xs: 1, sm: 2 }
+                      <Box
+                        key={question._id || index}
+                        sx={{
+                          mb: 3,
+                          border: '2px solid',
+                          borderColor: isCorrect ? 'success.main' : 'error.main',
+                          borderRadius: 2,
+                          overflow: 'hidden'
+                        }}
+                      >
+                        {/* Question Header */}
+                        <Box sx={{
+                          p: 2,
+                          backgroundColor: 'grey.900',
+                          color: 'white'
                         }}>
-                          <Box sx={{ width: '100%' }}>
-                            <Typography 
-                              variant="subtitle1" 
-                              gutterBottom
-                              sx={{ fontSize: { xs: '1rem', sm: '1.125rem' } }}
-                            >
-                              <strong>Question {index + 1}:</strong> ({question.marks || 1} marks)
-                            </Typography>
+                          <Typography variant="h6" sx={{ fontSize: '1.1rem', fontWeight: 600 }}>
+                            Question {index + 1}:
+                          </Typography>
+                        </Box>
 
-                            {/* Question Text */}
-                            <Box sx={{
-                              p: { xs: 1.5, sm: 2 },
-                              mb: 2,
-                              bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
-                              borderRadius: 1,
-                              border: '1px solid',
-                              borderColor: 'divider',
-                              fontSize: { xs: '0.875rem', sm: '0.9rem' }
-                            }}>
-                              <div dangerouslySetInnerHTML={{ __html: question.question || question.text || 'Question text not available' }} />
-                            </Box>
+                        {/* Question Text */}
+                        <Box sx={{
+                          p: 2,
+                          backgroundColor: 'grey.800',
+                          color: 'white'
+                        }}>
+                          <Typography sx={{ fontSize: '1rem' }}>
+                            <div dangerouslySetInnerHTML={{ __html: question.question || question.text || 'Question text not available' }} />
+                          </Typography>
+                        </Box>
 
-                            {/* Options */}
-                            <RadioGroup value={studentAnswerIndex !== null && studentAnswerIndex !== undefined ? studentAnswerIndex.toString() : ''} sx={{ mb: 2 }}>
-                              {question.options?.map((option, optionIndex) => {
-                                const isSelected = studentAnswerIndex === optionIndex;
-                                const isCorrect = question.correctAnswer === optionIndex;
+                        {/* Marks Display */}
+                        <Box sx={{
+                          px: 2,
+                          py: 1,
+                          backgroundColor: 'background.paper'
+                        }}>
+                          <Typography sx={{
+                            fontSize: '0.9rem',
+                            color: isCorrect ? 'success.main' : 'error.main',
+                            fontWeight: 600
+                          }}>
+                            Marks: {marksAwarded}/{question.marks || 1} {!isCorrect && question.negativeMarks ? `(Negative: -${question.negativeMarks})` : ''}
+                          </Typography>
+                        </Box>
 
-                                return (
-                                  <FormControlLabel
-                                    key={optionIndex}
-                                    value={optionIndex.toString()}
-                                    control={<Radio />}
-                                    label={
-                                      <Box sx={{
-                                        fontSize: { xs: '0.875rem', sm: '1rem' },
-                                        wordBreak: 'break-word'
-                                      }}>
-                                        <div dangerouslySetInnerHTML={{ __html: option }} />
-                                      </Box>
-                                    }
-                                    sx={{
-                                      margin: 0,
-                                      padding: { xs: 0.5, sm: 1 },
-                                      borderRadius: 1,
-                                      backgroundColor: isSelected
-                                        ? (isCorrect ? 'success.light' : 'error.light')
-                                        : (isCorrect ? 'success.main' : 'transparent'),
-                                      border: isSelected ? '2px solid' : '1px solid',
-                                      borderColor: isSelected
-                                        ? (isCorrect ? 'success.main' : 'error.main')
-                                        : (isCorrect ? 'success.main' : 'divider'),
-                                      width: '100%',
-                                      opacity: isCorrect ? 1 : (isSelected ? 0.8 : 0.6),
-                                      '&:hover': {
-                                        backgroundColor: 'action.hover'
-                                      }
-                                    }}
-                                  />
-                                );
-                              })}
-                            </RadioGroup>
+                        {/* Options */}
+                        <Box sx={{ p: 2, backgroundColor: 'background.paper' }}>
+                          {question.options?.map((option, optionIndex) => {
+                            const isStudentAnswer = optionIndex === studentAnswerIndex;
+                            const isCorrectOption = optionIndex === question.correctAnswer;
 
-                            {/* Answer Status */}
-                            <Box sx={{
-                              mt: 2,
-                              p: { xs: 1, sm: 1.5 },
-                              borderRadius: 1,
-                              backgroundColor: (studentAnswerIndex === question.correctAnswer) ? 'success.light' : 'error.light',
-                              color: (studentAnswerIndex === question.correctAnswer) ? 'success.dark' : 'error.dark'
-                            }}>
-                              <Typography
-                                variant="body2"
-                                sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
+                            return (
+                              <Box
+                                key={optionIndex}
+                                sx={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  mb: 1,
+                                  p: 1,
+                                  borderRadius: 1
+                                }}
                               >
-                                <strong>
-                                  {studentAnswerIndex === question.correctAnswer ? '✓ Correct' : '✗ Incorrect'}
-                                </strong>
-                                {studentAnswerIndex !== null && studentAnswerIndex !== undefined && (
-                                  <span> - Selected: {question.options?.[studentAnswerIndex]}</span>
-                                )}
-                                {studentAnswerIndex === null || studentAnswerIndex === undefined && (
-                                  <span> - No answer selected</span>
-                                )}
-                                <br />
-                                <span>Correct Answer: {question.options?.[question.correctAnswer]}</span>
-                                {(studentAnswerIndex === question.correctAnswer ? question.marks : 0) !== undefined && (
-                                  <span> - {(studentAnswerIndex === question.correctAnswer ? question.marks : 0) || 0} mark{((studentAnswerIndex === question.correctAnswer ? question.marks : 0) || 0) !== 1 ? 's' : ''} awarded</span>
-                                )}
-                              </Typography>
-                            </Box>
-                          </Box>
-                        </ListItem>
-                        {index < submission.quiz.questions.length - 1 && (
-                          <Divider sx={{ mx: { xs: 1, sm: 2 } }} />
-                        )}
-                      </React.Fragment>
+                                <Radio
+                                  checked={isStudentAnswer || isCorrectOption}
+                                  sx={{
+                                    color: isStudentAnswer ? 'primary.main' : isCorrectOption ? 'success.main' : 'grey.400',
+                                    '&.Mui-checked': {
+                                      color: isStudentAnswer ? 'primary.main' : 'success.main'
+                                    }
+                                  }}
+                                />
+                                <Typography sx={{
+                                  ml: 1,
+                                  fontSize: '0.95rem',
+                                  color: isStudentAnswer ? 'primary.main' : isCorrectOption ? 'success.main' : 'text.primary',
+                                  fontWeight: (isStudentAnswer || isCorrectOption) ? 600 : 400
+                                }}>
+                                  <div dangerouslySetInnerHTML={{ __html: option }} />
+                                  {isStudentAnswer && (
+                                    <span style={{ marginLeft: '8px', fontSize: '0.85rem' }}>
+                                      (Your Answer)
+                                    </span>
+                                  )}
+                                  {isCorrectOption && (
+                                    <span style={{ marginLeft: '8px', fontSize: '0.85rem' }}>
+                                      (Correct Answer)
+                                    </span>
+                                  )}
+                                </Typography>
+                              </Box>
+                            );
+                          })}
+                        </Box>
+
+                        {/* Result Summary */}
+                        <Box sx={{
+                          p: 2,
+                          backgroundColor: isCorrect ? 'success.light' : 'error.light',
+                          borderTop: '1px solid',
+                          borderColor: 'divider'
+                        }}>
+                          <Typography sx={{
+                            fontSize: '0.9rem',
+                            color: isCorrect ? 'success.dark' : 'error.dark',
+                            fontWeight: 600
+                          }}>
+                            {isCorrect ? '✓ Correct' : '✗ Incorrect'}. Marks: {marksAwarded}
+                          </Typography>
+                        </Box>
+                      </Box>
                     );
                   })}
-                </List>
+                </Box>
               </CardContent>
             </Card>
           </Grid>

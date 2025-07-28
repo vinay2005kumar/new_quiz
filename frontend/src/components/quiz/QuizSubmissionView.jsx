@@ -16,7 +16,9 @@ import {
   Divider,
   RadioGroup,
   FormControlLabel,
+  FormControl,
   Radio,
+  Chip,
   useTheme,
   useMediaQuery
 } from '@mui/material';
@@ -31,22 +33,40 @@ const QuizSubmissionView = () => {
   const isSmallMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [quizData, setQuizData] = useState(null);
   const [submission, setSubmission] = useState(null);
 
+
+
   useEffect(() => {
-    fetchSubmission();
+    fetchData();
   }, [quizId, studentId]);
 
-  const fetchSubmission = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
       setError('');
 
-      const response = await api.get(`/api/quiz/${quizId}/submissions/${studentId}`);
-      setSubmission(response.data || response);
+      // First fetch quiz details (same as student quiz review)
+      const quizResponse = await api.get(`/api/quiz/${quizId}`);
+      //console.log('Quiz response:', quizResponse);
+
+      if (!quizResponse || !quizResponse.title) {
+        throw new Error('Invalid quiz data received');
+      }
+
+      setQuizData(quizResponse);
+
+      // Then fetch submission details (same as student quiz review)
+      const submissionResponse = await api.get(`/api/quiz/${quizId}/submissions/${studentId}`);
+      //console.log('Submission response:', submissionResponse);
+
+      if (submissionResponse) {
+        setSubmission(submissionResponse);
+      }
     } catch (error) {
-      console.error('Error fetching submission:', error);
-      setError(error.response?.data?.message || error.message || 'Failed to load submission');
+      console.error('Error fetching data:', error);
+      setError(error.response?.data?.message || error.message || 'Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -116,214 +136,150 @@ const QuizSubmissionView = () => {
             Back
           </Button>
 
-          <Typography 
-            variant={isMobile ? "h5" : "h4"} 
-            gutterBottom
-            sx={{ fontSize: { xs: '1.5rem', sm: '2rem' } }}
-          >
-            {submission.quiz?.title} - Submission Details
+          <Typography variant="h4" gutterBottom>
+            Quiz Review: {quizData?.title || 'N/A'}
+          </Typography>
+          <Typography variant="h5" color="primary" gutterBottom>
+            Score: {submission?.totalMarks || 0} / {quizData?.effectiveTotalMarks || quizData?.totalMarks || 0}
+          </Typography>
+          <Typography variant="body1" gutterBottom>
+            Subject: {quizData?.subject?.name || 'N/A'}
+          </Typography>
+          <Typography variant="body1" gutterBottom>
+            Started: {submission.startTime ? new Date(submission.startTime).toLocaleString() : 'N/A'}
+          </Typography>
+          <Typography variant="body1" gutterBottom>
+            Submitted: {submission.submitTime ? new Date(submission.submitTime).toLocaleString() : 'N/A'}
+          </Typography>
+          <Typography variant="body1" gutterBottom>
+            Duration: {submission.duration ? `${submission.duration} minutes` : 'N/A'}
           </Typography>
         </Box>
 
-        <Grid container spacing={isMobile ? 2 : 3}>
-          {/* Student Information */}
-          <Grid item xs={12}>
-            <Card sx={{ borderRadius: { xs: 1, sm: 2 } }}>
-              <CardContent sx={{ p: { xs: 1.5, sm: 2 } }}>
-                <Typography 
-                  variant="h6" 
-                  gutterBottom
-                  sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}
-                >
-                  Student Information
-                </Typography>
-                <Grid container spacing={isMobile ? 1 : 2}>
-                  <Grid item xs={12} sm={6} md={4}>
-                    <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                      <strong>Name:</strong> {submission.student?.name}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={4}>
-                    <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                      <strong>Admission Number:</strong> {submission.student?.admissionNumber}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={4}>
-                    <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                      <strong>Department:</strong> {submission.student?.department}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={4}>
-                    <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                      <strong>Year:</strong> {submission.student?.year}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={4}>
-                    <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                      <strong>Section:</strong> {submission.student?.section}
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </CardContent>
-            </Card>
-          </Grid>
+        <Typography variant="body1" gutterBottom>
+          <strong>Student:</strong> {submission.student?.name} ({submission.student?.admissionNumber})
+        </Typography>
+        <Typography variant="body1" gutterBottom>
+          <strong>Department:</strong> {submission.student?.department}, Year {submission.student?.year}, Section {submission.student?.section}
+        </Typography>
+        <Typography variant="body1" gutterBottom sx={{ mb: 3 }}>
+          <strong>Status:</strong> <Chip label="evaluated" size="small" color="success" />
+        </Typography>
 
-          {/* Submission Statistics */}
-          <Grid item xs={12}>
-            <Card sx={{ borderRadius: { xs: 1, sm: 2 } }}>
-              <CardContent sx={{ p: { xs: 1.5, sm: 2 } }}>
-                <Typography 
-                  variant="h6" 
-                  gutterBottom
-                  sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}
-                >
-                  Submission Statistics
-                </Typography>
-                <Grid container spacing={isMobile ? 1 : 2}>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                      <strong>Score:</strong> {submission.totalMarks}/{submission.quiz?.effectiveTotalMarks || submission.quiz?.totalMarks}
-                      {' '}({Math.round((submission.totalMarks / (submission.quiz?.effectiveTotalMarks || submission.quiz?.totalMarks)) * 100)}%)
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                      <strong>Duration:</strong> {formatDuration(submission.duration)}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                      <strong>Start Time:</strong> {formatDateTime(submission.startTime)}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <Typography sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}>
-                      <strong>Submit Time:</strong> {formatDateTime(submission.submitTime)}
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </CardContent>
-            </Card>
-          </Grid>
+        {/* Questions and Answers */}
+        {(quizData?.questions || []).map((question, index) => {
+          const userAnswer = submission?.answers?.find(a => a.questionId === question._id);
 
-          {/* Questions and Answers */}
-          <Grid item xs={12}>
-            <Card sx={{ borderRadius: { xs: 1, sm: 2 } }}>
-              <CardContent sx={{ p: { xs: 1.5, sm: 2 } }}>
-                <Typography 
-                  variant="h6" 
-                  gutterBottom
-                  sx={{ fontSize: { xs: '1.1rem', sm: '1.25rem' } }}
-                >
-                  Questions and Answers
-                </Typography>
-                <List sx={{ p: 0 }}>
-                  {submission.quiz?.questions?.map((question, index) => {
-                    // Get the student's answer for this question
-                    const answerObj = submission.answers?.find(ans => ans.questionId === question._id);
-                    const studentAnswer = answerObj?.selectedOption;
+
+
+          const getAnswerStatus = (question, selectedOption) => {
+            if (!submission?.answers) {
+              return 'unanswered';
+            }
+            const answer = submission.answers.find(a => a.questionId === question._id);
+            if (!answer) {
+              return 'unanswered';
+            }
+            return answer.isCorrect ? 'correct' : 'incorrect';
+          };
+          const answerStatus = getAnswerStatus(question, userAnswer?.selectedOption);
+
+          return (
+            <Paper
+              key={question._id}
+              sx={{
+                p: 3,
+                mb: 2,
+                border: 2,
+                borderColor: answerStatus === 'correct' ? 'success.main' :
+                           answerStatus === 'incorrect' ? 'error.main' :
+                           'warning.main'
+              }}
+            >
+              <Typography variant="h6" gutterBottom>
+                Question {index + 1}:
+              </Typography>
+
+              {/* Question Text with UNIVERSAL Formatting Preservation */}
+              <Box sx={{
+                p: 2,
+                mb: 2,
+                bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
+                borderRadius: 1,
+                border: '1px solid',
+                borderColor: 'divider',
+                fontSize: '0.9rem',
+                lineHeight: 1.5,
+                overflow: 'auto'
+              }}
+              dangerouslySetInnerHTML={{ __html: question.question }}
+              />
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Marks: {userAnswer?.marks || 0} / {question.marks || 0}
+                {quizData?.negativeMarkingEnabled && question.negativeMarks > 0 && (
+                  <span style={{ marginLeft: '8px', color: '#f57c00' }}>
+                    (Negative: -{question.negativeMarks})
+                  </span>
+                )}
+              </Typography>
+
+              <FormControl component="fieldset" fullWidth>
+                <RadioGroup value={userAnswer?.selectedOption?.toString() || ''}>
+                  {(question.options || []).map((option, optionIndex) => {
+                    const isCorrectAnswer = optionIndex === question.correctAnswer;
+                    const isUserAnswer = optionIndex === userAnswer?.selectedOption;
 
                     return (
-                      <React.Fragment key={question._id}>
-                        <ListItem sx={{ 
-                          flexDirection: 'column', 
-                          alignItems: 'flex-start',
-                          p: { xs: 1, sm: 2 }
-                        }}>
-                          <Box sx={{ width: '100%' }}>
-                            <Typography 
-                              variant="subtitle1" 
-                              gutterBottom
-                              sx={{ fontSize: { xs: '1rem', sm: '1.125rem' } }}
-                            >
-                              <strong>Question {index + 1}:</strong> ({question.marks || 1} marks)
-                            </Typography>
-
-                            {/* Question Text with UNIVERSAL Formatting Preservation */}
-                            <Box sx={{
-                              p: { xs: 1.5, sm: 2 },
-                              mb: 2,
-                              bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'grey.50',
-                              borderRadius: 1,
-                              border: '1px solid',
-                              borderColor: 'divider',
-                              fontSize: { xs: '0.875rem', sm: '0.9rem' }
-                            }}>
-                              <div dangerouslySetInnerHTML={{ __html: question.question || question.text || 'Question text not available' }} />
-                            </Box>
-
-                            {/* Options */}
-                            <RadioGroup value={studentAnswer || ''} sx={{ mb: 2 }}>
-                              {question.options?.map((option, optionIndex) => (
-                                <FormControlLabel
-                                  key={optionIndex}
-                                  value={option}
-                                  control={<Radio />}
-                                  label={
-                                    <Box sx={{ 
-                                      fontSize: { xs: '0.875rem', sm: '1rem' },
-                                      wordBreak: 'break-word'
-                                    }}>
-                                      <div dangerouslySetInnerHTML={{ __html: option }} />
-                                    </Box>
-                                  }
-                                  sx={{
-                                    margin: 0,
-                                    padding: { xs: 0.5, sm: 1 },
-                                    borderRadius: 1,
-                                    backgroundColor: studentAnswer === option ? 'action.selected' : 'transparent',
-                                    border: studentAnswer === option ? '2px solid' : '1px solid',
-                                    borderColor: studentAnswer === option ? 'primary.main' : 'divider',
-                                    width: '100%',
-                                    '&:hover': {
-                                      backgroundColor: 'action.hover'
-                                    }
-                                  }}
-                                />
-                              ))}
-                            </RadioGroup>
-
-                            {/* Answer Status */}
-                            <Box sx={{ 
-                              mt: 2, 
-                              p: { xs: 1, sm: 1.5 }, 
-                              borderRadius: 1,
-                              backgroundColor: answerObj?.isCorrect ? 'success.light' : 'error.light',
-                              color: answerObj?.isCorrect ? 'success.dark' : 'error.dark'
-                            }}>
-                              <Typography
-                                variant="body2"
-                                sx={{ fontSize: { xs: '0.875rem', sm: '1rem' } }}
-                              >
-                                <strong>
-                                  {answerObj?.isCorrect ? '✓ Correct' : '✗ Incorrect'}
-                                </strong>
-                                {studentAnswer && (
-                                  <span> - Selected: {studentAnswer}</span>
-                                )}
-                                {!studentAnswer && (
-                                  <span> - No answer selected</span>
-                                )}
-                                <br />
-                                <span>Correct Answer: {question.options?.[question.correctAnswer]}</span>
-                                {answerObj?.marks !== undefined && (
-                                  <span> - {answerObj.marks} mark{answerObj.marks !== 1 ? 's' : ''} awarded</span>
-                                )}
-                              </Typography>
-                            </Box>
-                          </Box>
-                        </ListItem>
-                        {index < submission.quiz.questions.length - 1 && (
-                          <Divider sx={{ mx: { xs: 1, sm: 2 } }} />
-                        )}
-                      </React.Fragment>
+                      <FormControlLabel
+                        key={optionIndex}
+                        value={optionIndex.toString()}
+                        control={<Radio />}
+                        label={
+                          <Typography
+                            sx={{
+                              color: isCorrectAnswer ? 'success.main' :
+                                     isUserAnswer && !userAnswer?.isCorrect ? 'error.main' :
+                                     'text.primary',
+                              '& span': {
+                                ml: 1,
+                                fontSize: '0.875rem',
+                                color: 'text.secondary'
+                              }
+                            }}
+                          >
+                            {option}
+                            {isCorrectAnswer && <span>(Correct Answer)</span>}
+                            {isUserAnswer && !isCorrectAnswer && <span>(Your Answer)</span>}
+                          </Typography>
+                        }
+                        sx={{ mb: 0.5 }}
+                        disabled
+                      />
                     );
                   })}
-                </List>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
+                </RadioGroup>
+              </FormControl>
+
+              <Box sx={{ mt: 1 }}>
+                {userAnswer ? (
+                  userAnswer.isCorrect ? (
+                    <Typography color="success.main" variant="body2">
+                      ✓ Correct! Marks: {userAnswer.marks}
+                    </Typography>
+                  ) : (
+                    <Typography color="error.main" variant="body2">
+                      ✗ Incorrect. Marks: {userAnswer.marks || 0}
+                    </Typography>
+                  )
+                ) : (
+                  <Typography color="warning.main" variant="body2">
+                    Not answered
+                  </Typography>
+                )}
+              </Box>
+            </Paper>
+          );
+        })}
       </Paper>
     </Container>
   );

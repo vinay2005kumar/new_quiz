@@ -61,36 +61,36 @@ const AcademicFilter = ({
 
       // Fetch departments from college settings (now public for all users)
       const deptResponse = await api.get('/api/admin/settings/departments');
-      console.log('🏢 Departments API response:', deptResponse);
+      //console.log('🏢 Departments API response:', deptResponse);
 
       // Extract departments from the response structure: { departments: [...] }
       let departments = [];
       if (deptResponse && deptResponse.departments && Array.isArray(deptResponse.departments)) {
         departments = deptResponse.departments.map(dept => dept.name);
       }
-      console.log('🏢 Processed departments:', departments);
+      //console.log('🏢 Processed departments:', departments);
 
       // Fetch academic details (same as college settings)
       const academicResponse = await api.get('/api/academic-details');
-      console.log('📚 Academic details API response:', academicResponse);
+      //console.log('📚 Academic details API response:', academicResponse);
 
       // The data is directly in the response object (same as college settings)
       const academicDetails = Array.isArray(academicResponse) ? academicResponse : [];
-      console.log('📚 Processed academic details:', academicDetails);
+      //console.log('📚 Processed academic details:', academicDetails);
 
       // Also extract departments from academic details as fallback (in case college settings is empty)
       const academicDepartments = [...new Set(academicDetails.map(detail => detail.department))].filter(Boolean).sort();
-      console.log('🏢 Departments from academic details:', academicDepartments);
+      //console.log('🏢 Departments from academic details:', academicDepartments);
 
       // Use departments from college settings, but fallback to academic details if college settings is empty
       const finalDepartments = departments.length > 0 ? departments : academicDepartments;
-      console.log('🏢 Final departments to use:', finalDepartments);
+      //console.log('🏢 Final departments to use:', finalDepartments);
 
       // Extract unique years and semesters (same as college settings)
       const years = [...new Set(academicDetails.map(detail => detail.year))].filter(Boolean).sort((a, b) => a - b);
       const semesters = [...new Set(academicDetails.map(detail => detail.semester))].filter(Boolean).sort((a, b) => a - b);
-      console.log('📅 Extracted years:', years);
-      console.log('📅 Extracted semesters:', semesters);
+      //console.log('📅 Extracted years:', years);
+      //console.log('📅 Extracted semesters:', semesters);
 
       // Extract sections (split comma-separated values and flatten) - same as college settings
       const allSections = academicDetails.reduce((acc, detail) => {
@@ -101,7 +101,7 @@ const AcademicFilter = ({
         return acc;
       }, []);
       const sections = [...new Set(allSections)].filter(Boolean).sort();
-      console.log('📝 Extracted sections:', sections);
+      //console.log('📝 Extracted sections:', sections);
 
       // Extract subjects (split comma-separated values and parse subject names) - same as college settings
       const allSubjects = [];
@@ -140,15 +140,15 @@ const AcademicFilter = ({
       });
 
       const subjects = uniqueSubjects.sort((a, b) => a.name.localeCompare(b.name));
-      console.log('📖 Extracted subjects:', subjects);
+      //console.log('📖 Extracted subjects:', subjects);
 
-      console.log('✅ Final processed academic data:', {
-        departments: finalDepartments,
-        years,
-        semesters,
-        sections,
-        subjects
-      });
+      //console.log('✅ Final processed academic data:', {
+      //   departments: finalDepartments,
+      //   years,
+      //   semesters,
+      //   sections,
+      //   subjects
+      // });
 
       // Filter data based on faculty permissions
       let filteredDepartments = finalDepartments;
@@ -158,8 +158,8 @@ const AcademicFilter = ({
       let filteredSubjects = subjects;
 
       if (user?.role === 'faculty' && user?.assignments) {
-        console.log('🎓 Filtering for faculty user:', user);
-        console.log('🎓 Faculty assignments:', user.assignments);
+        //console.log('🎓 Filtering for faculty user:', user);
+        //console.log('🎓 Faculty assignments:', user.assignments);
 
         // Extract unique values from faculty assignments
         const facultyDepartments = [...new Set(user.assignments.map(a => a.department))];
@@ -170,11 +170,11 @@ const AcademicFilter = ({
         // Extract faculty subjects from assignments
         const facultySubjectNames = [...new Set(user.assignments.flatMap(a => a.subjects || []))];
 
-        console.log('🎓 Faculty departments:', facultyDepartments);
-        console.log('🎓 Faculty years:', facultyYears);
-        console.log('🎓 Faculty semesters:', facultySemesters);
-        console.log('🎓 Faculty sections:', facultySections);
-        console.log('🎓 Faculty subjects:', facultySubjectNames);
+        //console.log('🎓 Faculty departments:', facultyDepartments);
+        //console.log('🎓 Faculty years:', facultyYears);
+        //console.log('🎓 Faculty semesters:', facultySemesters);
+        //console.log('🎓 Faculty sections:', facultySections);
+        //console.log('🎓 Faculty subjects:', facultySubjectNames);
 
         // Filter departments
         filteredDepartments = finalDepartments.filter(dept => facultyDepartments.includes(dept));
@@ -201,11 +201,11 @@ const AcademicFilter = ({
           });
         });
 
-        console.log('🎓 Filtered departments:', filteredDepartments);
-        console.log('🎓 Filtered years:', filteredYears);
-        console.log('🎓 Filtered semesters:', filteredSemesters);
-        console.log('🎓 Filtered sections:', filteredSections);
-        console.log('🎓 Filtered subjects:', filteredSubjects);
+        //console.log('🎓 Filtered departments:', filteredDepartments);
+        //console.log('🎓 Filtered years:', filteredYears);
+        //console.log('🎓 Filtered semesters:', filteredSemesters);
+        //console.log('🎓 Filtered sections:', filteredSections);
+        //console.log('🎓 Filtered subjects:', filteredSubjects);
       }
 
       setAcademicData({
@@ -455,19 +455,6 @@ const AcademicFilter = ({
           </Grid>
         );
 
-      case 'search':
-        return (
-          <Grid item xs={12} sm={6} md={3} key="search">
-            <TextField
-              {...commonProps}
-              label="Search"
-              placeholder="Search by name, code, etc."
-              value={getFilterValue('search')}
-              onChange={(e) => handleFilterChange('search', e.target.value)}
-            />
-          </Grid>
-        );
-
       default:
         return null;
     }
@@ -484,14 +471,6 @@ const AcademicFilter = ({
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <FilterListIcon />
             <Typography variant="h6">{title}</Typography>
-            {getActiveFiltersCount() > 0 && (
-              <Chip 
-                label={`${getActiveFiltersCount()} active`} 
-                size="small" 
-                color="primary" 
-                variant="outlined"
-              />
-            )}
           </Box>
           <Box sx={{
             display: 'flex',

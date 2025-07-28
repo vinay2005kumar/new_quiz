@@ -311,39 +311,62 @@ router.post('/', auth, authorize('faculty', 'admin'), async (req, res) => {
     // Declare eligibleStudents outside the try block so it's accessible in the response
     let eligibleStudents = [];
 
-    // Send email notifications to eligible students
-    try {
-      console.log('📧 Starting email notification process for academic quiz...');
+    console.log('📧 DEBUG: Academic quiz email notification settings:');
+    console.log('📧 req.body.sendEmailNotification:', req.body.sendEmailNotification);
+    console.log('📧 quiz.sendEmailNotification:', quiz.sendEmailNotification);
 
-      // Find all students who match the allowedGroups criteria
-      eligibleStudents = await User.find({
-        role: 'student',
-        $or: quiz.allowedGroups.map(group => ({
-          department: group.department,
-          year: group.year,
-          semester: group.semester,
-          section: group.section
-        }))
-      }).select('name email department year semester section');
+    // Send email notifications to eligible students (only if explicitly enabled)
+    if (req.body.sendEmailNotification === true) {
+      try {
+        console.log('📧 Starting email notification process for academic quiz...');
 
-      console.log(`📊 Found ${eligibleStudents.length} eligible students for quiz: ${quiz.title}`);
+        // Find all students who match the allowedGroups criteria
+        eligibleStudents = await User.find({
+          role: 'student',
+          $or: quiz.allowedGroups.map(group => ({
+            department: group.department,
+            year: group.year,
+            semester: group.semester,
+            section: group.section
+          }))
+        }).select('name email department year semester section');
 
-      if (eligibleStudents.length > 0) {
-        // Import email service
-        const { sendAcademicQuizNotification } = require('../services/emailService');
+        console.log(`📊 Found ${eligibleStudents.length} eligible students for quiz: ${quiz.title}`);
 
-        // Send notifications asynchronously (don't wait for completion)
-        sendAcademicQuizNotification(quiz, eligibleStudents)
-          .then(result => {
-            console.log(`📧 Email notification completed for quiz "${quiz.title}":`, result);
-          })
-          .catch(error => {
-            console.error(`❌ Email notification failed for quiz "${quiz.title}":`, error);
-          });
+        if (eligibleStudents.length > 0) {
+          // Import email service
+          const { sendAcademicQuizNotification } = require('../services/emailService');
+
+          // Send notifications asynchronously (don't wait for completion)
+          sendAcademicQuizNotification(quiz, eligibleStudents)
+            .then(result => {
+              console.log(`📧 Email notification completed for quiz "${quiz.title}":`, result);
+            })
+            .catch(error => {
+              console.error(`❌ Email notification failed for quiz "${quiz.title}":`, error);
+            });
+        }
+      } catch (emailError) {
+        console.error('❌ Error in email notification process:', emailError);
+        // Don't fail the quiz creation if email fails
       }
-    } catch (emailError) {
-      console.error('❌ Error in email notification process:', emailError);
-      // Don't fail the quiz creation if email fails
+    } else {
+      console.log('📧 Email notifications disabled for this quiz');
+      // Still find eligible students for response data
+      try {
+        eligibleStudents = await User.find({
+          role: 'student',
+          $or: quiz.allowedGroups.map(group => ({
+            department: group.department,
+            year: group.year,
+            semester: group.semester,
+            section: group.section
+          }))
+        }).select('name email department year semester section');
+        console.log(`📊 Found ${eligibleStudents.length} eligible students (emails not sent)`);
+      } catch (error) {
+        console.error('❌ Error finding eligible students:', error);
+      }
     }
 
     // Send success response
@@ -378,11 +401,7 @@ router.get('/check-title/:title', async (req, res) => {
     const { title } = req.params;
     const { excludeId } = req.query; // For editing existing quiz
 
-    console.log('🔍 Backend: Checking title uniqueness for:', title);
-    console.log('🔍 Backend: excludeId:', excludeId);
-
     if (!title || title.trim().length === 0) {
-      console.log('❌ Backend: Title is empty');
       return res.status(400).json({ message: 'Title is required' });
     }
 
@@ -421,20 +440,13 @@ router.get('/', auth, async (req, res) => {
     let query = {};
     
     if (req.user.role === 'student') {
-      console.log('Fetching quizzes for student:', {
-        id: req.user._id,
-        name: req.user.name,
-        year: req.user.year,
-        department: req.user.department,
-        section: req.user.section,
-        semester: req.user.semester
-      });
+      // Check if this is for dashboard (include all quizzes) or quiz list (only active/upcoming)
+      const includePastQuizzes = req.query.includePast === 'true';
 
-      // For students, show available and upcoming quizzes for their year and department
+      // For students, show quizzes for their year and department
       query = {
         type: 'academic',
         isActive: true,
-        endTime: { $gte: new Date() }, // End time must be in the future
         allowedGroups: {
           $elemMatch: {
             year: Number(req.user.year),
@@ -443,6 +455,11 @@ router.get('/', auth, async (req, res) => {
           }
         }
       };
+
+      // Only filter by endTime if not including past quizzes (for dashboard we need all)
+      if (!includePastQuizzes) {
+        query.endTime = { $gte: new Date() }; // End time must be in the future
+      }
     } else {
       // For faculty/admin, apply filters if provided
       query.type = 'academic'; // Only show academic quizzes for faculty
@@ -472,12 +489,6 @@ router.get('/', auth, async (req, res) => {
       .populate('createdBy', 'name email department')
       .sort({ createdAt: -1 })
       .lean();
-
-    console.log('🔍 QUIZ ENDPOINT: Found quizzes:', {
-      totalQuizzes: quizzes.length,
-      quizTitles: quizzes.map(q => ({ id: q._id, title: q.title, type: q.type })),
-      hasHiQuiz: quizzes.some(q => q.title === 'hi')
-    });
 
     // Transform the data to ensure proper subject format
     const transformedQuizzes = quizzes.map(quiz => {
@@ -751,25 +762,9 @@ router.get('/my-submissions', auth, async (req, res) => {
         submitTime: submission.submitTime
       }));
 
-      console.log('🔍 SIMPLIFIED SUBMISSIONS RESPONSE:', {
-        requestQuery: req.query,
-        simplifiedSubmissions: simplifiedSubmissions,
-        count: simplifiedSubmissions.length
-      });
-
       res.json(simplifiedSubmissions);
     } else {
       // Return complete submission objects for ReviewQuizzes
-      console.log('🔍 COMPLETE SUBMISSIONS RESPONSE:', {
-        requestQuery: req.query,
-        validSubmissions: validSubmissions.length,
-        firstSubmission: validSubmissions[0] ? {
-          id: validSubmissions[0]._id,
-          quizTitle: validSubmissions[0].quiz?.title,
-          status: validSubmissions[0].status
-        } : null
-      });
-
       res.json(validSubmissions);
     }
   } catch (error) {
@@ -1077,7 +1072,7 @@ router.get('/:id/authorized-students', auth, authorize('faculty', 'admin'), asyn
       department: { $in: quiz.allowedGroups.map(group => group.department) },
       year: { $in: quiz.allowedGroups.map(group => group.year) },
       section: { $in: quiz.allowedGroups.map(group => group.section) }
-    }).select('name admissionNumber department year section');
+    }).select('name email admissionNumber department year section');
     
     // Get all submissions for this quiz (exclude deleted)
     const submissions = await QuizSubmission.find({
@@ -1109,6 +1104,7 @@ router.get('/:id/authorized-students', auth, authorize('faculty', 'admin'), asyn
         student: {
           _id: student._id,
           name: student.name,
+          email: student.email,
           admissionNumber: student.admissionNumber,
           department: student.department,
           year: student.year,
@@ -1357,7 +1353,7 @@ router.get('/:id/submissions', auth, authorize('faculty', 'admin'), async (req, 
       quiz: req.params.id,
       isDeleted: false
     })
-      .populate('student', 'name admissionNumber department year section')
+      .populate('student', 'name email admissionNumber department year section')
       .select('answers startTime submitTime duration totalMarks status')
       .sort({ submitTime: -1 });
 
@@ -1397,7 +1393,7 @@ router.get('/:id/deleted-submissions', auth, authorize('faculty', 'admin'), asyn
       quiz: req.params.id,
       isDeleted: true
     })
-      .populate('student', 'name admissionNumber department year section')
+      .populate('student', 'name email admissionNumber department year section')
       .populate('deletedBy', 'name email')
       .select('answers startTime submitTime duration totalMarks status isDeleted deletedAt deletedBy deletionReason')
       .sort({ deletedAt: -1 });
@@ -1475,7 +1471,7 @@ router.get('/all-submissions', auth, authorize('admin'), async (req, res) => {
   try {
     // Get all submissions with populated references
     const submissions = await QuizSubmission.find()
-      .populate('student', 'name admissionNumber department year section')
+      .populate('student', 'name email admissionNumber department year section')
       .populate({
         path: 'quiz',
         select: 'title totalMarks questions createdBy',
@@ -1524,10 +1520,11 @@ router.get('/:quizId/submissions/:studentId', auth, authorize('faculty', 'admin'
 
     const submission = await QuizSubmission.findOne({
       quiz: req.params.quizId,
-      student: req.params.studentId
+      student: req.params.studentId,
+      isDeleted: false  // Only fetch non-deleted submissions
     })
-    .populate('student', 'name admissionNumber department year section')
-    .populate('quiz', 'title totalMarks questions');
+    .populate('student', 'name email admissionNumber department year section')
+    .populate('quiz');  // Populate full quiz data like student endpoint
 
     if (!submission) {
       return res.status(404).json({ message: 'Submission not found' });
@@ -1854,8 +1851,8 @@ router.post('/excel', auth, authorize('faculty', 'admin', 'event'), upload.singl
     const quiz = new Quiz(quizData);
     await quiz.save();
 
-    // Send email notifications for academic quizzes
-    if (quiz.type === 'academic' && quiz.allowedGroups && quiz.allowedGroups.length > 0) {
+    // Send email notifications for academic quizzes (only if explicitly enabled)
+    if (quiz.type === 'academic' && quiz.allowedGroups && quiz.allowedGroups.length > 0 && req.body.sendEmailNotification === true) {
       try {
         const eligibleStudents = await User.find({
           role: 'student',
@@ -2137,8 +2134,8 @@ router.post('/word', auth, authorize('faculty', 'admin', 'event'), upload.single
     const quiz = new Quiz(quizData);
     await quiz.save();
 
-    // Send email notifications for academic quizzes
-    if (quiz.type === 'academic' && quiz.allowedGroups && quiz.allowedGroups.length > 0) {
+    // Send email notifications for academic quizzes (only if explicitly enabled)
+    if (quiz.type === 'academic' && quiz.allowedGroups && quiz.allowedGroups.length > 0 && req.body.sendEmailNotification === true) {
       try {
         const eligibleStudents = await User.find({
           role: 'student',
@@ -2619,8 +2616,8 @@ router.post('/image', auth, authorize('faculty', 'admin', 'event'), upload.array
     const quiz = new Quiz(quizData);
     await quiz.save();
 
-    // Send email notifications for academic quizzes
-    if (quiz.type === 'academic' && quiz.allowedGroups && quiz.allowedGroups.length > 0) {
+    // Send email notifications for academic quizzes (only if explicitly enabled)
+    if (quiz.type === 'academic' && quiz.allowedGroups && quiz.allowedGroups.length > 0 && req.body.sendEmailNotification === true) {
       try {
         const eligibleStudents = await User.find({
           role: 'student',

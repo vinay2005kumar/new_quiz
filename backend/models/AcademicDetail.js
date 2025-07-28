@@ -54,7 +54,7 @@ academicDetailSchema.index({ department: 1, year: 1, semester: 1 }, { unique: tr
 // Add methods to get valid sections for a semester
 academicDetailSchema.statics.getValidSectionsForSemester = function(semester) {
   // You can customize this logic based on your requirements
-  const defaultSections = ['A', 'B', 'C'];
+  const defaultSections = ['A', 'B', 'C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'];
   return defaultSections;
 };
 

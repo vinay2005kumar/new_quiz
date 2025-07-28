@@ -36,7 +36,8 @@ import {
   CheckCircle as CheckCircleIcon,
   Pending as PendingIcon,
   PlayCircle as PlayCircleIcon,
-  Info as InfoIcon
+  Info as InfoIcon,
+  AccessTime as AccessTimeIcon
 } from '@mui/icons-material';
 
 import api from '../../config/axios';
@@ -87,75 +88,87 @@ const Dashboard = () => {
     const fetchStats = async () => {
       try {
         setError('');
+        setLoading(true);
+
+        // Reset all state when user changes
+        setStats({
+          totalQuizzes: 0,
+          upcomingQuizzes: 0,
+          completedQuizzes: 0,
+          activeQuizzes: 0,
+          averageScore: 0,
+          submissions: [],
+          recentQuizzes: [],
+          totalStudents: 0,
+          totalSubmissions: 0,
+          totalRegistrations: 0,
+          pendingQuizzes: 0
+        });
+
+        setAdminStats({
+          totalUsers: 0,
+          totalStudents: 0,
+          totalFaculty: 0,
+          totalEventManagers: 0,
+          totalQuizzes: 0,
+          totalSubmissions: 0,
+          activeQuizzes: 0,
+          completedQuizzes: 0,
+          averageScore: 0,
+          recentActivity: []
+        });
+
         // Get quizzes based on user role
         let quizzes = [];
 
         if (user?.role === 'event') {
-          // For event managers, fetch only their own event quizzes
+          // For event managers, fetch only their own event quizzes (backend already filters by user)
           const quizzesResponse = await api.get('/api/event-quiz');
-          const allEventQuizzes = Array.isArray(quizzesResponse) ? quizzesResponse : [];
-          // Filter to only show quizzes created by this event manager
-          quizzes = allEventQuizzes.filter(quiz =>
-            quiz.createdBy?._id === user._id || quiz.createdBy === user._id
-          );
-          // Filtered event manager quizzes
+          quizzes = Array.isArray(quizzesResponse) ? quizzesResponse : [];
         } else {
           // For other roles, fetch academic quizzes
-          const quizzesResponse = await api.get('/api/quiz');
+          // For students, include past quizzes for proper dashboard statistics
+          const includeParam = user?.role === 'student' ? '?includePast=true' : '';
+          const quizzesResponse = await api.get(`/api/quiz${includeParam}`);
           quizzes = Array.isArray(quizzesResponse) ? quizzesResponse : [];
         }
 
-        // For students, fetch their submissions
+        // For students, fetch their submissions using bulk endpoint
         let submissions = [];
-        if (user?.role === 'student' && quizzes.length > 0) {
-          // First filter quizzes that might have submissions (past quizzes)
-          const now = new Date();
-          const pastQuizzes = quizzes.filter(quiz => new Date(quiz.endTime) < now);
-          
-          const submissionPromises = pastQuizzes.map(quiz =>
-            api.get(`/api/quiz/${quiz._id}/submission`)
-              .then(res => {
-                if (!res) return null;
-                return {
-                  quizId: quiz._id,
-                  quiz: quiz,
-                  ...res,
-                  totalScore: Array.isArray(res.answers) 
-                    ? res.answers.reduce((total, ans) => total + (Number(ans.marks) || 0), 0)
-                    : 0
-                };
-              })
-              .catch((err) => {
-                // For 404, it means no submission was found
-                if (err.response?.status === 404) {
-                  return {
-                    quizId: quiz._id,
-                    quiz: quiz,
-                    status: 'not_attempted',
-                    totalScore: 0
-                  };
-                }
-                console.error(`Error fetching submission for quiz ${quiz._id}:`, err);
-                return null;
-              })
-          );
-          
+        if (user?.role === 'student') {
           try {
-            // Get submissions for past quizzes
-            const pastSubmissions = (await Promise.all(submissionPromises))
-              .filter(sub => sub !== null);
+            // Use the bulk submissions endpoint - much more efficient!
+            const submissionsResponse = await api.get('/api/quiz/my-submissions');
+            const actualSubmissions = Array.isArray(submissionsResponse) ? submissionsResponse : [];
 
-            // Add placeholder entries for ongoing and upcoming quizzes
-            const futureQuizzes = quizzes.filter(quiz => new Date(quiz.endTime) >= now)
+            // Create a map of submitted quiz IDs for quick lookup
+            const submittedQuizIds = new Set(actualSubmissions.map(sub => sub.quiz._id));
+
+            const now = new Date();
+
+            // Process actual submissions
+            const processedSubmissions = actualSubmissions.map(sub => ({
+              quizId: sub.quiz._id,
+              quiz: sub.quiz,
+              ...sub,
+              totalScore: Array.isArray(sub.answers)
+                ? sub.answers.reduce((total, ans) => total + (Number(ans.marks) || 0), 0)
+                : 0
+            }));
+
+            // Add placeholder entries for quizzes without submissions
+            const quizzesWithoutSubmissions = quizzes
+              .filter(quiz => !submittedQuizIds.has(quiz._id))
               .map(quiz => ({
                 quizId: quiz._id,
                 quiz: quiz,
-                status: new Date(quiz.startTime) > now ? 'upcoming' : 'ongoing',
+                status: new Date(quiz.startTime) > now ? 'upcoming' :
+                       (new Date(quiz.endTime) >= now ? 'ongoing' : 'not_attempted'),
                 totalScore: 0
               }));
 
             // Combine and sort all submissions
-            submissions = [...pastSubmissions, ...futureQuizzes]
+            submissions = [...processedSubmissions, ...quizzesWithoutSubmissions]
               .sort((a, b) => {
                 // Sort by status priority
                 const statusPriority = {
@@ -164,7 +177,7 @@ const Dashboard = () => {
                   'upcoming': 3,
                   'not_attempted': 4
                 };
-                
+
                 const statusDiff = statusPriority[a.status] - statusPriority[b.status];
                 if (statusDiff !== 0) return statusDiff;
 
@@ -172,12 +185,12 @@ const Dashboard = () => {
                 if (a.status === 'evaluated' && a.submitTime && b.submitTime) {
                   return new Date(b.submitTime) - new Date(a.submitTime);
                 }
-                
+
                 // For upcoming/ongoing, sort by start time
                 return new Date(a.quiz.startTime) - new Date(b.quiz.startTime);
               });
           } catch (error) {
-            console.error('Error processing submissions:', error);
+            console.error('Error fetching student submissions:', error);
             submissions = [];
           }
         }
@@ -193,23 +206,46 @@ const Dashboard = () => {
           score: sub.status === 'evaluated' ? sub.totalScore : null
         }));
 
-        // Calculate statistics
+        // Calculate statistics properly
         const now = new Date();
+
+        // Get submitted quiz IDs
+        const submittedQuizIds = new Set(submissions
+          .filter(sub => sub.status === 'evaluated')
+          .map(sub => sub.quizId)
+        );
+
+        // Categorize quizzes
+        const upcomingQuizzes = quizzes.filter(quiz => new Date(quiz.startTime) > now);
+        const activeQuizzes = quizzes.filter(quiz =>
+          new Date(quiz.startTime) <= now && new Date(quiz.endTime) >= now
+        );
+
+        // For event managers and faculty, completed quizzes are those that have ended
+        // For students, completed quizzes are those with submissions
+        let completedQuizzes;
+        if (user?.role === 'event' || user?.role === 'faculty') {
+          completedQuizzes = quizzes.filter(quiz => new Date(quiz.endTime) < now);
+        } else {
+          completedQuizzes = quizzes.filter(quiz => submittedQuizIds.has(quiz._id));
+        }
+
+        const expiredQuizzes = quizzes.filter(quiz =>
+          new Date(quiz.endTime) < now && !submittedQuizIds.has(quiz._id)
+        );
+        const pendingQuizzes = quizzes.filter(quiz =>
+          (new Date(quiz.startTime) <= now && new Date(quiz.endTime) >= now) ||
+          (new Date(quiz.startTime) > now)
+        ).filter(quiz => !submittedQuizIds.has(quiz._id));
+
         const stats = {
           totalQuizzes: quizzes.length,
-          upcomingQuizzes: quizzes.filter(quiz => new Date(quiz.startTime) > now).length,
-          activeQuizzes: quizzes.filter(quiz =>
-            new Date(quiz.startTime) <= now && new Date(quiz.endTime) >= now
-          ).length,
-          completedQuizzes: submissions.filter(sub => sub.status === 'evaluated').length,
-          pendingQuizzes: quizzes.length - submissions.filter(sub => sub.status === 'evaluated').length,
-          averageScore: submissions.filter(sub => sub.status === 'evaluated').length > 0
-            ? (submissions
-                .filter(sub => sub.status === 'evaluated')
-                .reduce((sum, sub) => sum + (sub.totalScore || 0), 0) /
-                submissions.filter(sub => sub.status === 'evaluated').length
-              ).toFixed(2)
-            : 0,
+          upcomingQuizzes: upcomingQuizzes.length,
+          activeQuizzes: activeQuizzes.length,
+          completedQuizzes: completedQuizzes.length,
+          pendingQuizzes: pendingQuizzes.length,
+          expiredQuizzes: expiredQuizzes.length,
+          expiredQuizzesList: expiredQuizzes, // For displaying expired quiz details
           submissions: submissions,
           recentQuizzes: recentQuizzes,
           totalStudents: 0, // Will be populated for faculty/event dashboards
@@ -266,6 +302,14 @@ const Dashboard = () => {
               new Date(quiz.endTime) < now
             ).length;
 
+            const academicUpcomingQuizzes = quizzes.filter(quiz =>
+              new Date(quiz.startTime) > now
+            ).length;
+
+            const eventUpcomingQuizzes = eventQuizzes.filter(quiz =>
+              new Date(quiz.startTime) > now
+            ).length;
+
             const totalActiveQuizzes = academicActiveQuizzes + eventActiveQuizzes;
             const totalCompletedQuizzes = academicCompletedQuizzes + eventCompletedQuizzes;
 
@@ -286,6 +330,7 @@ const Dashboard = () => {
               totalFaculty: faculty.length,
               totalEventManagers: eventAccounts.length,
               totalQuizzes: (quizzes.length + eventQuizzes.length) || 0,
+              eventQuizzes: eventQuizzes.length || 0,
               totalSubmissions: backendStats.totalSubmissions || submissions.length || 0,
               activeQuizzes: totalActiveQuizzes || 0,
               completedQuizzes: totalCompletedQuizzes || 0,
@@ -293,6 +338,8 @@ const Dashboard = () => {
               eventCompletedQuizzes: eventCompletedQuizzes || 0,
               academicActiveQuizzes: academicActiveQuizzes || 0,
               eventActiveQuizzes: eventActiveQuizzes || 0,
+              academicUpcomingQuizzes: academicUpcomingQuizzes || 0,
+              eventUpcomingQuizzes: eventUpcomingQuizzes || 0,
               averageScore: averageScore || 0,
               recentActivity: submissions.slice(-5) || []
             };
@@ -329,7 +376,39 @@ const Dashboard = () => {
     } else {
       setLoading(false);
     }
-  }, [user]);
+  }, [user?.id, user?.role, user?._id, user?.email]); // More specific dependencies to ensure re-run on user change
+
+  // Cleanup effect to reset state when component unmounts
+  useEffect(() => {
+    return () => {
+      // Reset state on unmount to prevent stale data
+      setStats({
+        totalQuizzes: 0,
+        upcomingQuizzes: 0,
+        completedQuizzes: 0,
+        activeQuizzes: 0,
+        averageScore: 0,
+        submissions: [],
+        recentQuizzes: [],
+        totalStudents: 0,
+        totalSubmissions: 0,
+        totalRegistrations: 0,
+        pendingQuizzes: 0
+      });
+      setAdminStats({
+        totalUsers: 0,
+        totalStudents: 0,
+        totalFaculty: 0,
+        totalEventManagers: 0,
+        totalQuizzes: 0,
+        totalSubmissions: 0,
+        activeQuizzes: 0,
+        completedQuizzes: 0,
+        averageScore: 0,
+        recentActivity: []
+      });
+    };
+  }, []);
 
   const handleMenu = (event) => {
     setAnchorEl(event.currentTarget);
@@ -527,91 +606,148 @@ const Dashboard = () => {
             </Grid>
             <Grid item xs={12} sm={6} lg={3}>
               <StatCard
-                title="Average Score"
-                value={`${stats.averageScore}%`}
-                icon={<TrendingUpIcon />}
-                color="info"
-                subtitle="Overall performance"
+                title="Expired"
+                value={stats.expiredQuizzes}
+                icon={<AccessTimeIcon />}
+                color="error"
+                subtitle="Missed opportunities"
               />
             </Grid>
           </Grid>
         </Box>
 
-        {/* Recent Quizzes Section */}
-        <Box sx={{ mb: 4 }}>
-          <Typography
-            variant="h5"
-            sx={{
-              fontWeight: 600,
-              mb: 3,
-              color: 'text.primary',
-              fontSize: { xs: '1.25rem', sm: '1.5rem' }
-            }}
-          >
-            📚 Recent Quizzes
-          </Typography>
-          <Card
-            elevation={0}
-            sx={{
-              background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.grey[50]} 100%)`,
-              border: `1px solid ${theme.palette.divider}`,
-              borderRadius: 3,
-            }}
-          >
-            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-              {stats.recentQuizzes && stats.recentQuizzes.length > 0 ? (
+        {/* Expired Quizzes Details */}
+        {stats.expiredQuizzesList && stats.expiredQuizzesList.length > 0 && (
+          <Box sx={{ mb: 4 }}>
+            <Typography
+              variant="h5"
+              sx={{
+                fontWeight: 600,
+                mb: 3,
+                color: 'text.primary',
+                fontSize: { xs: '1.25rem', sm: '1.5rem' }
+              }}
+            >
+              ⏰ Expired Quizzes
+            </Typography>
+            <Card
+              elevation={0}
+              sx={{
+                background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.grey[50]} 100%)`,
+                border: `1px solid ${theme.palette.divider}`,
+                borderRadius: 3,
+              }}
+            >
+              <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
                 <Grid container spacing={2}>
-                  {stats.recentQuizzes.slice(0, 3).map((quiz, index) => (
+                  {stats.expiredQuizzesList.slice(0, 6).map((quiz, index) => (
                     <Grid item xs={12} sm={6} md={4} key={index}>
                       <Card
                         elevation={0}
                         sx={{
                           height: '100%',
                           background: 'background.paper',
-                          border: `1px solid ${theme.palette.divider}`,
+                          border: `1px solid ${theme.palette.error.light}`,
                           borderRadius: 2,
-                          transition: 'all 0.3s ease',
-                          '&:hover': {
-                            transform: 'translateY(-4px)',
-                            boxShadow: theme.shadows[8],
-                          }
+                          borderLeft: `4px solid ${theme.palette.error.main}`,
                         }}
                       >
                         <CardContent sx={{ p: 2 }}>
                           <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, fontSize: '1rem' }}>
                             {quiz.title}
                           </Typography>
-                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                            {typeof quiz.subject === 'object' ? quiz.subject?.name || quiz.subject?.code || 'Subject' : quiz.subject} • {quiz.duration} mins
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                            {typeof quiz.subject === 'object' ? quiz.subject?.name || quiz.subject?.code || 'Subject' : quiz.subject}
                           </Typography>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Chip
-                              label={quiz.status}
-                              size="small"
-                              color={quiz.status === 'Completed' ? 'success' : 'warning'}
-                              variant="outlined"
-                            />
-                            {quiz.score && (
-                              <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                                Score: {quiz.score}%
-                              </Typography>
-                            )}
-                          </Box>
+                          <Typography variant="body2" color="error.main" sx={{ fontWeight: 600 }}>
+                            Expired: {new Date(quiz.endTime).toLocaleDateString()}
+                          </Typography>
                         </CardContent>
                       </Card>
                     </Grid>
                   ))}
                 </Grid>
-              ) : (
-                <Box sx={{ textAlign: 'center', py: 4 }}>
-                  <Typography variant="body1" color="text.secondary">
-                    No recent quizzes available
-                  </Typography>
-                </Box>
-              )}
-            </CardContent>
-          </Card>
-        </Box>
+                {stats.expiredQuizzesList.length > 6 && (
+                  <Box sx={{ textAlign: 'center', mt: 2 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      And {stats.expiredQuizzesList.length - 6} more expired quizzes...
+                    </Typography>
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+          </Box>
+        )}
+
+        {/* Upcoming Quizzes Section */}
+        {stats.upcomingQuizzes > 0 && (
+          <Box sx={{ mb: 4 }}>
+            <Typography
+              variant="h5"
+              sx={{
+                fontWeight: 600,
+                mb: 3,
+                color: 'text.primary',
+                fontSize: { xs: '1.25rem', sm: '1.5rem' }
+              }}
+            >
+              🚀 Upcoming Quizzes
+            </Typography>
+            <Card
+              elevation={0}
+              sx={{
+                background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.grey[50]} 100%)`,
+                border: `1px solid ${theme.palette.divider}`,
+                borderRadius: 3,
+              }}
+            >
+              <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+                <Grid container spacing={2}>
+                  {quizzes
+                    .filter(quiz => new Date(quiz.startTime) > new Date())
+                    .sort((a, b) => new Date(a.startTime) - new Date(b.startTime))
+                    .slice(0, 6)
+                    .map((quiz, index) => (
+                    <Grid item xs={12} sm={6} md={4} key={index}>
+                      <Card
+                        elevation={0}
+                        sx={{
+                          height: '100%',
+                          background: 'background.paper',
+                          border: `1px solid ${theme.palette.primary.light}`,
+                          borderRadius: 2,
+                          borderLeft: `4px solid ${theme.palette.primary.main}`,
+                        }}
+                      >
+                        <CardContent sx={{ p: 2 }}>
+                          <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, fontSize: '1rem' }}>
+                            {quiz.title}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                            {typeof quiz.subject === 'object' ? quiz.subject?.name || quiz.subject?.code || 'Subject' : quiz.subject}
+                          </Typography>
+                          <Typography variant="body2" color="primary.main" sx={{ fontWeight: 600, mb: 1 }}>
+                            Starts: {new Date(quiz.startTime).toLocaleString()}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Duration: {quiz.duration} minutes
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+                {quizzes.filter(quiz => new Date(quiz.startTime) > new Date()).length > 6 && (
+                  <Box sx={{ textAlign: 'center', mt: 2 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      And {quizzes.filter(quiz => new Date(quiz.startTime) > new Date()).length - 6} more upcoming quizzes...
+                    </Typography>
+                  </Box>
+                )}
+              </CardContent>
+            </Card>
+          </Box>
+        )}
       </Container>
     );
   };
@@ -689,96 +825,26 @@ const Dashboard = () => {
             </Grid>
             <Grid item xs={12} sm={6} lg={3}>
               <StatCard
-                title="Total Students"
-                value={stats.totalStudents}
-                icon={<PeopleIcon />}
+                title="Upcoming Quizzes"
+                value={stats.upcomingQuizzes}
+                icon={<AccessTimeIcon />}
                 color="info"
-                subtitle="Enrolled students"
+                subtitle="Scheduled quizzes"
               />
             </Grid>
             <Grid item xs={12} sm={6} lg={3}>
               <StatCard
-                title="Submissions"
-                value={stats.totalSubmissions}
-                icon={<AssignmentIcon />}
-                color="warning"
-                subtitle="Total responses"
+                title="Completed Quizzes"
+                value={stats.completedQuizzes}
+                icon={<CheckCircleIcon />}
+                color="success"
+                subtitle="Finished quizzes"
               />
             </Grid>
           </Grid>
         </Box>
 
-        {/* Recent Quiz Management */}
-        <Box sx={{ mb: 4 }}>
-          <Typography
-            variant="h5"
-            sx={{
-              fontWeight: 600,
-              mb: 3,
-              color: 'text.primary',
-              fontSize: { xs: '1.25rem', sm: '1.5rem' }
-            }}
-          >
-            🎯 Recent Quiz Activity
-          </Typography>
-          <Card
-            elevation={0}
-            sx={{
-              background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.grey[50]} 100%)`,
-              border: `1px solid ${theme.palette.divider}`,
-              borderRadius: 3,
-            }}
-          >
-            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-              <Grid container spacing={3}>
-                <Grid item xs={12} md={6}>
-                  <Box sx={{ p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-                      📈 Performance Overview
-                    </Typography>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography variant="body2">Average Score:</Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {Math.round(stats.averageScore)}%
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography variant="body2">Completion Rate:</Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {Math.round((stats.completedQuizzes / stats.totalQuizzes) * 100)}%
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <Box sx={{ p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-                      🚀 Quick Actions
-                    </Typography>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        onClick={() => navigate('/faculty/create-quiz')}
-                        sx={{ justifyContent: 'flex-start' }}
-                      >
-                        ➕ Create New Quiz
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        onClick={() => navigate('/faculty/quiz-submissions')}
-                        sx={{ justifyContent: 'flex-start' }}
-                      >
-                        📊 View Submissions
-                      </Button>
-                    </Box>
-                  </Box>
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-        </Box>
+
       </Container>
     );
   };
@@ -895,181 +961,178 @@ const Dashboard = () => {
           >
             📊 Quiz Analytics
           </Typography>
-          <Grid container spacing={{ xs: 0, sm: 1.5, md: 2 }} sx={{ width: '100%', m: 0, justifyContent: { xs: 'space-between', sm: 'flex-start' } }}>
-            <Grid item xs={6} sm={6} md={3} lg={3} sx={{ pr: { xs: 0.25, sm: 0 } }}>
-              <StatCard
-                title="Total Quizzes"
-                value={adminStats.totalQuizzes}
-                icon={<QuizIcon />}
-                color="info"
-                subtitle="All created quizzes"
-              />
+
+          {/* Faculty Quizzes Section */}
+          <Box sx={{ mb: 3 }}>
+            <Typography
+              variant="h6"
+              sx={{
+                fontWeight: 600,
+                mb: 2,
+                color: 'primary.main',
+                fontSize: { xs: '1rem', sm: '1.1rem' }
+              }}
+            >
+              👨‍🏫 Faculty Quizzes (Academic)
+            </Typography>
+            <Grid container spacing={{ xs: 1, sm: 2 }} sx={{ mb: 2 }}>
+              <Grid item xs={6} sm={3}>
+                <StatCard
+                  title="Total Academic"
+                  value={adminStats.totalQuizzes - (adminStats.eventQuizzes || 0)}
+                  icon={<QuizIcon />}
+                  color="primary"
+                  subtitle="Faculty created"
+                />
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <StatCard
+                  title="Active Academic"
+                  value={adminStats.academicActiveQuizzes || 0}
+                  icon={<PlayCircleIcon />}
+                  color="success"
+                  subtitle="Currently running"
+                />
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <StatCard
+                  title="Upcoming Academic"
+                  value={adminStats.academicUpcomingQuizzes || 0}
+                  icon={<AccessTimeIcon />}
+                  color="info"
+                  subtitle="Scheduled"
+                />
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <StatCard
+                  title="Completed Academic"
+                  value={adminStats.academicCompletedQuizzes || 0}
+                  icon={<CheckCircleIcon />}
+                  color="warning"
+                  subtitle="Finished"
+                />
+              </Grid>
             </Grid>
-            <Grid item xs={6} sm={6} md={3} lg={3} sx={{ pl: { xs: 0.25, sm: 0 } }}>
-              <StatCard
-                title="Active Quizzes"
-                value={adminStats.activeQuizzes}
-                icon={<DashboardIcon />}
-                color="success"
-                subtitle="Currently running"
-              />
+          </Box>
+
+          {/* Event Manager Quizzes Section */}
+          <Box sx={{ mb: 3 }}>
+            <Typography
+              variant="h6"
+              sx={{
+                fontWeight: 600,
+                mb: 2,
+                color: 'secondary.main',
+                fontSize: { xs: '1rem', sm: '1.1rem' }
+              }}
+            >
+              🎯 Event Manager Quizzes
+            </Typography>
+            <Grid container spacing={{ xs: 1, sm: 2 }}>
+              <Grid item xs={6} sm={3}>
+                <StatCard
+                  title="Total Events"
+                  value={adminStats.eventQuizzes || 0}
+                  icon={<EventIcon />}
+                  color="secondary"
+                  subtitle="Event created"
+                />
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <StatCard
+                  title="Active Events"
+                  value={adminStats.eventActiveQuizzes || 0}
+                  icon={<PlayCircleIcon />}
+                  color="success"
+                  subtitle="Currently running"
+                />
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <StatCard
+                  title="Upcoming Events"
+                  value={adminStats.eventUpcomingQuizzes || 0}
+                  icon={<AccessTimeIcon />}
+                  color="info"
+                  subtitle="Scheduled"
+                />
+              </Grid>
+              <Grid item xs={6} sm={3}>
+                <StatCard
+                  title="Completed Events"
+                  value={adminStats.eventCompletedQuizzes || 0}
+                  icon={<CheckCircleIcon />}
+                  color="warning"
+                  subtitle="Finished"
+                />
+              </Grid>
             </Grid>
-            <Grid item xs={6} sm={6} md={3} lg={3} sx={{ pr: { xs: 0.25, sm: 0 } }}>
-              <StatCard
-                title="Total Submissions"
-                value={adminStats.totalSubmissions}
-                icon={<AssignmentIcon />}
-                color="primary"
-                subtitle="Quiz attempts"
-              />
-            </Grid>
-            <Grid item xs={6} sm={6} md={3} lg={3} sx={{ pl: { xs: 0.25, sm: 0 } }}>
-              <StatCard
-                title="Average Score"
-                value={`${adminStats.averageScore}%`}
-                icon={<TrendingUpIcon />}
-                color="warning"
-                subtitle="Overall performance"
-              />
-            </Grid>
-          </Grid>
+          </Box>
         </Box>
 
-        {/* Quick Stats Summary */}
-        <Card
-          elevation={0}
-          sx={{
-            background: `linear-gradient(135deg, ${theme.palette.primary.main}08 0%, ${theme.palette.secondary.main}08 100%)`,
-            border: `1px solid ${theme.palette.primary.main}20`,
-            borderRadius: 3,
-            p: { xs: 2, sm: 3 }
-          }}
-        >
-          <Typography
-            variant="h6"
-            sx={{
-              fontWeight: 600,
-              mb: 2,
-              color: 'text.primary'
-            }}
-          >
-            📈 System Overview
-          </Typography>
-          <Grid container spacing={{ xs: 1, sm: 1.5, md: 2 }}>
-            <Grid item xs={6} sm={3} md={3} lg={3}>
-              <Box sx={{ textAlign: 'center', p: { xs: 1, sm: 1.5 } }}>
-                <Typography
-                  variant="h4"
-                  color="primary.main"
-                  sx={{
-                    fontWeight: 700,
-                    fontSize: { xs: '1.5rem', sm: '2rem', md: '2.5rem' }
-                  }}
-                >
-                  {adminStats.academicCompletedQuizzes}
-                </Typography>
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
-                >
-                  Academic Quizzes
-                </Typography>
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}
-                >
-                  Completed
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={6} sm={3} md={3} lg={3}>
-              <Box sx={{ textAlign: 'center', p: { xs: 1, sm: 1.5 } }}>
-                <Typography
-                  variant="h4"
-                  color="success.main"
-                  sx={{
-                    fontWeight: 700,
-                    fontSize: { xs: '1.5rem', sm: '2rem', md: '2.5rem' }
-                  }}
-                >
-                  {adminStats.academicActiveQuizzes}
-                </Typography>
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
-                >
-                  Academic Quizzes
-                </Typography>
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}
-                >
-                  Active
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={6} sm={3} md={3} lg={3}>
-              <Box sx={{ textAlign: 'center', p: { xs: 1, sm: 1.5 } }}>
-                <Typography
-                  variant="h4"
-                  color="warning.main"
-                  sx={{
-                    fontWeight: 700,
-                    fontSize: { xs: '1.5rem', sm: '2rem', md: '2.5rem' }
-                  }}
-                >
-                  {adminStats.eventCompletedQuizzes}
-                </Typography>
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
-                >
-                  Event Quizzes
-                </Typography>
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}
-                >
-                  Completed
-                </Typography>
-              </Box>
-            </Grid>
-            <Grid item xs={6} sm={3} md={3} lg={3}>
-              <Box sx={{ textAlign: 'center', p: { xs: 1, sm: 1.5 } }}>
-                <Typography
-                  variant="h4"
-                  color="secondary.main"
-                  sx={{
-                    fontWeight: 700,
-                    fontSize: { xs: '1.5rem', sm: '2rem', md: '2.5rem' }
-                  }}
-                >
-                  {adminStats.eventActiveQuizzes}
-                </Typography>
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
-                >
-                  Event Quizzes
-                </Typography>
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontSize: { xs: '0.65rem', sm: '0.75rem' } }}
-                >
-                  Active
-                </Typography>
-              </Box>
-            </Grid>
-          </Grid>
-        </Card>
+
+
+        {/* Upcoming Quizzes Section for Admin */}
+        {stats.upcomingQuizzes > 0 && (
+          <Box sx={{ mb: 4 }}>
+            <Typography
+              variant="h5"
+              sx={{
+                fontWeight: 600,
+                mb: 3,
+                color: 'text.primary',
+                fontSize: { xs: '1.25rem', sm: '1.5rem' }
+              }}
+            >
+              📅 Upcoming Academic Quizzes
+            </Typography>
+            <Card
+              elevation={0}
+              sx={{
+                background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.grey[50]} 100%)`,
+                border: `1px solid ${theme.palette.divider}`,
+                borderRadius: 3,
+              }}
+            >
+              <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+                <Grid container spacing={2}>
+                  {quizzes
+                    .filter(quiz => new Date(quiz.startTime) > new Date())
+                    .sort((a, b) => new Date(a.startTime) - new Date(b.startTime))
+                    .slice(0, 6)
+                    .map((quiz, index) => (
+                    <Grid item xs={12} sm={6} md={4} key={index}>
+                      <Card
+                        elevation={0}
+                        sx={{
+                          height: '100%',
+                          background: 'background.paper',
+                          border: `1px solid ${theme.palette.success.light}`,
+                          borderRadius: 2,
+                          borderLeft: `4px solid ${theme.palette.success.main}`,
+                        }}
+                      >
+                        <CardContent sx={{ p: 2 }}>
+                          <Typography variant="h6" sx={{ fontWeight: 600, mb: 1, fontSize: '1rem' }}>
+                            {quiz.title}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                            {typeof quiz.subject === 'object' ? quiz.subject?.name || quiz.subject?.code || 'Subject' : quiz.subject}
+                          </Typography>
+                          <Typography variant="body2" color="success.main" sx={{ fontWeight: 600, mb: 1 }}>
+                            Starts: {new Date(quiz.startTime).toLocaleString()}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Duration: {quiz.duration} minutes
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+              </CardContent>
+            </Card>
+          </Box>
+        )}
       </Box>
     );
   };
@@ -1158,96 +1221,28 @@ const Dashboard = () => {
             </Grid>
             <Grid item xs={12} sm={6} lg={3}>
               <StatCard
-                title="Registrations"
-                value={stats.totalRegistrations}
-                icon={<PeopleIcon />}
+                title="Upcoming Events"
+                value={stats.upcomingQuizzes}
+                icon={<AccessTimeIcon />}
                 color="info"
-                subtitle="Total participants"
+                subtitle="Scheduled events"
               />
             </Grid>
             <Grid item xs={12} sm={6} lg={3}>
               <StatCard
-                title="Submissions"
-                value={stats.totalSubmissions}
-                icon={<AssignmentIcon />}
-                color="warning"
-                subtitle="Quiz attempts"
+                title="Completed Events"
+                value={stats.completedQuizzes}
+                icon={<CheckCircleIcon />}
+                color="success"
+                subtitle="Finished events"
               />
             </Grid>
           </Grid>
         </Box>
 
-        {/* Event Management Tools */}
-        <Box sx={{ mb: 4 }}>
-          <Typography
-            variant="h5"
-            sx={{
-              fontWeight: 600,
-              mb: 3,
-              color: 'text.primary',
-              fontSize: { xs: '1.25rem', sm: '1.5rem' }
-            }}
-          >
-            🚀 Event Management Tools
-          </Typography>
-          <Card
-            elevation={0}
-            sx={{
-              background: `linear-gradient(135deg, ${theme.palette.background.paper} 0%, ${theme.palette.grey[50]} 100%)`,
-              border: `1px solid ${theme.palette.divider}`,
-              borderRadius: 3,
-            }}
-          >
-            <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-              <Grid container spacing={3}>
-                <Grid item xs={12} md={6}>
-                  <Box sx={{ p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-                      📈 Event Performance
-                    </Typography>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography variant="body2">Average Participation:</Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {Math.round((stats.totalRegistrations / stats.totalQuizzes) || 0)} per event
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                      <Typography variant="body2">Completion Rate:</Typography>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {Math.round((stats.totalSubmissions / stats.totalRegistrations) * 100 || 0)}%
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <Box sx={{ p: 2, border: `1px solid ${theme.palette.divider}`, borderRadius: 2 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-                      🎯 Quick Actions
-                    </Typography>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        onClick={() => navigate('/event/create-quiz')}
-                        sx={{ justifyContent: 'flex-start' }}
-                      >
-                        ➕ Create New Event
-                      </Button>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        onClick={() => navigate('/event/registrations')}
-                        sx={{ justifyContent: 'flex-start' }}
-                      >
-                        👥 Manage Registrations
-                      </Button>
-                    </Box>
-                  </Box>
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-        </Box>
+
+
+
       </Container>
     );
   };

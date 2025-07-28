@@ -78,8 +78,8 @@ const LandingPageStructure = ({
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'linear-gradient(180deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 50%, rgba(0,0,0,0.1) 100%)',
-          backdropFilter: 'blur(10px)',
+          background: 'linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 50%, rgba(0,0,0,0.05) 100%)',
+          backdropFilter: 'blur(3px)',
           zIndex: 1
         }} />
       )}
@@ -194,7 +194,7 @@ const LandingPageStructure = ({
                       : backgroundStyle?.background || 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
-                    backdropFilter: 'blur(15px)',
+                    backdropFilter: 'blur(5px)',
                     borderRadius: 2,
                     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
                     border: '1px solid rgba(255, 255, 255, 0.2)'
@@ -458,7 +458,7 @@ const LandingPageStructure = ({
               sx={{
                 p: isPreview ? 1.5 : 3,
                 background: 'rgba(255, 255, 255, 0.8)',
-                backdropFilter: 'blur(10px)',
+                backdropFilter: 'blur(5px)',
                 borderRadius: 2,
                 minWidth: isPreview ? 90 : 200,
                 textAlign: 'center',

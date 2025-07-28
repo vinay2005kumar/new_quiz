@@ -515,25 +515,56 @@ const FacultyAccounts = () => {
 
   const fetchAcademicDetails = async () => {
     try {
+
+
+      // Fetch departments using the same method as EventQuizAccounts
+      try {
+        const deptResponse = await api.get('/api/admin/settings/departments');
+        //console.log('🏢 DEBUG: Departments API response:', deptResponse);
+
+        let departments = [];
+        if (deptResponse && deptResponse.departments && Array.isArray(deptResponse.departments)) {
+          departments = deptResponse.departments.map(dept => dept.name);
+        }
+
+        //console.log('🏢 DEBUG: Processed departments:', departments);
+        setDepartments(departments);
+      } catch (deptError) {
+        console.error('🏢 DEBUG: Error fetching departments from settings:', deptError);
+        setError('Failed to fetch departments');
+
+        // Fallback to academic details if settings API fails
+        try {
+          //console.log('🏢 DEBUG: Trying fallback to academic details');
+          const response = await api.get('/api/academic-details');
+          if (response && Array.isArray(response)) {
+            const uniqueDepartments = [...new Set(
+              response
+                .filter(detail => detail && detail.department)
+                .map(detail => detail.department)
+            )].sort();
+            //console.log('🏢 DEBUG: Fallback departments:', uniqueDepartments);
+            setDepartments(uniqueDepartments);
+          }
+        } catch (fallbackError) {
+          console.error('🏢 DEBUG: Fallback also failed:', fallbackError);
+        }
+      }
+
+      // Then fetch academic details
       const response = await api.get('/api/academic-details');
-      console.log('Academic details response:', response);
-      
+      //console.log('📚 DEBUG: Academic details response:', response);
+
       if (response && Array.isArray(response)) {
         setAcademicDetails(response);
-        
-        // Extract unique departments
-        const uniqueDepartments = [...new Set(response.map(detail => detail.department))];
-        setDepartments(uniqueDepartments);
       } else {
         console.error('Invalid academic details data:', response);
         setAcademicDetails([]);
-        setDepartments([]);
       }
     } catch (error) {
-      console.error('Error fetching academic details:', error);
+      console.error('🏢 DEBUG: Error fetching academic details:', error);
       setError('Failed to fetch academic details');
       setAcademicDetails([]);
-      setDepartments([]);
     }
   };
 
@@ -546,7 +577,7 @@ const FacultyAccounts = () => {
           .map(detail => detail.year)
       )].sort((a, b) => a - b);
       
-      console.log('Available years for department:', departmentYears);
+      //console.log('Available years for department:', departmentYears);
       setYears(departmentYears);
     } else {
       setYears([]);
@@ -565,7 +596,7 @@ const FacultyAccounts = () => {
           .map(detail => detail.semester)
       )].sort((a, b) => a - b);
       
-      console.log('Available semesters:', availableSems);
+      //console.log('Available semesters:', availableSems);
       setAvailableSemesters(availableSems);
     } else {
       setAvailableSemesters([]);
@@ -582,7 +613,7 @@ const FacultyAccounts = () => {
       );
 
       const sections = detail?.sections ? detail.sections.split(',').map(s => s.trim()) : [];
-      console.log('Available sections:', sections);
+      //console.log('Available sections:', sections);
       setAvailableSections(sections);
     } else {
       setAvailableSections([]);
@@ -593,11 +624,11 @@ const FacultyAccounts = () => {
     try {
       setLoading(true);
       setError('');
-      console.log('Fetching faculty accounts...');
+      //console.log('Fetching faculty accounts...');
       
       // Get faculty accounts specifically
       const response = await api.get('/api/admin/accounts?role=faculty');
-      console.log('Faculty response:', response);
+      //console.log('Faculty response:', response);
 
       // Check if response exists and has the expected structure
       if (!response || !response.accounts || !Array.isArray(response.accounts)) {
@@ -887,11 +918,11 @@ const FacultyAccounts = () => {
           updateData.password = faculty.password;
         }
 
-        console.log('Updating faculty with data:', updateData);
+        //console.log('Updating faculty with data:', updateData);
 
         // Update the faculty account
         const response = await api.put(`/api/admin/faculty/${selectedFaculty._id}`, updateData);
-        console.log('Faculty updated successfully:', response);
+        //console.log('Faculty updated successfully:', response);
 
       } else {
         // Create new faculty accounts
@@ -963,11 +994,11 @@ const FacultyAccounts = () => {
               isEventQuizAccount: false
             };
 
-            console.log('Creating faculty with data:', dataToSend);
+            //console.log('Creating faculty with data:', dataToSend);
 
             // Create the faculty account
             const response = await api.post('/api/admin/accounts', dataToSend);
-            console.log('Faculty created successfully:', response);
+            //console.log('Faculty created successfully:', response);
 
           } catch (error) {
             console.error('Error creating faculty:', error);
@@ -1011,16 +1042,16 @@ const FacultyAccounts = () => {
       throw new Error('Year_Sem_Sec must be a non-empty string');
     }
 
-    console.log('🔍 Processing Year_Sem_Sec:', yearSemSec);
+    //console.log('🔍 Processing Year_Sem_Sec:', yearSemSec);
 
     const assignments = [];
     // Split by semicolon for different year-semester combinations
     const pairs = yearSemSec.trim().split(';').filter(p => p.trim());
 
-    console.log('📋 Split pairs:', pairs);
+    //console.log('📋 Split pairs:', pairs);
 
     pairs.forEach((pair, index) => {
-      console.log(`🔸 Processing pair ${index + 1}:`, pair.trim());
+      //console.log(`🔸 Processing pair ${index + 1}:`, pair.trim());
 
       // Split by colon to separate year-semester from sections
       const parts = pair.trim().split(':');
@@ -1029,8 +1060,8 @@ const FacultyAccounts = () => {
       }
 
       const [yearSem, sections] = parts;
-      console.log(`   Year-Semester part: "${yearSem.trim()}"`);
-      console.log(`   Sections part: "${sections.trim()}"`);
+      //console.log(`   Year-Semester part: "${yearSem.trim()}"`);
+      //console.log(`   Sections part: "${sections.trim()}"`);
 
       // Parse year-semester part
       const yearSemParts = yearSem.trim().split('-');
@@ -1050,7 +1081,7 @@ const FacultyAccounts = () => {
         throw new Error(`Invalid semester in pair ${index + 1}: "${semester}". Semester must be 1-8`);
       }
 
-      console.log(`   Parsed Year: ${yearNum}, Semester: ${semesterNum}`);
+      //console.log(`   Parsed Year: ${yearNum}, Semester: ${semesterNum}`);
 
       // Parse sections
       if (!sections.trim()) {
@@ -1058,7 +1089,7 @@ const FacultyAccounts = () => {
       }
 
       const sectionList = sections.trim().split(',').map(s => s.trim().toUpperCase()).filter(s => s);
-      console.log(`   Parsed sections:`, sectionList);
+      //console.log(`   Parsed sections:`, sectionList);
 
       if (sectionList.length === 0) {
         throw new Error(`No valid sections found in pair ${index + 1}: "${sections}"`);
@@ -1076,7 +1107,7 @@ const FacultyAccounts = () => {
         sections: sectionList
       };
 
-      console.log(`   ✅ Created assignment:`, assignment);
+      //console.log(`   ✅ Created assignment:`, assignment);
       assignments.push(assignment);
     });
 
@@ -1084,7 +1115,7 @@ const FacultyAccounts = () => {
       throw new Error('No valid assignments found');
     }
 
-    console.log('🎯 Final assignments:', assignments);
+    //console.log('🎯 Final assignments:', assignments);
     return assignments;
   };
 
@@ -1097,7 +1128,7 @@ const FacultyAccounts = () => {
       }));
     }
 
-    console.log('🔍 Processing Subjects:', subjectsString);
+    //console.log('🔍 Processing Subjects:', subjectsString);
 
     // Create a map to store subjects for each year-semester combination
     const subjectMap = new Map();
@@ -1106,7 +1137,7 @@ const FacultyAccounts = () => {
     const pairs = subjectsString.trim().split(';').filter(p => p.trim());
 
     pairs.forEach((pair, index) => {
-      console.log(`🔸 Processing subject pair ${index + 1}:`, pair.trim());
+      //console.log(`🔸 Processing subject pair ${index + 1}:`, pair.trim());
 
       // Split by colon to separate year-semester from subjects
       const parts = pair.trim().split(':');
@@ -1121,7 +1152,7 @@ const FacultyAccounts = () => {
       const subjectList = subjects.trim().split(',').map(s => s.trim()).filter(s => s);
       subjectMap.set(key, subjectList);
 
-      console.log(`   ✅ Subjects for ${key}:`, subjectList);
+      //console.log(`   ✅ Subjects for ${key}:`, subjectList);
     });
 
     // Add subjects to corresponding assignments
@@ -1135,7 +1166,7 @@ const FacultyAccounts = () => {
       };
     });
 
-    console.log('🎯 Final assignments with subjects:', assignmentsWithSubjects);
+    //console.log('🎯 Final assignments with subjects:', assignmentsWithSubjects);
     return assignmentsWithSubjects;
   };
 
@@ -1162,7 +1193,7 @@ const FacultyAccounts = () => {
         // Validate the data structure
         const validationErrors = [];
         const processedData = jsonData.map((row, index) => {
-          console.log(`\n🔍 Processing Excel Row ${index + 2}:`, row);
+          //console.log(`\n🔍 Processing Excel Row ${index + 2}:`, row);
 
           const errors = [];
           if (!row.Name && !row.name) errors.push(`Row ${index + 2}: Name is required`);
@@ -1175,8 +1206,8 @@ const FacultyAccounts = () => {
 
           const yearSemSec = row.Year_Sem_Sec || row.year_sem_sec;
           const subjectsString = row.Subjects || row.subjects || '';
-          console.log(`📝 Year_Sem_Sec for row ${index + 2}:`, yearSemSec);
-          console.log(`📝 Subjects for row ${index + 2}:`, subjectsString);
+          //console.log(`📝 Year_Sem_Sec for row ${index + 2}:`, yearSemSec);
+          //console.log(`📝 Subjects for row ${index + 2}:`, subjectsString);
 
           let assignments = [];
 
@@ -1186,7 +1217,7 @@ const FacultyAccounts = () => {
               const baseAssignments = processYearSemSec(yearSemSec);
               // Then add subjects to assignments
               assignments = processSubjects(subjectsString, baseAssignments);
-              console.log(`✅ Successfully parsed assignments for row ${index + 2}:`, assignments);
+              //console.log(`✅ Successfully parsed assignments for row ${index + 2}:`, assignments);
             }
           } catch (e) {
             const error = `Row ${index + 2}: Invalid format - ${e.message}`;
@@ -1271,10 +1302,10 @@ const FacultyAccounts = () => {
         role: 'faculty'
       }));
 
-      console.log('Uploading faculty accounts:', {
-        count: accountsToUpload.length,
-        accounts: accountsToUpload
-      });
+      //console.log('Uploading faculty accounts:', {
+      //   count: accountsToUpload.length,
+      //   accounts: accountsToUpload
+      // });
 
       const response = await api.post('/api/admin/accounts/bulk', {
         accounts: accountsToUpload
@@ -1282,7 +1313,7 @@ const FacultyAccounts = () => {
 
       setUploadProgress(100);
       setUploadStatus('success');
-      console.log('Bulk upload response:', response);
+      //console.log('Bulk upload response:', response);
 
       // Show success message with details
       const successMessage = response.errors && response.errors.length > 0
@@ -1302,12 +1333,12 @@ const FacultyAccounts = () => {
         setUploadError(`Some accounts failed to create:\n${errorDetails}${response.errors.length > 5 ? '\n...and more' : ''}`);
 
         // Also show detailed errors in console for debugging
-        console.log('Detailed error breakdown:', {
-          totalAttempted: uploadPreview.length,
-          successful: response.created || 0,
-          failed: response.errors.length,
-          errors: response.errors
-        });
+        //console.log('Detailed error breakdown:', {
+        //   totalAttempted: uploadPreview.length,
+        //   successful: response.created || 0,
+        //   failed: response.errors.length,
+        //   errors: response.errors
+        // });
       }
 
       // Close dialog and refresh faculty list after short delay
@@ -1886,6 +1917,20 @@ const FacultyAccounts = () => {
                                     >
                                       <DeleteIcon fontSize="small" />
                                     </IconButton>
+                                  </Box>
+
+                                  {/* Department Header */}
+                                  <Box sx={{ mb: 1, pr: 6 }}>
+                                    <Chip
+                                      label={`📚 ${assignment.department || 'No Department'}`}
+                                      size="small"
+                                      color="secondary"
+                                      variant="outlined"
+                                      sx={{
+                                        fontWeight: 600,
+                                        fontSize: '0.75rem'
+                                      }}
+                                    />
                                   </Box>
 
                                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center', pr: 6 }}>

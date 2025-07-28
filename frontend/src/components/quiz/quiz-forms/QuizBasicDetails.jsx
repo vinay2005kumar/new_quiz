@@ -17,7 +17,12 @@ import {
   Radio,
   Switch,
   FormGroup,
-  Paper
+  Paper,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button
 } from '@mui/material';
 import { useAuth } from '../../../context/AuthContext';
 import api from '../../../config/axios';
@@ -38,35 +43,38 @@ const QuizBasicDetails = ({
   const [titleError, setTitleError] = useState('');
   const [isCheckingTitle, setIsCheckingTitle] = useState(false);
 
+  // Email confirmation dialog state
+  const [emailConfirmDialog, setEmailConfirmDialog] = useState(false);
+
   // Real-time title validation
   const checkTitleUniqueness = useCallback(async (title) => {
-    console.log('🔍 Checking title uniqueness for:', title);
+    //console.log('🔍 Checking title uniqueness for:', title);
 
     if (!title || title.trim().length === 0) {
-      console.log('❌ Title is empty, clearing error');
+      //console.log('❌ Title is empty, clearing error');
       setTitleError('');
       return;
     }
 
     try {
       setIsCheckingTitle(true);
-      console.log('🌐 Making API call to:', `/api/quiz/check-title/${encodeURIComponent(title.trim())}`);
+      //console.log('🌐 Making API call to:', `/api/quiz/check-title/${encodeURIComponent(title.trim())}`);
 
       const response = await api.get(`/api/quiz/check-title/${encodeURIComponent(title.trim())}`);
-      console.log('📡 Full API Response:', response);
+      //console.log('📡 Full API Response:', response);
 
       // The axios interceptor returns response.data, so response is actually the data
       const data = response;
-      console.log('📡 Processed Data:', data);
+      //console.log('📡 Processed Data:', data);
 
       if (data && !data.isUnique) {
-        console.log('🔴 Title already exists, setting error');
+        //console.log('🔴 Title already exists, setting error');
         setTitleError('A quiz with this title already exists');
       } else if (data && data.isUnique) {
-        console.log('✅ Title is unique, clearing error');
+        //console.log('✅ Title is unique, clearing error');
         setTitleError('');
       } else {
-        console.log('⚠️ Unexpected response format:', data);
+        //console.log('⚠️ Unexpected response format:', data);
         setTitleError('');
       }
     } catch (error) {
@@ -84,20 +92,20 @@ const QuizBasicDetails = ({
 
   // Debounced title check
   useEffect(() => {
-    console.log('⏰ Title changed, setting up debounced check for:', basicDetails.title);
+    //console.log('⏰ Title changed, setting up debounced check for:', basicDetails.title);
 
     const timeoutId = setTimeout(() => {
-      console.log('🚀 Debounce timeout triggered, checking title:', basicDetails.title);
+      //console.log('🚀 Debounce timeout triggered, checking title:', basicDetails.title);
       if (basicDetails.title) {
         checkTitleUniqueness(basicDetails.title);
       } else {
-        console.log('📝 Title is empty, clearing error');
+        //console.log('📝 Title is empty, clearing error');
         setTitleError('');
       }
     }, 500); // 500ms delay
 
     return () => {
-      console.log('🧹 Cleaning up timeout for title:', basicDetails.title);
+      //console.log('🧹 Cleaning up timeout for title:', basicDetails.title);
       clearTimeout(timeoutId);
     };
   }, [basicDetails.title, checkTitleUniqueness]);
@@ -181,10 +189,10 @@ const QuizBasicDetails = ({
 
   // Auto-select department for faculty
   useEffect(() => {
-    console.log('🔍 Auto-select department effect');
-    console.log('User:', user);
-    console.log('User assignments:', user?.assignments);
-    console.log('Academic structure:', academicStructure);
+    //console.log('🔍 Auto-select department effect');
+    //console.log('User:', user);
+    //console.log('User assignments:', user?.assignments);
+    //console.log('Academic structure:', academicStructure);
 
     if (
       academicStructure &&
@@ -193,7 +201,7 @@ const QuizBasicDetails = ({
     ) {
       const assignment = user.assignments[0];
       const dept = assignment.department;
-      console.log('Auto-selecting department:', dept);
+      //console.log('Auto-selecting department:', dept);
       if (academicStructure[dept]?.hasAccess) {
         setFilters(prev => ({
           ...prev,
@@ -259,19 +267,19 @@ const QuizBasicDetails = ({
 
         // For faculty users, filter subjects based on their assignments
         if (user?.role === 'faculty' && user?.assignments) {
-          console.log('🔍 Filtering subjects for faculty');
-          console.log('Current filters:', filters);
+          //console.log('🔍 Filtering subjects for faculty');
+          //console.log('Current filters:', filters);
 
           // Find the faculty assignment that matches current selection
           const matchingAssignment = user.assignments.find(assignment => {
             const deptMatch = assignment.department === filters.department;
             const yearMatch = assignment.year === filters.year || assignment.year === String(filters.year);
             const semesterMatch = assignment.semester === filters.semester || assignment.semester === String(filters.semester);
-            console.log(`Assignment check: dept=${deptMatch}, year=${yearMatch}, semester=${semesterMatch}`, assignment);
+            //console.log(`Assignment check: dept=${deptMatch}, year=${yearMatch}, semester=${semesterMatch}`, assignment);
             return deptMatch && yearMatch && semesterMatch;
           });
 
-          console.log('Matching assignment for subjects:', matchingAssignment);
+          //console.log('Matching assignment for subjects:', matchingAssignment);
 
           if (matchingAssignment && matchingAssignment.subjects && matchingAssignment.subjects.length > 0) {
             // Filter subjects to only show those assigned to this faculty
@@ -312,23 +320,23 @@ const QuizBasicDetails = ({
 
     // For faculty users, filter years based on their assignments
     if (user?.role === 'faculty' && user?.assignments) {
-      console.log('🔍 Filtering years for faculty');
-      console.log('Department:', filters.department);
-      console.log('User assignments:', user.assignments);
+      //console.log('🔍 Filtering years for faculty');
+      //console.log('Department:', filters.department);
+      //console.log('User assignments:', user.assignments);
 
       const facultyYears = user.assignments
         .filter(assignment => {
           const match = assignment.department === filters.department;
-          console.log(`Assignment dept match: ${match}`, assignment);
+          //console.log(`Assignment dept match: ${match}`, assignment);
           return match;
         })
         .map(assignment => parseInt(assignment.year));
 
-      console.log('Faculty years:', facultyYears);
-      console.log('Available years before filter:', availableYears);
+      //console.log('Faculty years:', facultyYears);
+      //console.log('Available years before filter:', availableYears);
 
       availableYears = availableYears.filter(year => facultyYears.includes(year));
-      console.log('Available years after filter:', availableYears);
+      //console.log('Available years after filter:', availableYears);
     }
 
     return availableYears;
@@ -343,24 +351,24 @@ const QuizBasicDetails = ({
 
     // For faculty users, filter semesters based on their assignments
     if (user?.role === 'faculty' && user?.assignments) {
-      console.log('🔍 Filtering semesters for faculty');
-      console.log('Current filters:', filters);
-      console.log('User assignments:', user.assignments);
+      //console.log('🔍 Filtering semesters for faculty');
+      //console.log('Current filters:', filters);
+      //console.log('User assignments:', user.assignments);
 
       const facultySemesters = user.assignments
         .filter(assignment => {
           const deptMatch = assignment.department === filters.department;
           const yearMatch = assignment.year === filters.year || assignment.year === String(filters.year);
-          console.log(`Assignment check: dept=${deptMatch}, year=${yearMatch}`, assignment);
+          //console.log(`Assignment check: dept=${deptMatch}, year=${yearMatch}`, assignment);
           return deptMatch && yearMatch;
         })
         .map(assignment => parseInt(assignment.semester));
 
-      console.log('Faculty semesters:', facultySemesters);
-      console.log('Available semesters before filter:', availableSemesters);
+      //console.log('Faculty semesters:', facultySemesters);
+      //console.log('Available semesters before filter:', availableSemesters);
 
       availableSemesters = availableSemesters.filter(semester => facultySemesters.includes(semester));
-      console.log('Available semesters after filter:', availableSemesters);
+      //console.log('Available semesters after filter:', availableSemesters);
     }
 
     return availableSemesters;
@@ -373,29 +381,29 @@ const QuizBasicDetails = ({
 
     // For faculty users, filter sections based on their assignments
     if (user?.role === 'faculty' && user?.assignments) {
-      console.log('🔍 Filtering sections for faculty');
-      console.log('Current filters:', filters);
+      //console.log('🔍 Filtering sections for faculty');
+      //console.log('Current filters:', filters);
 
       // Find the faculty assignment that matches current selection
       const matchingAssignment = user.assignments.find(assignment => {
         const deptMatch = assignment.department === filters.department;
         const yearMatch = assignment.year === filters.year || assignment.year === String(filters.year);
         const semesterMatch = assignment.semester === filters.semester || assignment.semester === String(filters.semester);
-        console.log(`Assignment check: dept=${deptMatch}, year=${yearMatch}, semester=${semesterMatch}`, assignment);
+        //console.log(`Assignment check: dept=${deptMatch}, year=${yearMatch}, semester=${semesterMatch}`, assignment);
         return deptMatch && yearMatch && semesterMatch;
       });
 
-      console.log('Matching assignment:', matchingAssignment);
+      //console.log('Matching assignment:', matchingAssignment);
 
       if (matchingAssignment && matchingAssignment.sections) {
         availableSections = availableSections.filter(section =>
           matchingAssignment.sections.includes(section)
         );
-        console.log('Filtered sections:', availableSections);
+        //console.log('Filtered sections:', availableSections);
       } else {
         // If no assignment found for this combination, show no sections
         availableSections = [];
-        console.log('No matching assignment found, showing no sections');
+        //console.log('No matching assignment found, showing no sections');
       }
     }
 
@@ -496,7 +504,7 @@ const QuizBasicDetails = ({
               name="title"
               value={basicDetails.title}
               onChange={(e) => {
-                console.log('📝 Title input changed to:', e.target.value);
+                //console.log('📝 Title input changed to:', e.target.value);
                 handleBasicDetailsChange(e);
               }}
               required
@@ -681,6 +689,7 @@ const QuizBasicDetails = ({
           Negative Marking Settings
         </Typography>
 
+      
         <FormGroup>
           <FormControlLabel
             control={
@@ -694,11 +703,48 @@ const QuizBasicDetails = ({
             }
             label="Enable Negative Marking"
           />
-        </FormGroup>
-
-        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
           💡 This setting indicates whether negative marking is allowed in this quiz. Individual negative marks will be set per question.
         </Typography>
+        </FormGroup>
+
+        {/* Email Notification Settings */}
+        <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold', mt: 3 }}>
+          📧 Email Notification Settings
+        </Typography>
+
+        <FormGroup>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={basicDetails.sendEmailNotification === true} // Default to false (OFF)
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    // Show confirmation dialog immediately when enabling
+                    setEmailConfirmDialog(true);
+                  } else {
+                    // Disable without confirmation
+                    handleBasicDetailsChange({
+                      target: { name: 'sendEmailNotification', value: false }
+                    });
+                  }
+                }}
+                name="sendEmailNotification"
+                color="primary"
+              />
+            }
+            label="📧 Send Email Notifications to Students"
+          />
+          <Typography variant="caption" color="text.secondary" sx={{ ml: 4, mt: 0.5 }}>
+            When enabled, students will receive email notifications with quiz details when the quiz is created.
+            {basicDetails.sendEmailNotification === true && (
+              <span style={{ color: '#4caf50', fontWeight: 'bold' }}>
+                {' '}✅ Email notifications will be sent to students.
+              </span>
+            )}
+          </Typography>
+        </FormGroup>
+
       </Grid>
         </Grid>
       </Paper>
@@ -1001,8 +1047,60 @@ const QuizBasicDetails = ({
           </Grid>
         </Grid>
       </Paper>
+
+      {/* Email Confirmation Dialog */}
+      <Dialog
+        open={emailConfirmDialog}
+        onClose={() => setEmailConfirmDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          📧 Send Email Notifications?
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" gutterBottom>
+            Do you want to send email notifications for this quiz creation?
+          </Typography>
+
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            This will send emails to students with quiz details when the quiz is created.
+          </Typography>
+
+          <Alert severity="info" sx={{ mt: 2 }}>
+            <Typography variant="body2">
+              <strong>Note:</strong> Students will receive quiz details, timing, and instructions via email.
+            </Typography>
+          </Alert>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setEmailConfirmDialog(false);
+              // Keep toggle OFF
+            }}
+            color="secondary"
+            variant="outlined"
+          >
+            No, Don't Send
+          </Button>
+          <Button
+            onClick={() => {
+              setEmailConfirmDialog(false);
+              // Enable email notifications
+              handleBasicDetailsChange({
+                target: { name: 'sendEmailNotification', value: true }
+              });
+            }}
+            color="primary"
+            variant="contained"
+          >
+            Yes, Send Emails
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
 
-export default QuizBasicDetails; 
+export default QuizBasicDetails;

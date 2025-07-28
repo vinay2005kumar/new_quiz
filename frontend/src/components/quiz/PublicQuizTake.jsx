@@ -72,7 +72,7 @@ const PublicQuizTake = () => {
   // Reset violation count when admin override is activated
   useEffect(() => {
     if (adminOverrideActive) {
-      console.log('🔧 PUBLIC: Admin override activated - resetting violation count');
+      //console.log('🔧 PUBLIC: Admin override activated - resetting violation count');
       setViolationCount(0);
     }
   }, [adminOverrideActive]);
@@ -85,9 +85,9 @@ const PublicQuizTake = () => {
   useEffect(() => {
     const fetchCollegeSettings = async () => {
       try {
-        console.log('🔧 PublicQuizTake: Fetching quiz settings...');
+        //console.log('🔧 PublicQuizTake: Fetching quiz settings...');
         const response = await api.get('/api/event-quiz/quiz-settings');
-        console.log('🔧 PublicQuizTake: Quiz settings fetched:', response);
+        //console.log('🔧 PublicQuizTake: Quiz settings fetched:', response);
         setCollegeSettings(response);
       } catch (error) {
         console.error('❌ PublicQuizTake: Failed to fetch quiz settings:', error);
@@ -300,7 +300,7 @@ const PublicQuizTake = () => {
       onSecurityViolation={(violation) => {
         // Skip violations if admin override is active
         if (adminOverrideActive) {
-          console.log('🔓 PUBLIC: Admin override active - skipping violation:', violation.type?.split('\n')[0] || violation);
+          //console.log('🔓 PUBLIC: Admin override active - skipping violation:', violation.type?.split('\n')[0] || violation);
           return;
         }
 
@@ -308,18 +308,18 @@ const PublicQuizTake = () => {
         const newCount = violationCount + 1;
         setViolationCount(newCount);
 
-        console.log('🎯 PUBLIC VIOLATION COUNT:', {
-          previousCount: violationCount,
-          newCount: newCount,
-          violation: violation.type?.split('\n')[0] || violation
-        });
+        //console.log('🎯 PUBLIC VIOLATION COUNT:', {
+        //   previousCount: violationCount,
+        //   newCount: newCount,
+        //   violation: violation.type?.split('\n')[0] || violation
+        // });
 
         // Check for auto-submit (use default settings for public quizzes)
         const maxViolations = 2; // Default for public quizzes
         const autoTerminate = true;
 
         if (newCount >= maxViolations && autoTerminate) {
-          console.log('🚨 PUBLIC AUTO-SUBMIT TRIGGERED - Count:', newCount, 'Max:', maxViolations);
+          //console.log('🚨 PUBLIC AUTO-SUBMIT TRIGGERED - Count:', newCount, 'Max:', maxViolations);
           confirmSubmit();
         }
       }}

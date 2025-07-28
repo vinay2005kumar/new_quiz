@@ -42,6 +42,10 @@ FACULTY/EVENT FIELDS (required when role = 'faculty' or 'event'):
 EVENT SPECIFIC:
 ├── isEventQuizAccount: Boolean (default: false)
 
+PASSWORD RESET FIELDS (NEW):
+├── resetPasswordCode: String (6-digit verification code)
+├── resetPasswordExpiry: Date (10-minute expiry from generation)
+
 INDEXES:
 ├── { email: 1 } (unique)
 ├── { admissionNumber: 1 } (unique, sparse)
@@ -51,7 +55,7 @@ RELATIONSHIPS:
 ├── One-to-Many with Quiz (createdBy field)
 ├── One-to-Many with QuizSubmission (student field)
 ├── One-to-Many with EventQuizResult (student field)
-└── One-to-Many with EventQuizAccount (createdBy field)
+└── One-to-Many with User (event users with role: 'event')
 ```
 
 ### 2. QUIZ MODEL (models/Quiz.js)
@@ -67,7 +71,6 @@ FIELDS:
 ├── createdBy: ObjectId (required, ref: 'User')
 ├── duration: Number (required, min: 1, in minutes)
 ├── totalMarks: Number (required, min: 1, auto-calculated)
-├── passingMarks: Number (default: 0)
 ├── startTime: Date (required)
 ├── endTime: Date (required, validation: must be after startTime)
 ├── isActive: Boolean (default: true)
@@ -107,6 +110,11 @@ QUIZ CONFIGURATION:
 ├── negativeMarkingEnabled: Boolean (default: false)
 ├── shuffleQuestions: Boolean (default: false)
 ├── instructions: String (trim)
+
+QUESTION LIMITING & RANDOMIZATION (NEW):
+├── questionLimitEnabled: Boolean (default: false)
+├── questionLimit: Number (min: 1, must be <= total questions)
+├── randomizeQuestionsPerStudent: Boolean (default: false)
 
 ALLOWED GROUPS:
 ├── allowedGroups: [Object]
@@ -234,7 +242,6 @@ FIELDS:
 ├── endTime: Date (required, validation: must be after startTime)
 ├── createdBy: ObjectId (required, ref: 'User')
 ├── totalMarks: Number (auto-calculated from questions)
-├── passingMarks: Number (default: 0)
 ├── instructions: String (trim)
 ├── emailInstructions: String (trim, default: "Please find your login credentials below...")
 ├── questionDisplayMode: String (enum: ['one-by-one', 'all-at-once'], default: 'one-by-one')
@@ -359,10 +366,10 @@ RELATIONSHIPS:
 └── Many-to-One with User (student field, optional)
 ```
 
-### 6. EVENTQUIZACCOUNT MODEL (models/EventQuizAccount.js)
+### 6. EVENTQUIZACCOUNT MODEL (REMOVED - MIGRATED TO USER MODEL)
 ```
-Collection: eventquizaccounts
-Purpose: Manage event manager accounts separate from main User model
+Collection: eventquizaccounts (REMOVED)
+Purpose: Event manager accounts are now managed in User model with role: 'event'
 
 FIELDS:
 ├── _id: ObjectId (auto-generated, unique)

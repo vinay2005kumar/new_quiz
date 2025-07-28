@@ -436,17 +436,6 @@ const EventQuizBasicDetails = ({ basicDetails, setBasicDetails, error, setError,
                       helperText="0 for unlimited"
                     />
                   </Grid>
-                  <Grid item xs={12} md={6}>
-                    <TextField
-                      fullWidth
-                      label="Passing Marks"
-                      name="passingMarks"
-                      type="number"
-                      value={basicDetails.passingMarks}
-                      onChange={handleInputChange}
-                      inputProps={{ min: 0 }}
-                    />
-                  </Grid>
                   <Grid item xs={12}>
                     <FormGroup>
                       <FormControlLabel

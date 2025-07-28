@@ -158,6 +158,7 @@ const QuizList = () => {
 
   const [deleteDialog, setDeleteDialog] = useState(false);
   // Removed old filter state - now using useAcademicFilters hook
+  const [tabValue, setTabValue] = useState(0);
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -176,7 +177,7 @@ const QuizList = () => {
   // Refresh submissions when quizzes are loaded (for students)
   useEffect(() => {
     if (user?.role === 'student' && Array.isArray(quizzes) && quizzes.length > 0) {
-      console.log('🔄 Quizzes loaded - fetching submissions');
+      //console.log('🔄 Quizzes loaded - fetching submissions');
       window.submissionsLoaded = false;
       fetchSubmissions();
     }
@@ -208,7 +209,7 @@ const QuizList = () => {
   // Add a focus effect to refresh data when tab becomes active
   useEffect(() => {
     const handleFocus = () => {
-      console.log('Window focused - refreshing data');
+      //console.log('Window focused - refreshing data');
       fetchQuizzes();
       if (user?.role === 'student') {
         fetchSubmissions();
@@ -217,7 +218,7 @@ const QuizList = () => {
 
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        console.log('Page became visible - refreshing data');
+        //console.log('Page became visible - refreshing data');
         fetchQuizzes();
         if (user?.role === 'student') {
           fetchSubmissions();
@@ -237,7 +238,7 @@ const QuizList = () => {
   // Add navigation listener to refresh submissions when returning to quiz list
   useEffect(() => {
     const handlePopState = () => {
-      console.log('Navigation detected - refreshing submissions');
+      //console.log('Navigation detected - refreshing submissions');
       if (user?.role === 'student') {
         // Reset submissions loaded flag to force refresh
         window.submissionsLoaded = false;
@@ -259,7 +260,7 @@ const QuizList = () => {
 
       // Fetch academic quizzes
       const academicResponse = await api.get('/api/quiz');
-      console.log('Academic Response:', academicResponse);
+      //console.log('Academic Response:', academicResponse);
       
       // Handle academic quizzes
       if (Array.isArray(academicResponse)) {
@@ -267,12 +268,12 @@ const QuizList = () => {
       } else if (Array.isArray(academicResponse.data)) {
         allQuizzes = [...academicResponse.data.map(q => ({ ...q, type: 'academic' }))];
       }
-      console.log('After adding academic quizzes:', allQuizzes);
+      //console.log('After adding academic quizzes:', allQuizzes);
 
       // For admin, also fetch event quizzes
       if (user?.role === 'admin') {
         const eventResponse = await api.get('/api/event-quiz');
-        console.log('Event Response:', eventResponse);
+        //console.log('Event Response:', eventResponse);
         
         // Handle event quizzes
         if (Array.isArray(eventResponse)) {
@@ -280,20 +281,20 @@ const QuizList = () => {
         } else if (Array.isArray(eventResponse.data)) {
           allQuizzes = [...allQuizzes, ...eventResponse.data.map(q => ({ ...q, type: 'event' }))];
         }
-        console.log('After adding event quizzes:', allQuizzes);
+        //console.log('After adding event quizzes:', allQuizzes);
       }
 
-      console.log('Final quizzes array:', allQuizzes);
+      //console.log('Final quizzes array:', allQuizzes);
 
       // CRITICAL: Check if we have the "hi" quiz and its ID
       const hiQuiz = allQuizzes.find(q => q.title === 'hi');
       if (hiQuiz) {
-        console.log('🎯 FOUND "hi" QUIZ:', {
-          quizId: hiQuiz._id,
-          quizIdString: hiQuiz._id.toString(),
-          title: hiQuiz.title,
-          type: hiQuiz.type
-        });
+        //console.log('🎯 FOUND "hi" QUIZ:', {
+        //   quizId: hiQuiz._id,
+        //   quizIdString: hiQuiz._id.toString(),
+        //   title: hiQuiz.title,
+        //   type: hiQuiz.type
+        // });
       }
 
       setQuizzes(allQuizzes);
@@ -309,30 +310,30 @@ const QuizList = () => {
     try {
       if (user?.role !== 'student') return;
 
-      console.log('🚀 FETCHING SUBMISSIONS...');
+      //console.log('🚀 FETCHING SUBMISSIONS...');
       const response = await api.get('/api/quiz/my-submissions');
 
       // Handle different response formats
       const responseData = response.data || response || [];
 
-      console.log('📥 FRONTEND RECEIVED:', {
-        fullResponse: response,
-        responseData: responseData,
-        dataType: typeof responseData,
-        isArray: Array.isArray(responseData),
-        length: Array.isArray(responseData) ? responseData.length : 'N/A'
-      });
+      //console.log('📥 FRONTEND RECEIVED:', {
+      //   fullResponse: response,
+      //   responseData: responseData,
+      //   dataType: typeof responseData,
+      //   isArray: Array.isArray(responseData),
+      //   length: Array.isArray(responseData) ? responseData.length : 'N/A'
+      // });
 
       const submissionsMap = {};
 
       if (Array.isArray(responseData)) {
         responseData.forEach((submission, index) => {
-          console.log(`📝 PROCESSING SUBMISSION ${index + 1}:`, {
-            submission: submission,
-            hasQuiz: !!submission.quiz,
-            quizId: submission.quiz?._id,
-            status: submission.status
-          });
+          //console.log(`📝 PROCESSING SUBMISSION ${index + 1}:`, {
+          //   submission: submission,
+          //   hasQuiz: !!submission.quiz,
+          //   quizId: submission.quiz?._id,
+          //   status: submission.status
+          // });
 
           const quizId = submission.quiz?._id;
           if (quizId) {
@@ -347,18 +348,18 @@ const QuizList = () => {
                 : 0
             };
 
-            console.log(`✅ MAPPED:`, {
-              key: quizIdString,
-              status: submission.status,
-              title: submission.quiz.title
-            });
+            //console.log(`✅ MAPPED:`, {
+            //   key: quizIdString,
+            //   status: submission.status,
+            //   title: submission.quiz.title
+            // });
           }
         });
       } else {
-        console.log('❌ RESPONSE DATA IS NOT ARRAY:', responseData);
+        //console.log('❌ RESPONSE DATA IS NOT ARRAY:', responseData);
       }
 
-      console.log('🎯 FINAL MAP:', submissionsMap);
+      //console.log('🎯 FINAL MAP:', submissionsMap);
       setSubmissions(submissionsMap);
       window.submissionsLoaded = true;
     } catch (error) {
@@ -473,7 +474,7 @@ const QuizList = () => {
     try {
       if (user.role !== 'admin') return;
 
-      console.log('Fetching detailed statistics with filters:', filters);
+      //console.log('Fetching detailed statistics with filters:', filters);
       const response = await api.get('/api/quiz/statistics', {
         params: {
           department: filters.department !== 'all' ? filters.department : undefined,
@@ -481,7 +482,7 @@ const QuizList = () => {
           section: filters.section !== 'all' ? filters.section : undefined
         }
       });
-      console.log('Statistics response:', response.data);
+      //console.log('Statistics response:', response.data);
 
       if (response.data) {
         setDetailedStats({
@@ -513,17 +514,17 @@ const QuizList = () => {
     const startTime = new Date(quiz.startTime);
     const endTime = new Date(quiz.endTime);
 
-    console.log('Quiz Status Check:', {
-      quiz: quiz.title,
-      now: now.toISOString(),
-      startTime: startTime.toISOString(),
-      endTime: endTime.toISOString(),
-      isBeforeStart: now < startTime,
-      isDuringQuiz: now >= startTime && now <= endTime,
-      isAfterEnd: now > endTime,
-      hasSubmission: !!submission,
-      submissionStatus: submission?.status
-    });
+    //console.log('Quiz Status Check:', {
+    //   quiz: quiz.title,
+    //   now: now.toISOString(),
+    //   startTime: startTime.toISOString(),
+    //   endTime: endTime.toISOString(),
+    //   isBeforeStart: now < startTime,
+    //   isDuringQuiz: now >= startTime && now <= endTime,
+    //   isAfterEnd: now > endTime,
+    //   hasSubmission: !!submission,
+    //   submissionStatus: submission?.status
+    // });
 
     // First check if there's a submission
     if (submission && (submission.status === 'submitted' || submission.status === 'evaluated')) {
@@ -612,6 +613,36 @@ const QuizList = () => {
     setQuizToDelete(null);
   };
 
+  // Categorize academic quizzes by status
+  const categorizeAcademicQuizzes = () => {
+    if (!Array.isArray(quizzes)) {
+      return { upcoming: [], active: [], completed: [] };
+    }
+
+    const typeFilteredQuizzes = quizzes.filter(quiz => quiz && quiz.type === 'academic');
+    const upcoming = [];
+    const active = [];
+    const completed = [];
+
+    typeFilteredQuizzes.forEach(quiz => {
+      if (!quiz.startTime || !quiz.endTime) return;
+
+      const now = new Date();
+      const startTime = new Date(quiz.startTime);
+      const endTime = new Date(quiz.endTime);
+
+      if (now < startTime) {
+        upcoming.push(quiz);
+      } else if (now >= startTime && now <= endTime) {
+        active.push(quiz);
+      } else {
+        completed.push(quiz);
+      }
+    });
+
+    return { upcoming, active, completed };
+  };
+
   const getFilteredQuizzes = () => {
     if (!Array.isArray(quizzes)) {
       return [];
@@ -673,20 +704,60 @@ const QuizList = () => {
         const isEvaluated = quizSubmission && quizSubmission.status === 'evaluated';
         const isShowing = filteredQuizzes.some(q => q._id === testQuizId);
 
-        console.log(`🧪 FILTER TEST [${path}]:`, {
-          quiz: testQuiz.title,
-          hasSubmission: !!quizSubmission,
-          status: quizSubmission?.status,
-          isEvaluated: isEvaluated,
-          isShowing: isShowing,
-          correct: (path === '/student/review-quizzes' && isEvaluated && isShowing) ||
-                  (path === '/student/quizzes' && !isEvaluated && isShowing) ||
-                  (path === '/student/quizzes' && isEvaluated && !isShowing)
-        });
+        //console.log(`🧪 FILTER TEST [${path}]:`, {
+        //   quiz: testQuiz.title,
+        //   hasSubmission: !!quizSubmission,
+        //   status: quizSubmission?.status,
+        //   isEvaluated: isEvaluated,
+        //   isShowing: isShowing,
+        //   correct: (path === '/student/review-quizzes' && isEvaluated && isShowing) ||
+        //           (path === '/student/quizzes' && !isEvaluated && isShowing) ||
+        //           (path === '/student/quizzes' && isEvaluated && !isShowing)
+        // });
       }
     }
 
     return filteredQuizzes;
+  };
+
+  // Get quizzes for current tab (for faculty/admin view)
+  const getQuizzesForTab = () => {
+    if (user?.role === 'student') {
+      return getFilteredQuizzes(); // Students use existing logic
+    }
+
+    const { upcoming, active, completed } = categorizeAcademicQuizzes();
+
+    switch (tabValue) {
+      case 0: // All
+        return getFilteredQuizzes();
+      case 1: // Upcoming
+        return upcoming.filter(quiz => {
+          const departmentMatch = !filters.department || (quiz.allowedGroups && quiz.allowedGroups.some(g => g && g.department === filters.department));
+          const yearMatch = !filters.year || (quiz.allowedGroups && quiz.allowedGroups.some(g => g && g.year === Number(filters.year)));
+          const semesterMatch = !filters.semester || (quiz.allowedGroups && quiz.allowedGroups.some(g => g && g.semester === Number(filters.semester)));
+          const sectionMatch = !filters.section || (quiz.allowedGroups && quiz.allowedGroups.some(g => g && g.section === filters.section));
+          return departmentMatch && yearMatch && semesterMatch && sectionMatch;
+        });
+      case 2: // Active
+        return active.filter(quiz => {
+          const departmentMatch = !filters.department || (quiz.allowedGroups && quiz.allowedGroups.some(g => g && g.department === filters.department));
+          const yearMatch = !filters.year || (quiz.allowedGroups && quiz.allowedGroups.some(g => g && g.year === Number(filters.year)));
+          const semesterMatch = !filters.semester || (quiz.allowedGroups && quiz.allowedGroups.some(g => g && g.semester === Number(filters.semester)));
+          const sectionMatch = !filters.section || (quiz.allowedGroups && quiz.allowedGroups.some(g => g && g.section === filters.section));
+          return departmentMatch && yearMatch && semesterMatch && sectionMatch;
+        });
+      case 3: // Completed
+        return completed.filter(quiz => {
+          const departmentMatch = !filters.department || (quiz.allowedGroups && quiz.allowedGroups.some(g => g && g.department === filters.department));
+          const yearMatch = !filters.year || (quiz.allowedGroups && quiz.allowedGroups.some(g => g && g.year === Number(filters.year)));
+          const semesterMatch = !filters.semester || (quiz.allowedGroups && quiz.allowedGroups.some(g => g && g.semester === Number(filters.semester)));
+          const sectionMatch = !filters.section || (quiz.allowedGroups && quiz.allowedGroups.some(g => g && g.section === filters.section));
+          return departmentMatch && yearMatch && semesterMatch && sectionMatch;
+        });
+      default:
+        return getFilteredQuizzes();
+    }
   };
 
   const handleFilterChange = (name, value) => {
@@ -1241,7 +1312,38 @@ const QuizList = () => {
       </Box>
 
       <Box sx={{ width: '100%', maxWidth: '1200px' }}>
-        {/* Remove tabs - only show academic quizzes for faculty and students */}
+        {/* Status Tabs for Faculty and Admin */}
+        {(user?.role === 'faculty' || user?.role === 'admin') && (
+          <Paper sx={{ mb: 3 }}>
+            <Tabs
+              value={tabValue}
+              onChange={(e, newValue) => setTabValue(newValue)}
+              variant="fullWidth"
+              indicatorColor="primary"
+            >
+              <Tab
+                label={`All (${quizzes.filter(q => q.type === 'academic').length})`}
+                icon={<FilterListIcon />}
+                iconPosition="start"
+              />
+              <Tab
+                label={`Upcoming (${categorizeAcademicQuizzes().upcoming.length})`}
+                icon={<Chip label="📅" size="small" />}
+                iconPosition="start"
+              />
+              <Tab
+                label={`Active (${categorizeAcademicQuizzes().active.length})`}
+                icon={<Chip label="🟢" size="small" />}
+                iconPosition="start"
+              />
+              <Tab
+                label={`Completed (${categorizeAcademicQuizzes().completed.length})`}
+                icon={<Chip label="✅" size="small" />}
+                iconPosition="start"
+              />
+            </Tabs>
+          </Paper>
+        )}
 
         {/* Show filters and statistics only for admin */}
         {user?.role === 'admin' && (
@@ -1294,7 +1396,7 @@ const QuizList = () => {
         )}
 
         {/* Quiz Cards */}
-        {getFilteredQuizzes().length === 0 ? (
+        {getQuizzesForTab().length === 0 ? (
           <Paper sx={{ 
             p: { xs: 2, sm: 3 }, 
             textAlign: 'center', 
@@ -1324,7 +1426,7 @@ const QuizList = () => {
           </Paper>
         ) : (
           <Grid container spacing={isMobile ? 2 : 3}>
-            {getFilteredQuizzes().map((quiz) => (
+            {getQuizzesForTab().map((quiz) => (
               <Grid item xs={12} sm={6} md={4} key={quiz._id}>
                 <Box sx={{ width: '100%', maxWidth: { xs: '100%', sm: '320px' } }}>
                   {renderQuizCard(quiz)}

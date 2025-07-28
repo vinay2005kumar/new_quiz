@@ -64,7 +64,7 @@ const Navigation = () => {
         document.msFullscreenElement
       );
 
-      console.log('🖥️ Navigation: Fullscreen state changed:', isCurrentlyFullscreen);
+      //console.log('🖥️ Navigation: Fullscreen state changed:', isCurrentlyFullscreen);
       setIsFullscreen(isCurrentlyFullscreen);
     };
 
@@ -86,7 +86,7 @@ const Navigation = () => {
 
   // Hide navigation when in fullscreen mode
   if (isFullscreen) {
-    console.log('🖥️ Navigation: Hidden due to fullscreen mode');
+    //console.log('🖥️ Navigation: Hidden due to fullscreen mode');
     return null;
   }
 
@@ -204,17 +204,17 @@ const Navigation = () => {
         : studentMenuItems;
 
   const handleNavigation = (path) => {
-    console.log('Navigation requested:', {
-      currentPath: location.pathname,
-      requestedPath: path,
-      userRole: user?.role,
-      userDetails: {
-        department: user?.department,
-        year: user?.year,
-        semester: user?.semester,
-        section: user?.section
-      }
-    });
+    //console.log('Navigation requested:', {
+    //   currentPath: location.pathname,
+    //   requestedPath: path,
+    //   userRole: user?.role,
+    //   userDetails: {
+    //     department: user?.department,
+    //     year: user?.year,
+    //     semester: user?.semester,
+    //     section: user?.section
+    //   }
+    // });
 
     // Construct the correct path based on user role
     let fullPath = path;
@@ -232,7 +232,7 @@ const Navigation = () => {
       fullPath = `${rolePrefix}${path}`;
     }
 
-    console.log('Navigating to:', fullPath);
+    //console.log('Navigating to:', fullPath);
 
     if (location.pathname === fullPath) {
       return;
@@ -242,7 +242,27 @@ const Navigation = () => {
   };
 
   return (
-    <AppBar position="static">
+    <AppBar
+      position="fixed"
+      sx={{
+        zIndex: (theme) => theme.zIndex.drawer + 1,
+        backgroundColor: (theme) => theme.palette.mode === 'dark'
+          ? theme.palette.background.paper
+          : theme.palette.primary.main,
+        backgroundImage: 'none', // Remove any gradient/image backgrounds
+        boxShadow: (theme) => theme.shadows[4], // Add shadow for better separation
+        color: (theme) => theme.palette.mode === 'dark'
+          ? theme.palette.text.primary
+          : 'white',
+        // Ensure completely opaque background in both light and dark modes
+        '&.MuiAppBar-root': {
+          backgroundColor: (theme) => theme.palette.mode === 'dark'
+            ? theme.palette.background.paper
+            : theme.palette.primary.main,
+          opacity: 1
+        }
+      }}
+    >
       <Container maxWidth="xl">
         <Toolbar disableGutters>
           {isMobile && (
@@ -285,15 +305,21 @@ const Navigation = () => {
                   key={item.path}
                   onClick={() => handleNavigation(item.path)}
                   sx={{
-                    color: 'white',
+                    color: (theme) => theme.palette.mode === 'dark'
+                      ? theme.palette.text.primary
+                      : 'white',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 1,
                     '&:hover': {
-                      backgroundColor: 'rgba(255, 255, 255, 0.1)'
+                      backgroundColor: (theme) => theme.palette.mode === 'dark'
+                        ? theme.palette.action.hover
+                        : 'rgba(255, 255, 255, 0.1)'
                     },
                     ...(location.pathname === item.path && {
-                      backgroundColor: 'rgba(255, 255, 255, 0.1)'
+                      backgroundColor: (theme) => theme.palette.mode === 'dark'
+                        ? theme.palette.action.selected
+                        : 'rgba(255, 255, 255, 0.1)'
                     })
                   }}
                 >

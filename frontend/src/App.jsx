@@ -95,9 +95,9 @@ const AppRoutes = () => {
         <Route path="/event/*" element={
           <PrivateRoute roles={['event']}>
             <Navigation />
-            <Box component="main" sx={{ flex: 1, display: 'flex', flexDirection: 'column', width: '100%' }}>
+            <Box component="main" sx={{ flex: 1, display: 'flex', flexDirection: 'column', width: '100%', pt: { xs: '56px', sm: '64px' } }}>
               <Routes>
-                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/dashboard" element={<Dashboard key={`event-${user?.id || user?._id}`} />} />
                 <Route path="/quizzes" element={<EventQuizList />} />
                 <Route path="/quiz/create" element={<EventQuizCreate />} />
                 <Route path="/quiz/edit/:id" element={<EventQuizEdit />} />
@@ -115,9 +115,9 @@ const AppRoutes = () => {
         <Route path="/student/*" element={
           <PrivateRoute roles={['student']}>
             <Navigation />
-            <Box component="main" sx={{ flex: 1, display: 'flex', flexDirection: 'column', width: '100%' }}>
+            <Box component="main" sx={{ flex: 1, display: 'flex', flexDirection: 'column', width: '100%', pt: { xs: '56px', sm: '64px' } }}>
               <Routes>
-                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/dashboard" element={<Dashboard key={`student-${user?.id || user?._id}`} />} />
                 <Route path="/quizzes" element={<QuizList type="academic" />} />
                 <Route path="/review-quizzes" element={<ReviewQuizzes />} />
                 <Route path="/quizzes/:id/attempt" element={<QuizAttempt />} />
@@ -133,9 +133,9 @@ const AppRoutes = () => {
         <Route path="/faculty/*" element={
           <PrivateRoute roles={['faculty']}>
             <Navigation />
-            <Box component="main" sx={{ flex: 1, display: 'flex', flexDirection: 'column', width: '100%' }}>
+            <Box component="main" sx={{ flex: 1, display: 'flex', flexDirection: 'column', width: '100%', pt: { xs: '56px', sm: '64px' } }}>
               <Routes>
-                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/dashboard" element={<Dashboard key={`faculty-${user?.id || user?._id}`} />} />
                 <Route path="/quizzes" element={<QuizList type="academic" />} />
                 <Route path="/quizzes/create" element={<QuizCreate />} />
                 <Route path="/quizzes/:id/edit" element={<QuizEdit />} />
@@ -152,9 +152,9 @@ const AppRoutes = () => {
         <Route path="/admin/*" element={
           <PrivateRoute roles={['admin']}>
             <Navigation />
-            <Box component="main" sx={{ flex: 1, display: 'flex', flexDirection: 'column', width: '100%' }}>
+            <Box component="main" sx={{ flex: 1, display: 'flex', flexDirection: 'column', width: '100%', pt: { xs: '56px', sm: '64px' } }}>
               <Routes>
-                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/dashboard" element={<Dashboard key={`admin-${user?.id || user?._id}`} />} />
                 <Route path="/students" element={<StudentAccounts />} />
                 <Route path="/faculty" element={<FacultyAccounts />} />
                 <Route path="/event-accounts" element={<EventQuizAccounts />} />

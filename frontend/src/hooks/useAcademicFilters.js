@@ -95,16 +95,16 @@ const useAcademicFilters = (initialFilters = {}) => {
     if (!department || !year) return [];
     
     try {
-      console.log('Fetching available semesters for:', { department, year });
+      //console.log('Fetching available semesters for:', { department, year });
       const response = await api.get(`/api/academic-details?department=${department}&year=${year}`);
-      console.log('Available semesters response:', response);
+      //console.log('Available semesters response:', response);
       
       const semesters = response
         .filter(detail => detail.department === department && detail.year === Number(year))
         .map(detail => detail.semester)
         .sort((a, b) => a - b);
       
-      console.log('Found semesters:', semesters);
+      //console.log('Found semesters:', semesters);
       
       setAvailableSemesters(prev => ({
         ...prev,
@@ -129,8 +129,8 @@ const useAcademicFilters = (initialFilters = {}) => {
     const key = `${department}-${year}`;
     const semesters = availableSemesters[key] || [];
     
-    console.log('getAvailableSemesters called with:', { department, year });
-    console.log('Available semesters from state:', semesters);
+    //console.log('getAvailableSemesters called with:', { department, year });
+    //console.log('Available semesters from state:', semesters);
     
     return semesters;
   };

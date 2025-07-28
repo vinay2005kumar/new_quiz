@@ -23,7 +23,11 @@ import {
   CardContent,
   Grid,
   FormControlLabel,
-  Switch
+  Switch,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
@@ -63,6 +67,7 @@ const QuizCreate = () => {
     allowedGroups: [],
     questionDisplayMode: 'oneByOne',
     negativeMarkingEnabled: false,
+    sendEmailNotification: false, // Default to false (OFF)
     // Question limiting and randomization settings
     questionLimitEnabled: false,
     questionLimit: 10,
@@ -75,6 +80,8 @@ const QuizCreate = () => {
       enableProctoringMode: false
     }
   });
+
+
 
   // Questions state for manual quiz creation
   const [questions, setQuestions] = useState([
@@ -107,7 +114,7 @@ const QuizCreate = () => {
     try {
       setLoading(true);
       setError('');
-  
+
       // Validate basic details
       if (!basicDetails.title?.trim()) throw new Error('Quiz title is required');
 
@@ -199,6 +206,7 @@ const QuizCreate = () => {
         type: 'academic',
         questionDisplayMode: basicDetails.questionDisplayMode || 'oneByOne',
         negativeMarkingEnabled: basicDetails.negativeMarkingEnabled || false,
+        sendEmailNotification: basicDetails.sendEmailNotification === true, // Send email only if explicitly enabled
         // Question limiting and randomization settings
         questionLimitEnabled: basicDetails.questionLimitEnabled || false,
         questionLimit: basicDetails.questionLimitEnabled ? parseInt(basicDetails.questionLimit) || 10 : undefined,
@@ -218,27 +226,27 @@ const QuizCreate = () => {
       }
   
       // Log the request data for debugging
-      console.log('Quiz creation request:', {
-        url: '/api/quiz',
-        method: 'POST',
-        data: formData
-      });
+      //console.log('Quiz creation request:', {
+      //   url: '/api/quiz',
+      //   method: 'POST',
+      //   data: formData
+      // });
   
       // Make the API request
-      console.log('Making API request...');
+      //console.log('Making API request...');
       try {
         const response = await api.post('/api/quiz', formData);
         
         // Detailed response logging
-        console.log('Full Axios Response Object:', {
-          data: response.data,
-          status: response.status,
-          statusText: response.statusText,
-          headers: response.headers,
-        });
+        //console.log('Full Axios Response Object:', {
+        //   data: response.data,
+        //   status: response.status,
+        //   statusText: response.statusText,
+        //   headers: response.headers,
+        // });
         
         // If we reach here, we have a successful response
-        console.log('Quiz creation successful');
+        //console.log('Quiz creation successful');
         setSuccess(true);
         setError('');
         
@@ -592,6 +600,8 @@ const QuizCreate = () => {
           </>
         )}
       </Paper>
+
+
     </Container>
   );
 };

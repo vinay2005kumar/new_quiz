@@ -35,6 +35,9 @@ import {
   useTheme,
   useMediaQuery
 } from '@mui/material';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -58,6 +61,8 @@ const QuizManagement = () => {
   const [error, setError] = useState('');
   const [tabValue, setTabValue] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
+  const [fromDate, setFromDate] = useState(null);
+  const [toDate, setToDate] = useState(null);
 
   const {
     filters,
@@ -72,6 +77,14 @@ const QuizManagement = () => {
   const [openDialog, setOpenDialog] = useState(false);
   const [selectedQuiz, setSelectedQuiz] = useState(null);
 
+  // Custom clear filters function that includes date filters
+  const handleClearAllFilters = () => {
+    clearFilters();
+    setSearchTerm('');
+    setFromDate(null);
+    setToDate(null);
+  };
+
   useEffect(() => {
     fetchQuizzes();
   }, [tabValue]);
@@ -83,9 +96,9 @@ const QuizManagement = () => {
       const type = tabValue === 0 ? 'academic' : 'event';
       const endpoint = type === 'event' ? '/api/quiz/event' : '/api/quiz/all';
       
-      console.log('Fetching quizzes from:', endpoint);
+      //console.log('Fetching quizzes from:', endpoint);
       const response = await api.get(endpoint);
-      console.log('Quiz response:', response);
+      //console.log('Quiz response:', response);
       
       // Ensure we have an array of quizzes
       const quizData = Array.isArray(response.data) ? response.data : [];
@@ -147,7 +160,13 @@ const QuizManagement = () => {
     const matchesSubject = !filters.subject || quiz.subject === filters.subject;
     const matchesDepartment = !filters.department || quiz.department === filters.department;
     const matchesStatus = filters.status === 'all' || quiz.status === filters.status;
-    return matchesSearch && matchesSubject && matchesDepartment && matchesStatus;
+
+    // Date filtering
+    const quizDate = new Date(quiz.startTime);
+    const matchesFromDate = !fromDate || quizDate >= new Date(fromDate.setHours(0, 0, 0, 0));
+    const matchesToDate = !toDate || quizDate <= new Date(toDate.setHours(23, 59, 59, 999));
+
+    return matchesSearch && matchesSubject && matchesDepartment && matchesStatus && matchesFromDate && matchesToDate;
   });
 
   // Mobile-friendly quiz card component
@@ -284,7 +303,7 @@ const QuizManagement = () => {
       <AcademicFilter
         filters={filters}
         onFilterChange={handleFilterChange}
-        onClearFilters={clearFilters}
+        onClearFilters={handleClearAllFilters}
         showFilters={['department', 'subject']}
         title="Quiz Management Filters"
         showRefreshButton={true}
@@ -311,7 +330,33 @@ const QuizManagement = () => {
               <MenuItem value="active">Active</MenuItem>
               <MenuItem value="completed">Completed</MenuItem>
             </Select>
-          </FormControl>
+          </FormControl>,
+          <LocalizationProvider key="date-provider" dateAdapter={AdapterDateFns}>
+            <DatePicker
+              label="From Date"
+              value={fromDate}
+              onChange={(newValue) => setFromDate(newValue)}
+              slotProps={{
+                textField: {
+                  size: 'small',
+                  fullWidth: true
+                }
+              }}
+            />
+          </LocalizationProvider>,
+          <LocalizationProvider key="date-provider-to" dateAdapter={AdapterDateFns}>
+            <DatePicker
+              label="To Date"
+              value={toDate}
+              onChange={(newValue) => setToDate(newValue)}
+              slotProps={{
+                textField: {
+                  size: 'small',
+                  fullWidth: true
+                }
+              }}
+            />
+          </LocalizationProvider>
         ]}
         sx={{ mb: 3 }}
       />

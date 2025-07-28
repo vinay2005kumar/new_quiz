@@ -137,7 +137,6 @@ The **College Quiz Management System** is a state-of-the-art web-based platform 
 
 #### **📊 Marking Configuration**
 - **Negative Marking**: Enable/disable with custom penalties that can be adjusted according to specific requirements
-- **Passing Marks**: Set minimum score requirements for quiz completion
 - **Total Marks**: Automatic calculation based on questions with manual override capability
 - **Marking Scheme**: Flexible point allocation with per-question customization
 - **Grade Boundaries**: Configurable grade thresholds for different performance levels
@@ -272,7 +271,6 @@ The **College Quiz Management System** is a state-of-the-art web-based platform 
   endTime: Date,
   allowedGroups: Array,
   totalMarks: Number,
-  passingMarks: Number,
   negativeMarkingEnabled: Boolean,
   isActive: Boolean
 }

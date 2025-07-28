@@ -52,10 +52,10 @@ export const clearCache = (key) => {
   try {
     if (key) {
       sessionStorage.removeItem(key);
-      console.log(`🗑️ Cache cleared for key: ${key}`);
+      //console.log(`🗑️ Cache cleared for key: ${key}`);
     } else {
       sessionStorage.clear();
-      console.log('🗑️ All cache cleared');
+      //console.log('🗑️ All cache cleared');
     }
     return true;
   } catch (error) {

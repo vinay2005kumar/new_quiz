@@ -74,7 +74,7 @@ const EventQuizEdit = () => {
   // Function to determine the correct back navigation path
   const getBackPath = () => {
     const currentPath = location.pathname;
-    console.log('EventQuizEdit - Current path:', currentPath);
+    //console.log('EventQuizEdit - Current path:', currentPath);
 
     // If accessed from admin routes, go back to admin quizzes
     if (currentPath.includes('/admin/')) {
@@ -86,7 +86,7 @@ const EventQuizEdit = () => {
 
   const handleBackNavigation = () => {
     const backPath = getBackPath();
-    console.log('EventQuizEdit - Navigating back to:', backPath);
+    //console.log('EventQuizEdit - Navigating back to:', backPath);
     navigate(backPath);
   };
   const [academicStructure, setAcademicStructure] = useState({
@@ -107,7 +107,6 @@ const EventQuizEdit = () => {
     years: ['all'],
     semesters: ['all'],
     maxParticipants: 0,
-    passingMarks: 0,
     registrationEnabled: true,
     spotRegistrationEnabled: false,
     negativeMarkingEnabled: false,
@@ -173,7 +172,6 @@ const EventQuizEdit = () => {
           years: quizResponse.years || ['all'],
           semesters: quizResponse.semesters || ['all'],
           maxParticipants: quizResponse.maxParticipants || 0,
-          passingMarks: quizResponse.passingMarks || 0,
           registrationEnabled: quizResponse.registrationEnabled !== undefined ? quizResponse.registrationEnabled : true,
           spotRegistrationEnabled: quizResponse.spotRegistrationEnabled !== undefined ? quizResponse.spotRegistrationEnabled : false,
           negativeMarkingEnabled: quizResponse.negativeMarkingEnabled !== undefined ? quizResponse.negativeMarkingEnabled : false,
@@ -271,7 +269,7 @@ const EventQuizEdit = () => {
 
   const handleMultiSelectChange = (e) => {
     const { name, value } = e.target;
-    
+
     // Handle 'All' selections
     let newValue;
     if (name === 'departments' && value.includes('All Departments')) {
@@ -489,31 +487,6 @@ const EventQuizEdit = () => {
                 InputLabelProps={{ shrink: true }}
                 required
               />
-            </Grid>
-
-            <Grid item xs={12} sm={6}>
-              <FormControl fullWidth>
-                <InputLabel>Participant Types</InputLabel>
-                <Select
-                  multiple
-                  name="participantTypes"
-                  value={formData.participantTypes || []}
-                  onChange={handleMultiSelectChange}
-                  renderValue={(selected) => (
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                      {selected.map((value) => (
-                        <Chip
-                          key={value}
-                          label={value === 'college' ? 'College Students' : 'External Students'}
-                        />
-                      ))}
-                    </Box>
-                  )}
-                >
-                  <MenuItem value="college">College Students</MenuItem>
-                  <MenuItem value="external">External Students</MenuItem>
-                </Select>
-              </FormControl>
             </Grid>
 
             {/* Registration Settings */}
@@ -836,6 +809,32 @@ const EventQuizEdit = () => {
               </FormControl>
             </Grid>
 
+            {/* Participant Types Section */}
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth>
+                <InputLabel>Participant Types</InputLabel>
+                <Select
+                  multiple
+                  name="participantTypes"
+                  value={formData.participantTypes || []}
+                  onChange={handleMultiSelectChange}
+                  renderValue={(selected) => (
+                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                      {selected.map((value) => (
+                        <Chip
+                          key={value}
+                          label={value === 'college' ? 'College Students' : 'External Students'}
+                        />
+                      ))}
+                    </Box>
+                  )}
+                >
+                  <MenuItem value="college">College Students</MenuItem>
+                  <MenuItem value="external">External Students</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
             {/* Team Size - Only shown if team mode is selected */}
             {formData.participationMode === 'team' && (
               <Grid item xs={12} sm={6}>
@@ -866,18 +865,7 @@ const EventQuizEdit = () => {
 
 
 
-            <Grid item xs={12} sm={6}>
-              <TextField
-                required
-                fullWidth
-                type="number"
-                label="Passing Marks"
-                name="passingMarks"
-                value={formData.passingMarks}
-                onChange={handleChange}
-                inputProps={{ min: 0 }}
-              />
-            </Grid>
+
 
             {formData.participantTypes?.includes('college') && (
               <>

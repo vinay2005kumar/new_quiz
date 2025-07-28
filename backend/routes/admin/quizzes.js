@@ -8,9 +8,11 @@ router.get('/', isAdmin, async (req, res) => {
   try {
     const quizzes = await Quiz.find()
       .populate('subject', 'name code')
-      .populate('createdBy', 'name')
+      .populate('createdBy', 'name email department')
       .sort({ createdAt: -1 });
-    
+
+
+
     res.json(quizzes);
   } catch (error) {
     console.error('Error fetching quizzes:', error);

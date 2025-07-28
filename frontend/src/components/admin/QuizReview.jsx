@@ -67,9 +67,9 @@ const QuizReview = () => {
     try {
       setLoading(true);
       setError('');
-      console.log('Fetching statistics with filters:', filters);
+      //console.log('Fetching statistics with filters:', filters);
       const response = await api.get('/quiz/statistics', { params: getFilterParams() });
-      console.log('Statistics response:', response);
+      //console.log('Statistics response:', response);
       setStats(response);
     } catch (error) {
       console.error('Error fetching statistics:', error);

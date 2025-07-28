@@ -21,10 +21,7 @@ const createTransporter = () => {
 
 // Generate user credentials based on registration data
 const generateCredentials = (registrationData, quiz) => {
-  let username, password, emergencyPassword;
-
-  // Emergency password for all registrations
-  emergencyPassword = "Quiz@123";
+  let username, password;
 
   if (registrationData.isTeamRegistration) {
     // For team registration, use team leader's email as username
@@ -42,9 +39,13 @@ const generateCredentials = (registrationData, quiz) => {
       const phoneDigits = teamLeader.phoneNumber.slice(-4);
       password = `${firstName}${phoneDigits}`;
     } else {
-      // Generate random 4-digit number if no admission number or phone
-      const randomNum = Math.floor(1000 + Math.random() * 9000);
-      password = `${firstName}${randomNum}`;
+      // Generate deterministic password for team leader using email hash
+      const emailHash = teamLeader.email.toLowerCase().split('').reduce((a, b) => {
+        a = ((a << 5) - a) + b.charCodeAt(0);
+        return a & a;
+      }, 0);
+      const deterministicNum = Math.abs(emailHash) % 9000 + 1000; // Always 4 digits
+      password = `${firstName}${deterministicNum}`;
     }
   } else {
     // For individual registration
@@ -53,15 +54,21 @@ const generateCredentials = (registrationData, quiz) => {
 
     // Generate password: first name + admission number or first name + phone digits
     const firstName = registrationData.name.split(' ')[0].toLowerCase();
-    if (registrationData.admissionNumber && registrationData.admissionNumber !== 'N/A') {
+    if (registrationData.admissionNumber && registrationData.admissionNumber !== 'N/A' && registrationData.admissionNumber.trim() !== '') {
       password = `${firstName}${registrationData.admissionNumber}`;
-    } else if (registrationData.phoneNumber && registrationData.phoneNumber !== 'N/A') {
+    } else if (registrationData.phoneNumber && registrationData.phoneNumber !== 'N/A' && registrationData.phoneNumber.trim() !== '') {
       // Use last 4 digits of phone number if no admission number
       const phoneDigits = registrationData.phoneNumber.slice(-4);
       password = `${firstName}${phoneDigits}`;
     } else {
-      // Use emergency password for follow-up quizzes when no original data available
-      password = emergencyPassword; // "Quiz@123"
+      // Generate deterministic password for external students using email hash
+      // This ensures the same user always gets the same password
+      const emailHash = registrationData.email.toLowerCase().split('').reduce((a, b) => {
+        a = ((a << 5) - a) + b.charCodeAt(0);
+        return a & a;
+      }, 0);
+      const deterministicNum = Math.abs(emailHash) % 9000 + 1000; // Always 4 digits
+      password = `${firstName}${deterministicNum}`;
     }
   }
 
@@ -818,11 +825,419 @@ const sendReattemptNotificationEmail = async (studentData, quizData, senderInfo)
   }
 };
 
+// Send follow-up quiz invitation email (specific for invite button)
+const sendQuizNotificationEmail = async (email, quiz, credentials, registrationData, isFollowUpQuiz = false) => {
+  try {
+    console.log(`📧 Sending follow-up quiz invitation email to: ${email}`);
+
+    const transporter = createTransporter();
+
+    // Format quiz date and time
+    const startDate = new Date(quiz.startTime).toLocaleDateString('en-IN', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    const startTime = new Date(quiz.startTime).toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    const endDate = new Date(quiz.endTime).toLocaleDateString('en-IN', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    const endTime = new Date(quiz.endTime).toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    const emailSubject = `🎯 You're Invited! Follow-up Quiz - ${quiz.title}`;
+
+    const emailContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+        <h2 style="color: #2e7d32; text-align: center;">🎯 Congratulations! You're Invited to a Follow-up Quiz!</h2>
+
+        <p>Dear <strong>${registrationData.name}</strong>,</p>
+
+        <div style="background-color: #e8f5e8; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #4caf50;">
+          <h3 style="color: #2e7d32; margin-top: 0;">🌟 Exclusive Invitation</h3>
+          <p>Based on your excellent performance in the previous quiz, you have been specially selected to participate in the follow-up quiz:</p>
+          <p style="font-size: 18px; font-weight: bold; color: #1976d2; text-align: center; margin: 15px 0;">
+            "${quiz.title}"
+          </p>
+          <p>This is an exclusive opportunity to showcase your skills further!</p>
+        </div>
+
+        <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h3 style="color: #333; margin-top: 0;">📅 Quiz Details</h3>
+          <p><strong>📚 Quiz Title:</strong> ${quiz.title}</p>
+          <p><strong>📅 Start Date:</strong> ${startDate}</p>
+          <p><strong>🕐 Start Time:</strong> ${startTime}</p>
+          <p><strong>📅 End Date:</strong> ${endDate}</p>
+          <p><strong>🕐 End Time:</strong> ${endTime}</p>
+          <p><strong>⏱️ Duration:</strong> ${quiz.duration} minutes</p>
+          <p><strong>❓ Total Questions:</strong> ${quiz.questions?.length || 'TBD'}</p>
+        </div>
+
+        <div style="background-color: #fff3e0; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ff9800;">
+          <h3 style="color: #e65100; margin-top: 0;">🔑 Your Login Credentials</h3>
+          <p><strong>Username:</strong> ${credentials.username}</p>
+          <p><strong>Password:</strong> ${credentials.password}</p>
+          <p style="color: #d84315; font-weight: bold;">⚠️ Keep these credentials secure and confidential!</p>
+        </div>
+
+        ${quiz.emailInstructions ? `
+        <div style="background-color: #f3e5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h3 style="color: #7b1fa2; margin-top: 0;">📝 Special Instructions</h3>
+          <p>${quiz.emailInstructions}</p>
+        </div>
+        ` : ''}
+
+        <div style="background-color: #e3f2fd; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <h3 style="color: #1976d2; margin-top: 0;">📌 Important Guidelines</h3>
+          <ul>
+            <li>🕐 Login 10-15 minutes before the quiz starts</li>
+            <li>🔐 Use the credentials provided above</li>
+            <li>🌐 Ensure stable internet connection</li>
+            <li>💻 Have a backup device ready</li>
+            <li>📞 Contact support if you face any technical issues</li>
+            <li>🎯 <strong>This is an exclusive follow-up quiz invitation!</strong></li>
+          </ul>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px; padding: 20px; background-color: #f8f9fa; border-radius: 5px;">
+          <p style="color: #2e7d32; font-size: 18px; font-weight: bold;">🌟 Best of Luck! 🌟</p>
+          <p style="color: #666; font-size: 16px;">We're excited to see your continued excellence!</p>
+          <p style="color: #666; font-size: 14px; margin-top: 20px;">
+            Warm regards,<br>
+            <strong>Quiz Management Team</strong><br>
+            <em>Recognizing Excellence, One Quiz at a Time</em>
+          </p>
+        </div>
+      </div>
+    `;
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER || 'noreply@quizapp.com',
+      to: email,
+      subject: emailSubject,
+      html: emailContent
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`✅ Follow-up quiz invitation sent successfully to: ${email}`);
+    return true;
+  } catch (error) {
+    console.error(`❌ Error sending follow-up quiz invitation to ${email}:`, error);
+    return false;
+  }
+};
+
+// Send event quiz notification to eligible college students
+const sendEventQuizNotification = async (quiz, eligibleStudents) => {
+  try {
+    console.log(`📧 Starting to send event quiz notifications for: ${quiz.title}`);
+    console.log(`📊 Total eligible college students: ${eligibleStudents.length}`);
+
+    if (eligibleStudents.length === 0) {
+      console.log('⚠️ No eligible college students found for this event quiz');
+      return { success: 0, failed: 0, total: 0 };
+    }
+
+    const transporter = createTransporter();
+    let successCount = 0;
+    let failedCount = 0;
+
+    // Format quiz date and time
+    const startDate = new Date(quiz.startTime).toLocaleDateString('en-IN', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    const startTime = new Date(quiz.startTime).toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    const endDate = new Date(quiz.endTime).toLocaleDateString('en-IN', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    const endTime = new Date(quiz.endTime).toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    // Send email to each eligible student
+    for (const student of eligibleStudents) {
+      try {
+        const emailSubject = `🎓 ${quiz.title} - Event Quiz Invitation`;
+
+        const emailContent = `
+          <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 650px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+            <div style="background-color: #ffffff; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); overflow: hidden;">
+
+              <!-- Header Section -->
+              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; color: white;">
+                <h1 style="margin: 0; font-size: 32px; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">
+                  🎓 Event Quiz Invitation
+                </h1>
+                <p style="margin: 10px 0 0 0; font-size: 18px; opacity: 0.9;">
+                  You're invited to participate in an exciting quiz competition!
+                </p>
+              </div>
+
+              <!-- College Info Section -->
+              <div style="background-color: #f8f9ff; padding: 25px; border-bottom: 3px solid #e3f2fd;">
+                <div style="text-align: center;">
+                  <h2 style="color: #1565c0; margin: 0 0 10px 0; font-size: 24px; font-weight: bold;">
+                    🏛️ ${process.env.COLLEGE_NAME || 'Your College Name'}
+                  </h2>
+                  <p style="color: #666; margin: 0; font-size: 16px; font-style: italic;">
+                    Department of Computer Science & Engineering
+                  </p>
+                </div>
+              </div>
+
+              <!-- Quiz Details Section -->
+              <div style="padding: 30px;">
+                <div style="background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%); padding: 25px; border-radius: 12px; margin-bottom: 25px; border-left: 5px solid #2196f3;">
+                  <h2 style="color: #1976D2; margin: 0 0 15px 0; font-size: 26px; font-weight: bold;">
+                    📝 ${quiz.title}
+                  </h2>
+                  ${quiz.description ? `<p style="color: #555; margin: 0; font-size: 16px; line-height: 1.6; font-style: italic;">"${quiz.description}"</p>` : ''}
+                </div>
+
+                <!-- Quiz Statistics -->
+                <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 25px;">
+                  <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%); padding: 20px; border-radius: 10px; text-align: center; border: 2px solid #ffb74d;">
+                    <div style="font-size: 32px; margin-bottom: 8px;">📊</div>
+                    <div style="font-size: 24px; font-weight: bold; color: #e65100; margin-bottom: 5px;">${quiz.questions ? quiz.questions.length : 'TBD'}</div>
+                    <div style="font-size: 14px; color: #bf360c; font-weight: 600;">Total Questions</div>
+                  </div>
+
+                  <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%); padding: 20px; border-radius: 10px; text-align: center; border: 2px solid #ba68c8;">
+                    <div style="font-size: 32px; margin-bottom: 8px;">🎯</div>
+                    <div style="font-size: 24px; font-weight: bold; color: #6a1b9a; margin-bottom: 5px;">${quiz.totalMarks || 'TBD'}</div>
+                    <div style="font-size: 14px; color: #4a148c; font-weight: 600;">Total Marks</div>
+                  </div>
+
+                  <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, ${quiz.negativeMarkingEnabled ? '#ffebee 0%, #ffcdd2 100%' : '#e8f5e8 0%, #c8e6c8 100%'}); padding: 20px; border-radius: 10px; text-align: center; border: 2px solid ${quiz.negativeMarkingEnabled ? '#ef5350' : '#66bb6a'};">
+                    <div style="font-size: 32px; margin-bottom: 8px;">${quiz.negativeMarkingEnabled ? '⚠️' : '✅'}</div>
+                    <div style="font-size: 18px; font-weight: bold; color: ${quiz.negativeMarkingEnabled ? '#c62828' : '#2e7d32'}; margin-bottom: 5px;">${quiz.negativeMarkingEnabled ? 'Enabled' : 'Disabled'}</div>
+                    <div style="font-size: 14px; color: ${quiz.negativeMarkingEnabled ? '#b71c1c' : '#1b5e20'}; font-weight: 600;">Negative Marking</div>
+                  </div>
+                </div>
+
+                <!-- Schedule Section -->
+                <div style="background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%); padding: 25px; border-radius: 12px; margin-bottom: 25px; border-left: 5px solid #ff9800;">
+                  <h3 style="color: #e65100; margin: 0 0 20px 0; font-size: 22px; font-weight: bold; display: flex; align-items: center;">
+                    <span style="margin-right: 10px;">📅</span> Quiz Schedule
+                  </h3>
+                  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+                    <div style="background: rgba(255,255,255,0.7); padding: 15px; border-radius: 8px;">
+                      <div style="font-weight: bold; color: #bf360c; margin-bottom: 5px;">🚀 Start Time</div>
+                      <div style="color: #555; font-size: 16px;">${startDate}</div>
+                      <div style="color: #555; font-size: 16px; font-weight: bold;">${startTime}</div>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.7); padding: 15px; border-radius: 8px;">
+                      <div style="font-weight: bold; color: #bf360c; margin-bottom: 5px;">🏁 End Time</div>
+                      <div style="color: #555; font-size: 16px;">${endDate}</div>
+                      <div style="color: #555; font-size: 16px; font-weight: bold;">${endTime}</div>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.7); padding: 15px; border-radius: 8px;">
+                      <div style="font-weight: bold; color: #bf360c; margin-bottom: 5px;">⏱️ Duration</div>
+                      <div style="color: #555; font-size: 20px; font-weight: bold;">${quiz.duration} minutes</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Eligibility Criteria -->
+                <div style="background: linear-gradient(135deg, #e8f5e8 0%, #c8e6c8 100%); padding: 25px; border-radius: 12px; margin-bottom: 25px; border-left: 5px solid #4caf50;">
+                  <h3 style="color: #2e7d32; margin: 0 0 20px 0; font-size: 22px; font-weight: bold; display: flex; align-items: center;">
+                    <span style="margin-right: 10px;">🎯</span> Eligibility Criteria
+                  </h3>
+                  <div style="background: rgba(255,255,255,0.8); padding: 20px; border-radius: 10px; margin-bottom: 15px;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                      <div style="text-align: center;">
+                        <div style="font-size: 24px; margin-bottom: 8px;">🏛️</div>
+                        <div style="font-weight: bold; color: #1b5e20; margin-bottom: 5px;">Departments</div>
+                        <div style="color: #388e3c; font-size: 14px;">${quiz.departments && quiz.departments.includes('all') ? 'All Departments' : (quiz.departments || []).join(', ')}</div>
+                      </div>
+                      <div style="text-align: center;">
+                        <div style="font-size: 24px; margin-bottom: 8px;">📚</div>
+                        <div style="font-weight: bold; color: #1b5e20; margin-bottom: 5px;">Years</div>
+                        <div style="color: #388e3c; font-size: 14px;">${quiz.years && quiz.years.includes('all') ? 'All Years' : (quiz.years || []).map(y => `Year ${y}`).join(', ')}</div>
+                      </div>
+                      <div style="text-align: center;">
+                        <div style="font-size: 24px; margin-bottom: 8px;">📖</div>
+                        <div style="font-weight: bold; color: #1b5e20; margin-bottom: 5px;">Semesters</div>
+                        <div style="color: #388e3c; font-size: 14px;">${quiz.semesters && quiz.semesters.includes('all') ? 'All Semesters' : (quiz.semesters || []).map(s => `Semester ${s}`).join(', ')}</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div style="background: rgba(76, 175, 80, 0.1); padding: 15px; border-radius: 8px; border: 1px dashed #4caf50;">
+                    <div style="text-align: center; color: #2e7d32; font-weight: bold;">
+                      ✅ You are eligible to participate in this quiz!
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Participation Details -->
+                <div style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); padding: 25px; border-radius: 12px; margin-bottom: 25px; border-left: 5px solid #2196f3;">
+                  <h3 style="color: #1565c0; margin: 0 0 20px 0; font-size: 22px; font-weight: bold; display: flex; align-items: center;">
+                    <span style="margin-right: 10px;">📋</span> How to Participate
+                  </h3>
+                  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+                    <div style="background: rgba(255,255,255,0.8); padding: 20px; border-radius: 10px; text-align: center;">
+                      <div style="font-size: 32px; margin-bottom: 10px;">📝</div>
+                      <div style="font-weight: bold; color: #0d47a1; margin-bottom: 8px;">Registration</div>
+                      <div style="color: #1565c0; font-size: 14px;">${quiz.registrationEnabled ? '✅ Open Registration Available' : '⚠️ Limited Registration'}</div>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.8); padding: 20px; border-radius: 10px; text-align: center;">
+                      <div style="font-size: 32px; margin-bottom: 10px;">${quiz.participationMode === 'team' ? '👥' : '👤'}</div>
+                      <div style="font-weight: bold; color: #0d47a1; margin-bottom: 8px;">Mode</div>
+                      <div style="color: #1565c0; font-size: 14px;">${quiz.participationMode === 'team' ? `Team (${quiz.teamSize} members)` : 'Individual'}</div>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.8); padding: 20px; border-radius: 10px; text-align: center;">
+                      <div style="font-size: 32px; margin-bottom: 10px;">🔐</div>
+                      <div style="font-weight: bold; color: #0d47a1; margin-bottom: 8px;">Access</div>
+                      <div style="color: #1565c0; font-size: 14px;">Login credentials after registration</div>
+                    </div>
+                  </div>
+                </div>
+
+              ${quiz.instructions ? `
+                <div style="background-color: #FFF8E1; padding: 20px; border-radius: 8px; margin-bottom: 25px;">
+                  <h3 style="color: #F9A825; margin: 0 0 15px 0; font-size: 18px;">📝 Instructions</h3>
+                  <p style="color: #555; margin: 0; font-size: 16px; line-height: 1.6;">${quiz.instructions}</p>
+                </div>
+              ` : ''}
+
+                <!-- Student Details -->
+                <div style="background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%); padding: 25px; border-radius: 12px; margin-bottom: 25px; border-left: 5px solid #ffc107;">
+                  <h3 style="color: #e65100; margin: 0 0 20px 0; font-size: 22px; font-weight: bold; display: flex; align-items: center;">
+                    <span style="margin-right: 10px;">🎓</span> Your Academic Profile
+                  </h3>
+                  <div style="background: rgba(255,255,255,0.8); padding: 20px; border-radius: 10px;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                      <div style="text-align: center; padding: 15px; background: rgba(255,193,7,0.1); border-radius: 8px;">
+                        <div style="font-size: 20px; margin-bottom: 8px;">👤</div>
+                        <div style="font-weight: bold; color: #e65100; margin-bottom: 5px;">Name</div>
+                        <div style="color: #bf360c; font-size: 16px;">${student.name}</div>
+                      </div>
+                      <div style="text-align: center; padding: 15px; background: rgba(255,193,7,0.1); border-radius: 8px;">
+                        <div style="font-size: 20px; margin-bottom: 8px;">🏛️</div>
+                        <div style="font-weight: bold; color: #e65100; margin-bottom: 5px;">Department</div>
+                        <div style="color: #bf360c; font-size: 16px;">${student.department}</div>
+                      </div>
+                      <div style="text-align: center; padding: 15px; background: rgba(255,193,7,0.1); border-radius: 8px;">
+                        <div style="font-size: 20px; margin-bottom: 8px;">📚</div>
+                        <div style="font-weight: bold; color: #e65100; margin-bottom: 5px;">Year & Semester</div>
+                        <div style="color: #bf360c; font-size: 16px;">Year ${student.year}, Sem ${student.semester}</div>
+                      </div>
+                      ${student.section ? `
+                      <div style="text-align: center; padding: 15px; background: rgba(255,193,7,0.1); border-radius: 8px;">
+                        <div style="font-size: 20px; margin-bottom: 8px;">📝</div>
+                        <div style="font-weight: bold; color: #e65100; margin-bottom: 5px;">Section</div>
+                        <div style="color: #bf360c; font-size: 16px;">${student.section}</div>
+                      </div>
+                      ` : ''}
+                    </div>
+                  </div>
+                </div>
+
+                ${quiz.instructions ? `
+                <!-- Instructions Section -->
+                <div style="background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%); padding: 25px; border-radius: 12px; margin-bottom: 25px; border-left: 5px solid #ff9800;">
+                  <h3 style="color: #e65100; margin: 0 0 15px 0; font-size: 22px; font-weight: bold; display: flex; align-items: center;">
+                    <span style="margin-right: 10px;">📝</span> Special Instructions
+                  </h3>
+                  <div style="background: rgba(255,255,255,0.8); padding: 20px; border-radius: 10px; color: #555; font-size: 16px; line-height: 1.6;">
+                    ${quiz.instructions}
+                  </div>
+                </div>
+                ` : ''}
+
+                <!-- Call to Action -->
+                <div style="text-align: center; margin: 40px 0;">
+                  <div style="background: linear-gradient(135deg, #4caf50 0%, #45a049 100%); color: white; padding: 20px 40px; border-radius: 50px; display: inline-block; font-size: 20px; font-weight: bold; box-shadow: 0 8px 20px rgba(76,175,80,0.3); text-decoration: none; border: none; cursor: pointer;">
+                    🚀 Register Now to Participate!
+                  </div>
+                  <div style="margin-top: 15px; color: #666; font-size: 14px;">
+                    Click above to start your registration process
+                  </div>
+                </div>
+              </div>
+
+              <!-- Footer -->
+              <div style="background: linear-gradient(135deg, #37474f 0%, #263238 100%); padding: 25px; text-align: center; color: white;">
+                <div style="margin-bottom: 15px;">
+                  <h4 style="margin: 0; font-size: 18px; font-weight: bold;">📧 Automated Quiz Notification System</h4>
+                </div>
+                <div style="font-size: 14px; opacity: 0.8; line-height: 1.5;">
+                  <p style="margin: 5px 0;">🏛️ ${process.env.COLLEGE_NAME || 'Your College Name'}</p>
+                  <p style="margin: 5px 0;">🏢 Department of Computer Science & Engineering</p>
+                  <p style="margin: 5px 0;">📧 This is an automated notification for eligible college students</p>
+                </div>
+                <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 12px; opacity: 0.7;">
+                  <p style="margin: 0;">© 2025 Quiz Management System. All rights reserved.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        const mailOptions = {
+          from: process.env.EMAIL_USER || 'noreply@quizapp.com',
+          to: student.email,
+          subject: emailSubject,
+          html: emailContent
+        };
+
+        await transporter.sendMail(mailOptions);
+        console.log(`✅ Event quiz notification sent successfully to: ${student.email} (${student.name})`);
+        successCount++;
+      } catch (error) {
+        console.error(`❌ Error sending event quiz notification to ${student.email}:`, error);
+        failedCount++;
+      }
+    }
+
+    console.log(`📧 Event quiz notification summary:`, {
+      total: eligibleStudents.length,
+      success: successCount,
+      failed: failedCount,
+      quizTitle: quiz.title
+    });
+
+    return {
+      success: successCount,
+      failed: failedCount,
+      total: eligibleStudents.length
+    };
+  } catch (error) {
+    console.error('❌ Error in sendEventQuizNotification:', error);
+    return {
+      success: 0,
+      failed: eligibleStudents?.length || 0,
+      total: eligibleStudents?.length || 0
+    };
+  }
+};
+
 module.exports = {
   generateCredentials,
   sendRegistrationEmail,
   sendBulkEmail,
   sendAcademicQuizNotification,
+  sendEventQuizNotification,
   sendForgotPasswordEmail,
-  sendReattemptNotificationEmail
+  sendReattemptNotificationEmail,
+  sendQuizNotificationEmail
 };

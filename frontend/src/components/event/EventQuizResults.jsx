@@ -59,14 +59,12 @@ const EventQuizResults = () => {
         // Calculate statistics
         if (resultsResponse.length > 0) {
           const scores = resultsResponse.map(r => r.score);
-          const passCount = resultsResponse.filter(r => r.score >= (quiz?.passingMarks || 0)).length;
-          
+
           setStats({
             totalParticipants: resultsResponse.length,
             averageScore: scores.reduce((a, b) => a + b, 0) / scores.length,
             highestScore: Math.max(...scores),
-            lowestScore: Math.min(...scores),
-            passCount
+            lowestScore: Math.min(...scores)
           });
         }
       } catch (error) {
@@ -147,14 +145,6 @@ const EventQuizResults = () => {
             </Grid>
             <Grid item xs={12} sm={6} md={3}>
               <Stack direction="row" spacing={1} alignItems="center">
-                <AssessmentIcon color="action" />
-                <Typography variant="body2">
-                  Pass Rate: {((stats.passCount / stats.totalParticipants) * 100).toFixed(1)}%
-                </Typography>
-              </Stack>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Stack direction="row" spacing={1} alignItems="center">
                 <SchoolIcon color="action" />
                 <Typography variant="body2">
                   Average Score: {stats.averageScore.toFixed(1)}
@@ -177,7 +167,6 @@ const EventQuizResults = () => {
               <TableCell>Year</TableCell>
               <TableCell>Score</TableCell>
               <TableCell>Time Taken</TableCell>
-              <TableCell>Status</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -192,13 +181,6 @@ const EventQuizResults = () => {
                   <TableCell>{result.student?.year || result.participantInfo?.year || 'N/A'}</TableCell>
                   <TableCell>{result.score}</TableCell>
                   <TableCell>{result.timeTaken} minutes</TableCell>
-                  <TableCell>
-                    <Chip
-                      label={result.score >= (quiz.passingMarks || 0) ? 'Pass' : 'Fail'}
-                      color={result.score >= (quiz.passingMarks || 0) ? 'success' : 'error'}
-                      size="small"
-                    />
-                  </TableCell>
                 </TableRow>
             ))}
           </TableBody>

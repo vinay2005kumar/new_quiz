@@ -76,7 +76,7 @@ const AuthenticatedQuizTake = () => {
   // Reset violation count when admin override is activated
   useEffect(() => {
     if (adminOverrideActive) {
-      console.log('🔧 EVENT: Admin override activated - resetting violation count');
+      //console.log('🔧 EVENT: Admin override activated - resetting violation count');
       setViolationCount(0);
     }
   }, [adminOverrideActive]);
@@ -141,7 +141,7 @@ const AuthenticatedQuizTake = () => {
     // Enter fullscreen mode - TEMPORARILY DISABLED FOR TESTING
     // if (document.documentElement.requestFullscreen) {
     //   document.documentElement.requestFullscreen().catch(err => {
-    //     console.log('Fullscreen request failed:', err);
+    //     //console.log('Fullscreen request failed:', err);
     //   });
     // }
 
@@ -152,9 +152,9 @@ const AuthenticatedQuizTake = () => {
   useEffect(() => {
     const fetchCollegeSettings = async () => {
       try {
-        console.log('🔧 AuthenticatedQuizTake: Fetching quiz settings...');
+        //console.log('🔧 AuthenticatedQuizTake: Fetching quiz settings...');
         const response = await api.get('/api/event-quiz/quiz-settings');
-        console.log('🔧 AuthenticatedQuizTake: Quiz settings fetched:', response);
+        //console.log('🔧 AuthenticatedQuizTake: Quiz settings fetched:', response);
         setCollegeSettings(response);
       } catch (error) {
         console.error('❌ AuthenticatedQuizTake: Failed to fetch quiz settings:', error);
@@ -285,7 +285,7 @@ const AuthenticatedQuizTake = () => {
       // Exit fullscreen when component unmounts
       if (document.exitFullscreen && document.fullscreenElement) {
         document.exitFullscreen().catch(err => {
-          console.log('Exit fullscreen failed:', err);
+          //console.log('Exit fullscreen failed:', err);
         });
       }
     };
@@ -341,8 +341,8 @@ const AuthenticatedQuizTake = () => {
       setLoading(true);
       setError('');
 
-      console.log('🔍 FETCH: Starting to fetch questions for quiz:', quizId);
-      console.log('🔍 FETCH: Session token:', sessionToken || location.state?.sessionToken ? 'Available' : 'Missing');
+      //console.log('🔍 FETCH: Starting to fetch questions for quiz:', quizId);
+      //console.log('🔍 FETCH: Session token:', sessionToken || location.state?.sessionToken ? 'Available' : 'Missing');
 
       const response = await api.get(`/api/event-quiz/${quizId}/questions`, {
         headers: {
@@ -350,13 +350,13 @@ const AuthenticatedQuizTake = () => {
         }
       });
 
-      console.log('🔍 FETCH: Response received:', response);
-      console.log('🔍 FETCH: Response data:', response.data);
-      console.log('🔍 FETCH: Direct response properties:', {
-        questions: response.questions,
-        timeRemaining: response.timeRemaining,
-        quiz: response.quiz
-      });
+      //console.log('🔍 FETCH: Response received:', response);
+      //console.log('🔍 FETCH: Response data:', response.data);
+      //console.log('🔍 FETCH: Direct response properties:', {
+      //   questions: response.questions,
+      //   timeRemaining: response.timeRemaining,
+      //   quiz: response.quiz
+      // });
 
       // Handle different response formats
       let questionsData = null;
@@ -374,8 +374,8 @@ const AuthenticatedQuizTake = () => {
         quizData = response.quiz;
       }
 
-      console.log('🔍 FETCH: Questions data:', questionsData);
-      console.log('🔍 FETCH: Questions count:', questionsData?.length || 0);
+      //console.log('🔍 FETCH: Questions data:', questionsData);
+      //console.log('🔍 FETCH: Questions count:', questionsData?.length || 0);
 
       if (!questionsData || !Array.isArray(questionsData) || questionsData.length === 0) {
         throw new Error('No questions received from server');
@@ -388,10 +388,10 @@ const AuthenticatedQuizTake = () => {
       // Set quiz data if available
       if (quizData) {
         setQuiz(quizData);
-        console.log('🔍 FETCH: Quiz data set:', quizData);
-        console.log('🔍 FETCH: Question display mode:', quizData.questionDisplayMode);
+        //console.log('🔍 FETCH: Quiz data set:', quizData);
+        //console.log('🔍 FETCH: Question display mode:', quizData.questionDisplayMode);
       } else {
-        console.log('🔍 FETCH: No quiz data received');
+        //console.log('🔍 FETCH: No quiz data received');
       }
 
       // Initialize answers object
@@ -401,7 +401,7 @@ const AuthenticatedQuizTake = () => {
       });
       setAnswers(initialAnswers);
 
-      console.log('🔍 FETCH: Questions loaded successfully:', questionsData.length);
+      //console.log('🔍 FETCH: Questions loaded successfully:', questionsData.length);
     } catch (error) {
       console.error('🔍 FETCH: Error loading questions:', error);
       console.error('🔍 FETCH: Error response:', error.response);
@@ -423,14 +423,14 @@ const AuthenticatedQuizTake = () => {
   };
 
   const handleAutoSubmit = () => {
-    console.log('⏰ Time is up! Auto-submitting quiz...');
+  //console.log('⏰ Time is up! Auto-submitting quiz...');
     alert('⏰ Time is up! Your quiz will be automatically submitted.');
     confirmSubmit();
   };
 
   const confirmSubmit = async () => {
     try {
-      console.log('🚀 SUBMIT: Starting quiz submission process...');
+      //console.log('🚀 SUBMIT: Starting quiz submission process...');
       setSubmitting(true);
 
       const timeTaken = startTime ? Math.floor((new Date() - startTime) / 1000) : 0;
@@ -438,9 +438,9 @@ const AuthenticatedQuizTake = () => {
       // Check if this is an emergency submission (simple check)
       const isEmergencySubmission = participant?.isEmergencyLogin === true;
 
-      console.log('🚀 SUBMIT: Participant data:', participant);
-      console.log('🚀 SUBMIT: isEmergencyLogin flag:', participant?.isEmergencyLogin);
-      console.log('🚀 SUBMIT: Is emergency submission:', isEmergencySubmission);
+      //console.log('🚀 SUBMIT: Participant data:', participant);
+      //console.log('🚀 SUBMIT: isEmergencyLogin flag:', participant?.isEmergencyLogin);
+      //console.log('🚀 SUBMIT: Is emergency submission:', isEmergencySubmission);
 
       const submissionData = {
         participantEmail: participant?.participantDetails?.email,
@@ -454,15 +454,15 @@ const AuthenticatedQuizTake = () => {
         isEmergencySubmission
       };
 
-      console.log('🚀 SUBMIT: Raw answers object:', answers);
-      console.log('🚀 SUBMIT: Filtered answers for submission:', submissionData.answers);
-      console.log('🚀 SUBMIT: Submission data prepared:', submissionData);
-      console.log('🚀 SUBMIT: Making API call to:', `/api/event-quiz/${quizId}/submit`);
+      //console.log('🚀 SUBMIT: Raw answers object:', answers);
+      //console.log('🚀 SUBMIT: Filtered answers for submission:', submissionData.answers);
+      //console.log('🚀 SUBMIT: Submission data prepared:', submissionData);
+      //console.log('🚀 SUBMIT: Making API call to:', `/api/event-quiz/${quizId}/submit`);
 
       const response = await api.post(`/api/event-quiz/${quizId}/submit`, submissionData);
 
-      console.log('🚀 SUBMIT: API call successful, response:', response.data);
-      console.log('🚀 SUBMIT: Preparing navigation data...');
+      //console.log('🚀 SUBMIT: API call successful, response:', response.data);
+      //console.log('🚀 SUBMIT: Preparing navigation data...');
 
       const navigationState = {
         result: {
@@ -475,15 +475,15 @@ const AuthenticatedQuizTake = () => {
         isAuthenticated: true
       };
 
-      console.log('🚀 SUBMIT: Navigation state prepared:', navigationState);
-      console.log('🚀 SUBMIT: Attempting navigation to:', `/quiz/${quizId}/result`);
+      //console.log('🚀 SUBMIT: Navigation state prepared:', navigationState);
+      //console.log('🚀 SUBMIT: Attempting navigation to:', `/quiz/${quizId}/result`);
 
       // Navigate to results page with comprehensive data
       navigate(`/quiz/${quizId}/result`, {
         state: navigationState
       });
 
-      console.log('🚀 SUBMIT: Navigation call completed');
+      //console.log('🚀 SUBMIT: Navigation call completed');
     } catch (error) {
       console.error('🚀 SUBMIT: Error during submission:', error);
       console.error('🚀 SUBMIT: Error response:', error.response);
@@ -534,7 +534,7 @@ const AuthenticatedQuizTake = () => {
     // Re-enter fullscreen
     if (document.documentElement.requestFullscreen) {
       document.documentElement.requestFullscreen().catch(err => {
-        console.log('Fullscreen re-entry failed:', err);
+        //console.log('Fullscreen re-entry failed:', err);
         alert('Failed to re-enter full-screen mode. Quiz will be terminated.');
         navigate('/events');
       });
@@ -589,7 +589,7 @@ const AuthenticatedQuizTake = () => {
       onSecurityViolation={(violation) => {
         // Skip violations if admin override is active
         if (adminOverrideActive) {
-          console.log('🔓 EVENT: Admin override active - skipping violation:', violation.type?.split('\n')[0] || violation);
+          //console.log('🔓 EVENT: Admin override active - skipping violation:', violation.type?.split('\n')[0] || violation);
           return;
         }
 
@@ -597,18 +597,18 @@ const AuthenticatedQuizTake = () => {
         const newCount = violationCount + 1;
         setViolationCount(newCount);
 
-        console.log('🎯 EVENT VIOLATION COUNT:', {
-          previousCount: violationCount,
-          newCount: newCount,
-          violation: violation.type?.split('\n')[0] || violation
-        });
+        //console.log('🎯 EVENT VIOLATION COUNT:', {
+        //   previousCount: violationCount,
+        //   newCount: newCount,
+        //   violation: violation.type?.split('\n')[0] || violation
+        // });
 
         // Check for auto-submit
         const maxViolations = collegeSettings?.violationSettings?.maxViolations || 2;
         const autoTerminate = collegeSettings?.violationSettings?.autoTerminate !== false;
 
         if (newCount >= maxViolations && autoTerminate) {
-          console.log('🚨 EVENT AUTO-SUBMIT TRIGGERED - Count:', newCount, 'Max:', maxViolations);
+          //console.log('🚨 EVENT AUTO-SUBMIT TRIGGERED - Count:', newCount, 'Max:', maxViolations);
           confirmSubmit();
         }
       }}

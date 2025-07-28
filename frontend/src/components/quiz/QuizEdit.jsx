@@ -196,8 +196,8 @@ const QuizEdit = () => {
   // Function to determine the correct back navigation path
   const getBackPath = () => {
     const currentPath = location.pathname;
-    console.log('Current path:', currentPath);
-    console.log('User role:', user?.role);
+    //console.log('Current path:', currentPath);
+    //console.log('User role:', user?.role);
 
     // If accessed from admin routes, go back to admin quizzes
     if (currentPath.includes('/admin/')) {
@@ -646,10 +646,10 @@ const QuizEdit = () => {
       delete quizData.year;
       delete quizData.semester;
 
-      console.log('Submitting quiz data:', quizData);
+      //console.log('Submitting quiz data:', quizData);
 
       const response = await api.put(`/api/quiz/${id}`, quizData);
-      console.log('Quiz updated successfully:', response.data);
+      //console.log('Quiz updated successfully:', response.data);
       
       setSuccess('Quiz updated successfully');
       setTimeout(() => {

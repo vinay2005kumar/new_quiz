@@ -269,7 +269,7 @@ const CollegeSettings = () => {
         fetchAcademicDetails()
       ]);
 
-      console.log('Data refreshed, closing dialog...');
+      //console.log('Data refreshed, closing dialog...');
 
       setOpenDeptDialog(false);
       setDeptFormData({ name: '', code: '', description: '' });
@@ -277,8 +277,8 @@ const CollegeSettings = () => {
 
       // Show success message
       const action = selectedDept ? 'updated' : 'created';
-      console.log(`Department ${action} successfully`);
-      console.log('=== DEPARTMENT SUBMIT END ===');
+      //console.log(`Department ${action} successfully`);
+      //console.log('=== DEPARTMENT SUBMIT END ===');
 
     } catch (error) {
       console.error('=== DEPARTMENT SUBMIT ERROR ===');
@@ -297,32 +297,32 @@ const CollegeSettings = () => {
   const handleSectionSubmit = async (e) => {
     e.preventDefault();
     try {
-      console.log('=== SECTION SUBMIT START ===');
-      console.log('Form data:', sectionFormData);
-      console.log('Section input:', sectionInput);
-      console.log('Available semesters:', availableSemesters);
+      //console.log('=== SECTION SUBMIT START ===');
+      //console.log('Form data:', sectionFormData);
+      //console.log('Section input:', sectionInput);
+      //console.log('Available semesters:', availableSemesters);
 
       // Enhanced validation with detailed error messages
       if (!sectionFormData.department) {
-        console.log('Validation failed: missing department');
+        //console.log('Validation failed: missing department');
         showError('Please select a department');
         return;
       }
 
       if (!sectionFormData.year) {
-        console.log('Validation failed: missing year');
+        //console.log('Validation failed: missing year');
         showError('Please select a year');
         return;
       }
 
       if (!sectionFormData.semester) {
-        console.log('Validation failed: missing semester');
+        //console.log('Validation failed: missing semester');
         showError('Please select a semester');
         return;
       }
 
       if (sectionFormData.names.length === 0) {
-        console.log('Validation failed: no sections provided');
+        //console.log('Validation failed: no sections provided');
         showError('Please add at least one section');
         return;
       }
@@ -330,7 +330,7 @@ const CollegeSettings = () => {
       // Validate section format
       const invalidSections = sectionFormData.names.filter(section => !/^[A-Z]$/.test(section));
       if (invalidSections.length > 0) {
-        console.log('Validation failed: invalid section format:', invalidSections);
+        //console.log('Validation failed: invalid section format:', invalidSections);
         showError(`Invalid section format: ${invalidSections.join(', ')}. Sections must be single uppercase letters (A, B, C, etc.)`);
         return;
       }
@@ -344,19 +344,19 @@ const CollegeSettings = () => {
         credits: 3
       };
 
-      console.log('Submitting academic detail:', academicDetailData);
+      //console.log('Submitting academic detail:', academicDetailData);
 
       let response;
       if (selectedSection) {
         // Update existing academic detail
-        console.log('Updating existing academic detail with ID:', selectedSection._id);
+        //console.log('Updating existing academic detail with ID:', selectedSection._id);
         response = await api.put(`/api/academic-details/${selectedSection._id}`, academicDetailData);
-        console.log('Academic detail updated successfully:', response);
+        //console.log('Academic detail updated successfully:', response);
       } else {
         // Create new academic detail
-        console.log('Creating new academic detail');
+        //console.log('Creating new academic detail');
         response = await api.post('/api/academic-details', academicDetailData);
-        console.log('Academic detail created successfully:', response);
+        //console.log('Academic detail created successfully:', response);
       }
 
       // Refresh data
@@ -372,7 +372,7 @@ const CollegeSettings = () => {
       setSelectedSection(null);
       setOpenSectionDialog(false);
 
-      console.log('=== SECTION SUBMIT COMPLETE ===');
+      //console.log('=== SECTION SUBMIT COMPLETE ===');
     } catch (error) {
       console.error('=== SECTION SUBMIT ERROR ===');
       console.error('Full error object:', error);
@@ -793,12 +793,12 @@ const CollegeSettings = () => {
       `Are you sure you want to delete all Year ${year} configurations? This will remove Year ${year} from all departments and cannot be undone.`,
       async () => {
         try {
-          console.log(`Deleting year ${year} configuration`);
+          //console.log(`Deleting year ${year} configuration`);
 
           // Use the admin endpoint to delete all academic details for the given year
           const response = await api.delete(`/api/admin/academic-details/year/${year}`);
 
-          console.log('Delete response:', response);
+          //console.log('Delete response:', response);
 
           await fetchAcademicDetails();
           showSuccess(`Year ${year} configuration deleted successfully`);
@@ -817,14 +817,14 @@ const CollegeSettings = () => {
       `Are you sure you want to delete Semester ${semester} from Year ${year}? This will remove this semester from all departments and cannot be undone.`,
       async () => {
         try {
-          console.log(`🗑️ Deleting semester ${semester} from year ${year}`);
+          //console.log(`🗑️ Deleting semester ${semester} from year ${year}`);
 
           // Get all academic details for this year and semester
           const detailsToDelete = academicDetails.filter(detail =>
             detail.year === year && detail.semester === semester
           );
 
-          console.log(`📋 Found ${detailsToDelete.length} academic details to delete`);
+          //console.log(`📋 Found ${detailsToDelete.length} academic details to delete`);
 
           if (detailsToDelete.length === 0) {
             showError('No academic details found for this semester');
@@ -837,17 +837,17 @@ const CollegeSettings = () => {
 
           for (const detail of detailsToDelete) {
             try {
-              console.log(`🗑️ Deleting academic detail: ${detail.department} Y${detail.year} S${detail.semester}`);
+              //console.log(`🗑️ Deleting academic detail: ${detail.department} Y${detail.year} S${detail.semester}`);
               await api.delete(`/api/academic-details/${detail._id}`);
               successCount++;
-              console.log(`✅ Successfully deleted: ${detail.department} Y${detail.year} S${detail.semester}`);
+              //console.log(`✅ Successfully deleted: ${detail.department} Y${detail.year} S${detail.semester}`);
             } catch (deleteError) {
               console.error(`❌ Failed to delete: ${detail.department} Y${detail.year} S${detail.semester}`, deleteError);
               errorCount++;
             }
           }
 
-          console.log(`📊 Deletion summary: ${successCount} successful, ${errorCount} failed`);
+          //console.log(`📊 Deletion summary: ${successCount} successful, ${errorCount} failed`);
 
           // Refresh the data
           await fetchAcademicDetails();
@@ -870,24 +870,24 @@ const CollegeSettings = () => {
 
   const fetchDepartments = async () => {
     try {
-      console.log('=== FETCHING DEPARTMENTS ===');
+      //console.log('=== FETCHING DEPARTMENTS ===');
       const response = await api.get('/api/admin/settings/departments');
-      console.log('Departments API response:', response);
-      console.log('Response type:', typeof response);
-      console.log('Response keys:', Object.keys(response || {}));
+      //console.log('Departments API response:', response);
+      //console.log('Response type:', typeof response);
+      //console.log('Response keys:', Object.keys(response || {}));
 
       // The backend returns { departments: [...] }
       if (response && response.departments && Array.isArray(response.departments)) {
-        console.log('Setting departments:', response.departments);
-        console.log('Number of departments:', response.departments.length);
+        //console.log('Setting departments:', response.departments);
+        //console.log('Number of departments:', response.departments.length);
         setDepartments(response.departments);
       } else {
-        console.log('No departments found in response or invalid format');
-        console.log('Response structure:', JSON.stringify(response, null, 2));
+        //console.log('No departments found in response or invalid format');
+        //console.log('Response structure:', JSON.stringify(response, null, 2));
         setDepartments([]);
       }
-      console.log('Current departments state after fetch:', departments);
-      console.log('=== FETCH DEPARTMENTS COMPLETE ===');
+      //console.log('Current departments state after fetch:', departments);
+      //console.log('=== FETCH DEPARTMENTS COMPLETE ===');
     } catch (error) {
       console.error('=== FETCH DEPARTMENTS ERROR ===');
       console.error('Full error:', error);
@@ -908,9 +908,9 @@ const CollegeSettings = () => {
   // Quiz Settings Functions
   const fetchQuizSettings = async () => {
     try {
-      console.log('=== FETCHING QUIZ SETTINGS ===');
+      //console.log('=== FETCHING QUIZ SETTINGS ===');
       const response = await api.get('/api/admin/quiz-settings');
-      console.log('Quiz settings response:', response);
+      //console.log('Quiz settings response:', response);
 
       if (response) {
         // Clean up any legacy defaultSecuritySettings that might still exist in database
@@ -945,7 +945,7 @@ const CollegeSettings = () => {
           }
         };
 
-        console.log('Cleaned quiz settings (removed defaultSecuritySettings):', allowedSettings);
+        //console.log('Cleaned quiz settings (removed defaultSecuritySettings):', allowedSettings);
         setQuizSettings(allowedSettings);
       }
     } catch (error) {
@@ -956,8 +956,8 @@ const CollegeSettings = () => {
 
   const handleQuizSettingsSubmit = async () => {
     try {
-      console.log('=== UPDATING QUIZ SETTINGS ===');
-      console.log('Quiz settings data:', quizSettings);
+      //console.log('=== UPDATING QUIZ SETTINGS ===');
+      //console.log('Quiz settings data:', quizSettings);
 
       // Validate and ensure trigger buttons are properly set
       const button1 = quizSettings.adminOverride?.triggerButtons?.button1;
@@ -980,10 +980,10 @@ const CollegeSettings = () => {
         }
       };
 
-      console.log('Settings to send:', settingsToSend);
+      //console.log('Settings to send:', settingsToSend);
 
       const response = await api.put('/api/admin/quiz-settings', settingsToSend);
-      console.log('Update response:', response);
+      //console.log('Update response:', response);
 
       showSuccess('Quiz settings updated successfully');
       await fetchQuizSettings(); // Refresh data
@@ -1018,7 +1018,7 @@ const CollegeSettings = () => {
 
   // Simpler handler for direct field updates
   const handleDirectQuizSettingsChange = (section, field, value) => {
-    console.log(`🔧 Quiz Settings Change: ${section}.${field} = ${value}`);
+    //console.log(`🔧 Quiz Settings Change: ${section}.${field} = ${value}`);
     setQuizSettings(prev => {
       const newSettings = {
         ...prev,
@@ -1027,7 +1027,7 @@ const CollegeSettings = () => {
           [field]: value
         }
       };
-      console.log('🔧 Updated quiz settings:', newSettings);
+      //console.log('🔧 Updated quiz settings:', newSettings);
       return newSettings;
     });
   };
@@ -1296,13 +1296,13 @@ const CollegeSettings = () => {
                 </TableHead>
                 <TableBody>
                   {(() => {
-                    console.log('Rendering departments table. Departments state:', departments);
-                    console.log('Departments length:', departments.length);
-                    console.log('Departments array:', JSON.stringify(departments, null, 2));
+                    //console.log('Rendering departments table. Departments state:', departments);
+                    //console.log('Departments length:', departments.length);
+                    //console.log('Departments array:', JSON.stringify(departments, null, 2));
 
                     return departments.length > 0 ? (
                       departments.map((dept) => {
-                        console.log('Rendering department:', dept);
+                        //console.log('Rendering department:', dept);
                         return (
                           <TableRow key={dept._id}>
                             <TableCell>{dept.name}</TableCell>
@@ -2009,8 +2009,8 @@ const CollegeSettings = () => {
                   <Select
                     value={sectionFormData.department}
                     onChange={(e) => {
-                      console.log('Department changed to:', e.target.value);
-                      console.log('Available departments:', departments);
+                      //console.log('Department changed to:', e.target.value);
+                      //console.log('Available departments:', departments);
                       setSectionFormData({
                         ...sectionFormData,
                         department: e.target.value,
@@ -2041,8 +2041,8 @@ const CollegeSettings = () => {
                   <Select
                     value={sectionFormData.year}
                     onChange={(e) => {
-                      console.log('Year changed to:', e.target.value);
-                      console.log('Current department:', sectionFormData.department);
+                      //console.log('Year changed to:', e.target.value);
+                      //console.log('Current department:', sectionFormData.department);
                       setSectionFormData({
                         ...sectionFormData,
                         year: Number(e.target.value),
@@ -2121,14 +2121,14 @@ const CollegeSettings = () => {
                           .filter((section, index, arr) => arr.indexOf(section) === index); // Remove duplicates
                       }
 
-                      console.log('🔍 Section input processing:', {
-                        originalInput: input,
-                        trimmedInput: input.trim(),
-                        rawSplit: input.split(/[,;\s]+/),
-                        afterTrimAndUpper: input.split(/[,;\s]+/).map(s => s.trim().toUpperCase()),
-                        validSections: sections,
-                        sectionCount: sections.length
-                      });
+                     //console.log('🔍 Section input processing:', {
+                      //   originalInput: input,
+                      //   trimmedInput: input.trim(),
+                      //   rawSplit: input.split(/[,;\s]+/),
+                      //   afterTrimAndUpper: input.split(/[,;\s]+/).map(s => s.trim().toUpperCase()),
+                      //   validSections: sections,
+                      //   sectionCount: sections.length
+                      // });
 
                       setSectionFormData({
                         ...sectionFormData,
@@ -2216,8 +2216,6 @@ const CollegeSettings = () => {
                             name: e.target.value
                           })}
                           required
-                          error={!subjectFormData.name}
-                          helperText={!subjectFormData.name ? 'Subject name is required' : ''}
                         />
                       </MuiGrid>
                       <MuiGrid item xs={12} sm={6}>
@@ -2232,8 +2230,7 @@ const CollegeSettings = () => {
                             });
                           }}
                           required
-                          error={!subjectFormData.code}
-                          helperText={!subjectFormData.code ? 'Subject code is required' : 'Enter any format you prefer (e.g., CS101, MATH-201, etc.)'}
+                          helperText="Enter any format you prefer (e.g., CS101, MATH-201, etc.)"
                         />
                       </MuiGrid>
                       <MuiGrid item xs={12} sm={6}>
@@ -2751,7 +2748,6 @@ const CollegeSettings = () => {
         <DialogTitle>Edit Quiz Security Settings</DialogTitle>
         <DialogContent>
           {/* Debug: Log current quiz settings */}
-          {console.log('🔍 Current quiz settings in dialog:', quizSettings)}
           <Grid container spacing={3} sx={{ mt: 1 }}>
             {/* Admin Override & Violation Management */}
             <Grid item xs={12}>

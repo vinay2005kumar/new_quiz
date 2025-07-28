@@ -189,18 +189,18 @@ const EventQuizzes = () => {
       setError(''); // Clear any previous errors
 
       // Fetch event quizzes using the same pattern as existing components
-      console.log('Fetching event quizzes...');
+      //console.log('Fetching event quizzes...');
 
       const response = await api.get('/api/event-quiz');
-      console.log('Response:', response);
+      //console.log('Response:', response);
 
       // Use the same pattern as EventQuizList.jsx
       const quizzes = response || [];
-      console.log(`Received ${quizzes.length} quizzes from API`);
+      //console.log(`Received ${quizzes.length} quizzes from API`);
 
       // Separate active and upcoming quizzes
       const now = new Date();
-      console.log('Current time:', now.toISOString());
+      //console.log('Current time:', now.toISOString());
 
       const active = [];
       const upcoming = [];
@@ -211,16 +211,16 @@ const EventQuizzes = () => {
         const isActive = startTime <= now && endTime >= now;
         const isUpcoming = startTime > now;
 
-        console.log(`Quiz "${quiz.title}":`, {
-          startTime: startTime.toISOString(),
-          endTime: endTime.toISOString(),
-          currentTime: now.toISOString(),
-          isActive,
-          isUpcoming,
-          status: quiz.status,
-          registrationEnabled: quiz.registrationEnabled,
-          spotRegistrationEnabled: quiz.spotRegistrationEnabled
-        });
+        //console.log(`Quiz "${quiz.title}":`, {
+        //   startTime: startTime.toISOString(),
+        //   endTime: endTime.toISOString(),
+        //   currentTime: now.toISOString(),
+        //   isActive,
+        //   isUpcoming,
+        //   status: quiz.status,
+        //   registrationEnabled: quiz.registrationEnabled,
+        //   spotRegistrationEnabled: quiz.spotRegistrationEnabled
+        // });
 
         if (isActive) {
           active.push(quiz);
@@ -229,7 +229,7 @@ const EventQuizzes = () => {
         }
       });
 
-      console.log(`Categorized: ${active.length} active, ${upcoming.length} upcoming`);
+      //console.log(`Categorized: ${active.length} active, ${upcoming.length} upcoming`);
       setActiveQuizzes(active);
       setUpcomingQuizzes(upcoming);
     } catch (error) {
@@ -352,11 +352,11 @@ const EventQuizzes = () => {
         };
       }
 
-      console.log('Submitting registration data:', submitData);
-      console.log('Selected quiz:', selectedQuiz);
+      //console.log('Submitting registration data:', submitData);
+      //console.log('Selected quiz:', selectedQuiz);
 
       const response = await api.post(`/api/event-quiz/${selectedQuiz._id}/register-public`, submitData);
-      console.log('Registration response:', response);
+      //console.log('Registration response:', response);
 
       // Show immediate success feedback in dialog
       setRegistrationSuccess(true);
@@ -570,14 +570,14 @@ const EventQuizzes = () => {
 
   const validateTeamRegistration = () => {
     if (!selectedQuiz) {
-      console.log('Validation failed: No selected quiz');
+      //console.log('Validation failed: No selected quiz');
       return false;
     }
 
     // Check participant type selection if quiz accepts both types
     if (selectedQuiz?.participantTypes?.includes('college') && selectedQuiz?.participantTypes?.includes('external')) {
       if (!registrationData.participantType) {
-        console.log('Validation failed: Participant type not selected');
+        //console.log('Validation failed: Participant type not selected');
         return false;
       }
     }
@@ -591,7 +591,7 @@ const EventQuizzes = () => {
         const userDept = selectedQuiz?.participationMode === 'team' ?
           registrationData.teamLeader.department : registrationData.department;
         if (!selectedQuiz.departments.includes(userDept)) {
-          console.log('Validation failed: Department not eligible');
+          //console.log('Validation failed: Department not eligible');
           return false;
         }
       }
@@ -601,7 +601,7 @@ const EventQuizzes = () => {
         const userYear = selectedQuiz?.participationMode === 'team' ?
           registrationData.teamLeader.year : registrationData.year;
         if (!selectedQuiz.years.includes(userYear)) {
-          console.log('Validation failed: Year not eligible');
+          //console.log('Validation failed: Year not eligible');
           return false;
         }
       }
@@ -611,7 +611,7 @@ const EventQuizzes = () => {
         const userSemester = selectedQuiz?.participationMode === 'team' ?
           registrationData.teamLeader.semester : registrationData.semester;
         if (userSemester && !selectedQuiz.semesters.includes(userSemester)) {
-          console.log('Validation failed: Semester not eligible');
+          //console.log('Validation failed: Semester not eligible');
           return false;
         }
       }
@@ -637,32 +637,32 @@ const EventQuizzes = () => {
         isValid = isValid && !!registrationData.college;
       }
 
-      console.log('Individual validation:', {
-        name: registrationData.name,
-        email: registrationData.email,
-        college: registrationData.college,
-        department: registrationData.department,
-        year: registrationData.year,
-        phoneNumber: registrationData.phoneNumber,
-        admissionNumber: registrationData.admissionNumber,
-        participantType: registrationData.participantType,
-        isValid
-      });
+      //console.log('Individual validation:', {
+      //   name: registrationData.name,
+      //   email: registrationData.email,
+      //   college: registrationData.college,
+      //   department: registrationData.department,
+      //   year: registrationData.year,
+      //   phoneNumber: registrationData.phoneNumber,
+      //   admissionNumber: registrationData.admissionNumber,
+      //   participantType: registrationData.participantType,
+      //   isValid
+      // });
       return isValid;
     }
 
     // Team registration validation
-    console.log('Team validation - checking team name:', registrationData.teamName);
+    //console.log('Team validation - checking team name:', registrationData.teamName);
     if (!registrationData.teamName.trim()) {
-      console.log('Validation failed: Team name is empty');
+      //console.log('Validation failed: Team name is empty');
       return false;
     }
 
     // Validate team leader
     const leader = registrationData.teamLeader;
-    console.log('Team validation - checking leader:', leader);
+    //console.log('Team validation - checking leader:', leader);
     if (!leader.name || !leader.email) {
-      console.log('Validation failed: Team leader missing required fields');
+      //console.log('Validation failed: Team leader missing required fields');
       return false;
     }
 
@@ -670,27 +670,27 @@ const EventQuizzes = () => {
     if (registrationData.participantType === 'college' ||
         (selectedQuiz?.participantTypes?.includes('college') && !selectedQuiz?.participantTypes?.includes('external'))) {
       if (!leader.department || !leader.year || !leader.phoneNumber || !leader.admissionNumber) {
-        console.log('Validation failed: Team leader missing college student fields');
+        //console.log('Validation failed: Team leader missing college student fields');
         return false;
       }
     } else {
       // External students need college field
       if (!leader.college) {
-        console.log('Validation failed: Team leader missing college field');
+        //console.log('Validation failed: Team leader missing college field');
         return false;
       }
     }
 
     // Validate team members
     const requiredMembers = selectedQuiz?.teamSize - 1 || 0; // -1 because leader is separate
-    console.log('Team validation - checking members:', {
-      requiredMembers,
-      actualMembers: registrationData.teamMembers.length,
-      teamMembers: registrationData.teamMembers
-    });
+    //console.log('Team validation - checking members:', {
+    //   requiredMembers,
+    //   actualMembers: registrationData.teamMembers.length,
+    //   teamMembers: registrationData.teamMembers
+    // });
 
     if (registrationData.teamMembers.length < requiredMembers) {
-      console.log('Validation failed: Not enough team members');
+      //console.log('Validation failed: Not enough team members');
       return false;
     }
 
@@ -701,7 +701,7 @@ const EventQuizzes = () => {
       // Check participant type selection if quiz accepts both types
       if (selectedQuiz?.participantTypes?.includes('college') && selectedQuiz?.participantTypes?.includes('external')) {
         if (!member.participantType) {
-          console.log('Validation failed: Team member participant type not selected');
+          //console.log('Validation failed: Team member participant type not selected');
           return false;
         }
       }
@@ -718,7 +718,7 @@ const EventQuizzes = () => {
       return isValid;
     });
 
-    console.log('Team validation - all members valid:', allMembersValid);
+    //console.log('Team validation - all members valid:', allMembersValid);
     return allMembersValid;
   };
 
@@ -845,9 +845,6 @@ const EventQuizzes = () => {
 
           <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
             <Chip label={`${quiz.questions?.length || 0} Questions`} size="small" variant="outlined" />
-            {quiz.passingMarks > 0 && (
-              <Chip label={`Pass: ${quiz.passingMarks}%`} size="small" variant="outlined" />
-            )}
             {quiz.participantTypes?.includes('external') && (
               <Chip label="Open to All" size="small" variant="outlined" color="primary" />
             )}

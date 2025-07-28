@@ -6,10 +6,10 @@ require('dotenv').config();
 
 // Log essential startup information
 if (process.env.NODE_ENV !== 'production') {
-  console.log('Environment Variables:');
-  console.log('MONGODB_URI:', process.env.MONGODB_URI ? 'Configured' : 'Not set');
-  console.log('NODE_ENV:', process.env.NODE_ENV || 'development');
-  console.log('PORT:', process.env.PORT || 5000);
+ // console.log('Environment Variables:');
+ // console.log('MONGODB_URI:', process.env.MONGODB_URI ? 'Configured' : 'Not set');
+ // console.log('NODE_ENV:', process.env.NODE_ENV || 'development');
+ // console.log('PORT:', process.env.PORT || 5000);
 }
 
 // Import routes
@@ -38,7 +38,7 @@ app.use(express.urlencoded({ extended: true }));
 // Request logging middleware (only in development)
 if (process.env.NODE_ENV !== 'production') {
   app.use((req, res, next) => {
-    console.log(`${req.method} ${req.path}`);
+   // console.log(`${req.method} ${req.path}`);
     next();
   });
 }
@@ -84,7 +84,7 @@ const startServer = async (port) => {
     // const ATLAS_URL = 'mongodb+srv://vinaybuttala:vinay@cluster0.ljtzrex.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
     const ATLAS_URL = 'mongodb+srv://vinaybuttala:vinay123@cluster0.za6yh4j.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
     
-    console.log('Connecting to MongoDB Atlas...');
+    //// console.log('Connecting to MongoDB Atlas...');
 
     await mongoose.connect(ATLAS_URL, {
       useNewUrlParser: true,
@@ -99,7 +99,7 @@ const startServer = async (port) => {
 
     server.on('error', (error) => {
       if (error.code === 'EADDRINUSE') {
-        console.log(`Port ${port} in use, trying next port...`);
+       // console.log(`Port ${port} in use, trying next port...`);
         const nextPort = FALLBACK_PORTS.shift();
         if (nextPort) {
           startServer(nextPort);

@@ -63,19 +63,19 @@ const QuizAuthorizedStudents = () => {
   // Function to determine the correct submission details path
   const getSubmissionDetailsPath = (studentId) => {
     const currentPath = location.pathname;
-    console.log('Current path:', currentPath);
-    console.log('Quiz ID:', id);
-    console.log('Student ID:', studentId);
+    //console.log('Current path:', currentPath);
+    //console.log('Quiz ID:', id);
+    //console.log('Student ID:', studentId);
 
     // If accessed from admin routes, use admin path with correct parameter name
     if (currentPath.includes('/admin/')) {
       const adminPath = `/admin/quiz/${id}/submissions/${studentId}`;
-      console.log('Generated admin path:', adminPath);
+      //console.log('Generated admin path:', adminPath);
       return adminPath;
     }
     // Default to faculty path
     const facultyPath = `/faculty/quizzes/${id}/submissions/${studentId}`;
-    console.log('Generated faculty path:', facultyPath);
+    //console.log('Generated faculty path:', facultyPath);
     return facultyPath;
   };
   const [loading, setLoading] = useState(true);
@@ -118,7 +118,6 @@ const QuizAuthorizedStudents = () => {
 
   const fetchData = async () => {
     try {
-      console.log('📊 Fetching quiz data for ID:', id);
       setLoading(true);
       setError('');
 
@@ -127,9 +126,6 @@ const QuizAuthorizedStudents = () => {
         api.get(`/api/quiz/${id}`),
         api.get(`/api/quiz/${id}/authorized-students`)
       ]);
-
-      console.log('📊 Quiz Response:', quizResponse);
-      console.log('📊 Students Response:', studentsResponse);
 
       if (!quizResponse || !quizResponse.title) {
         throw new Error('Failed to fetch quiz details');
@@ -144,14 +140,13 @@ const QuizAuthorizedStudents = () => {
       }
 
       // The data is already in the correct format from the backend
-      const transformedStudents = studentsResponse.students.map((studentData, index) => {
-        console.log(`🔄 Processing student ${index + 1}:`, studentData);
-
+      const transformedStudents = studentsResponse.students.map((studentData) => {
         // The data is already in the correct format from the backend
         const transformed = {
           student: {
             _id: studentData.student?._id,
             name: studentData.student?.name || 'N/A',
+            email: studentData.student?.email || 'N/A',
             admissionNumber: studentData.student?.admissionNumber || 'N/A',
             department: studentData.student?.department || 'N/A',
             year: studentData.student?.year || 'N/A',
@@ -166,20 +161,8 @@ const QuizAuthorizedStudents = () => {
           answers: [] // Not needed for the submissions view
         };
 
-        console.log(`✅ Processed student ${index + 1}:`, {
-          studentName: transformed.student.name,
-          hasSubmitted: transformed.hasSubmitted,
-          status: transformed.submissionStatus,
-          totalMarks: transformed.totalMarks
-        });
-
         return transformed;
       });
-
-      console.log('📊 Final transformed students:', transformedStudents);
-      console.log('📊 Students with submissions:', transformedStudents.filter(s => s.hasSubmitted));
-      console.log('📊 Students without submissions:', transformedStudents.filter(s => !s.hasSubmitted));
-      console.log('📊 Total authorized students:', transformedStudents.length);
 
       setStudents(transformedStudents);
       setLoading(false);
@@ -204,7 +187,6 @@ const QuizAuthorizedStudents = () => {
   const handleDeleteSubmission = (studentData) => {
     // Double-check that student has submitted before opening delete dialog
     if (!studentData.hasSubmitted) {
-      console.warn('⚠️ Cannot delete - student has not submitted');
       toast.error('Cannot delete - student has not submitted the quiz');
       return;
     }
@@ -222,20 +204,15 @@ const QuizAuthorizedStudents = () => {
     }
 
     try {
-      console.log('🗑️ Sending delete request for student:', studentData.student._id);
       const response = await api.delete(`/api/quiz/${id}/submissions/${studentData.student._id}`);
-      console.log('🗑️ Delete response:', response);
-      
+
       toast.success('Submission deleted successfully!');
       setDeleteDialog({ open: false, student: null });
-      
+
       // Refresh the data to update the UI
-      console.log('🔄 Refreshing data after delete...');
       await fetchData();
-      console.log('✅ Data refreshed after delete');
     } catch (error) {
-      console.error('❌ Error deleting submission:', error);
-      console.error('❌ Error response:', error.response);
+      console.error('Error deleting submission:', error);
 
       if (error.response?.status === 404) {
         toast.error('Submission not found - student may not have submitted yet');
@@ -340,7 +317,7 @@ const QuizAuthorizedStudents = () => {
     setLoadingDeletedUsers(true);
     try {
       const response = await api.get(`/api/quiz/${id}/deleted-submissions`);
-      console.log('🗑️ Deleted submissions response:', response);
+      //console.log('🗑️ Deleted submissions response:', response);
       
       // Handle response structure consistently with axios interceptor
       const deletedUsers = response.deletedSubmissions || [];
@@ -401,20 +378,12 @@ const QuizAuthorizedStudents = () => {
   };
 
   const filteredStudents = useMemo(() => {
-    console.log('🔄 Calculating filteredStudents:', {
-      studentsLength: students?.length || 0,
-      filters,
-      quizTotalMarks: quiz?.totalMarks
-    });
-    
     if (!students || !Array.isArray(students)) {
-      console.log('⚠️ No students or not array, returning empty array');
       return [];
     }
-    
+
     const filtered = students.filter(student => {
       if (!student || !student.student) {
-        console.log('⚠️ Invalid student data:', student);
         return false;
       }
 
@@ -448,52 +417,38 @@ const QuizAuthorizedStudents = () => {
       }
 
       // Department filter
-      if (filters.department !== 'all' && student.student.department !== filters.department) {
+      if (filters.department && filters.department !== 'all' && student.student.department !== filters.department) {
         return false;
       }
 
       // Year filter
-      if (filters.year !== 'all' && student.student.year !== parseInt(filters.year)) {
+      if (filters.year && filters.year !== 'all' && student.student.year !== parseInt(filters.year)) {
         return false;
       }
 
       // Section filter
-      if (filters.section !== 'all' && student.student.section !== filters.section) {
+      if (filters.section && filters.section !== 'all' && student.student.section !== filters.section) {
         return false;
       }
 
       // Semester filter
-      if (filters.semester !== 'all' && student.student.semester !== filters.semester) {
+      if (filters.semester && filters.semester !== 'all' && student.student.semester !== parseInt(filters.semester)) {
         return false;
       }
 
       return true;
     });
-    
-    console.log('✅ Filtered students result:', {
-      originalLength: students.length,
-      filteredLength: filtered.length,
-      filtersApplied: filters
-    });
-    
+
     return filtered;
   }, [students, filters, quiz?.totalMarks]);
 
   const sortedStudents = useMemo(() => {
-    console.log('🔄 Calculating sortedStudents:', {
-      filteredStudentsLength: filteredStudents?.length || 0,
-      sortConfig,
-      studentsLength: students?.length || 0
-    });
-    
     if (!filteredStudents || !Array.isArray(filteredStudents)) {
-      console.log('⚠️ No filteredStudents or not array, returning empty array');
       return [];
     }
-    
+
     const sortableStudents = [...filteredStudents];
     if (!sortConfig.key) {
-      console.log('✅ No sort config, returning students as-is:', sortableStudents.length);
       return sortableStudents;
     }
 
@@ -524,7 +479,12 @@ const QuizAuthorizedStudents = () => {
           return sortConfig.direction === 'asc'
             ? a.student.name.localeCompare(b.student.name)
             : b.student.name.localeCompare(a.student.name);
-        
+
+        case 'email':
+          return sortConfig.direction === 'asc'
+            ? a.student.email.localeCompare(b.student.email)
+            : b.student.email.localeCompare(a.student.email);
+
         case 'duration':
           if (!a.duration && !b.duration) return 0;
           if (!a.duration) return sortConfig.direction === 'asc' ? -1 : 1;
@@ -536,12 +496,12 @@ const QuizAuthorizedStudents = () => {
       }
     });
     
-    console.log('✅ Sorted students result:', {
-      originalLength: sortableStudents.length,
-      sortedLength: sorted.length,
-      sortKey: sortConfig.key,
-      sortDirection: sortConfig.direction
-    });
+    //console.log('✅ Sorted students result:', {
+    //   originalLength: sortableStudents.length,
+    //   sortedLength: sorted.length,
+    //   sortKey: sortConfig.key,
+    //   sortDirection: sortConfig.direction
+    // });
     
     return sorted;
   }, [filteredStudents, sortConfig, quiz]);
@@ -563,10 +523,10 @@ const QuizAuthorizedStudents = () => {
   }
 
   return (
-    <Container 
-      maxWidth="lg" 
-      sx={{ 
-        mt: { xs: 2, sm: 3, md: 4 }, 
+    <Container
+      maxWidth="xl"
+      sx={{
+        mt: { xs: 2, sm: 3, md: 4 },
         mb: { xs: 2, sm: 3, md: 4 },
         px: { xs: 1, sm: 2, md: 3 }
       }}
@@ -657,7 +617,7 @@ const QuizAuthorizedStudents = () => {
           showFilters={['department', 'year', 'semester', 'section']}
           title="Quiz Submission Filters"
           showRefreshButton={true}
-          onRefresh={() => window.location.reload()}
+          onRefresh={fetchData}
           customFilters={[
             <TextField
               key="admissionNumber"
@@ -693,7 +653,7 @@ const QuizAuthorizedStudents = () => {
                 <MenuItem value="all">All Status</MenuItem>
                 <MenuItem value="submitted">Submitted</MenuItem>
                 <MenuItem value="not-submitted">Not Submitted</MenuItem>
-                <MenuItem value="evaluated">Evaluated</MenuItem>
+            
               </Select>
             </FormControl>
           ]}
@@ -763,7 +723,7 @@ const QuizAuthorizedStudents = () => {
                     size={isMobile ? "small" : "medium"}
                   />
                 </TableCell>
-                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minWidth: 150 }}>
                   <TableSortLabel
                     active={sortConfig.key === 'name'}
                     direction={sortConfig.key === 'name' ? sortConfig.direction : 'asc'}
@@ -772,7 +732,16 @@ const QuizAuthorizedStudents = () => {
                     Name
                   </TableSortLabel>
                 </TableCell>
-                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minWidth: 200 }}>
+                  <TableSortLabel
+                    active={sortConfig.key === 'email'}
+                    direction={sortConfig.key === 'email' ? sortConfig.direction : 'asc'}
+                    onClick={() => requestSort('email')}
+                  >
+                    Email
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minWidth: 120 }}>
                   <TableSortLabel
                     active={sortConfig.key === 'admissionNumber'}
                     direction={sortConfig.key === 'admissionNumber' ? sortConfig.direction : 'asc'}
@@ -781,12 +750,12 @@ const QuizAuthorizedStudents = () => {
                     {isMobile ? 'Adm. No.' : 'Admission Number'}
                   </TableSortLabel>
                 </TableCell>
-                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minWidth: 180 }}>
                   {isMobile ? 'Dept.' : 'Department'}
                 </TableCell>
-                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Year</TableCell>
-                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Section</TableCell>
-                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minWidth: 60 }}>Year</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minWidth: 80 }}>Section</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minWidth: 100 }}>
                   <TableSortLabel
                     active={sortConfig.key === 'score'}
                     direction={sortConfig.key === 'score' ? sortConfig.direction : 'asc'}
@@ -795,7 +764,7 @@ const QuizAuthorizedStudents = () => {
                     Score
                   </TableSortLabel>
                 </TableCell>
-                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minWidth: 100 }}>
                   <TableSortLabel
                     active={sortConfig.key === 'submissionStatus'}
                     direction={sortConfig.key === 'submissionStatus' ? sortConfig.direction : 'asc'}
@@ -805,11 +774,11 @@ const QuizAuthorizedStudents = () => {
                   </TableSortLabel>
                 </TableCell>
                 {!isMobile && (
-                  <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                  <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minWidth: 150 }}>
                     Submit Time
                   </TableCell>
                 )}
-                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minWidth: 100 }}>
                   <TableSortLabel
                     active={sortConfig.key === 'duration'}
                     direction={sortConfig.key === 'duration' ? sortConfig.direction : 'asc'}
@@ -818,24 +787,13 @@ const QuizAuthorizedStudents = () => {
                     Duration
                   </TableSortLabel>
                 </TableCell>
-                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Actions</TableCell>
+                <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' }, minWidth: 150 }}>Actions</TableCell>
                 <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Reattempt</TableCell>
                 <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>Delete</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {(() => {
-                console.log('🎯 Rendering table with students:', {
-                  sortedStudentsLength: sortedStudents.length,
-                  students: sortedStudents.map(s => ({
-                    id: s.student._id,
-                    name: s.student.name,
-                    hasSubmitted: s.hasSubmitted,
-                    status: s.submissionStatus,
-                    score: s.totalMarks
-                  }))
-                });
-                return sortedStudents.map((studentData) => (
+              {sortedStudents.map((studentData) => (
                   <TableRow key={studentData.student._id}>
                     <TableCell padding="checkbox">
                       <Checkbox
@@ -847,6 +805,9 @@ const QuizAuthorizedStudents = () => {
                     </TableCell>
                     <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                       {studentData.student.name}
+                    </TableCell>
+                    <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                      {studentData.student.email}
                     </TableCell>
                     <TableCell sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
                       {studentData.student.admissionNumber}
@@ -885,7 +846,6 @@ const QuizAuthorizedStudents = () => {
                       <Chip
                         label={studentData.submissionStatus}
                         color={
-                          studentData.submissionStatus === 'evaluated' ? 'success' :
                           studentData.submissionStatus === 'submitted' ? 'primary' :
                           studentData.submissionStatus === 'started' ? 'warning' : 'default'
                         }
@@ -950,11 +910,10 @@ const QuizAuthorizedStudents = () => {
                       </Button>
                     </TableCell>
                   </TableRow>
-                ));
-              })()}
+                ))}
               {sortedStudents.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={isMobile ? 10 : 12} align="center">
+                  <TableCell colSpan={isMobile ? 11 : 13} align="center">
                     <Typography 
                       variant="h6" 
                       color="text.secondary"
@@ -1154,7 +1113,15 @@ const QuizAuthorizedStudents = () => {
                   </Typography>
                 </Alert>
 
-                <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                <Box sx={{
+                  mt: 2,
+                  p: 2,
+                  bgcolor: (theme) => theme.palette.mode === 'dark'
+                    ? theme.palette.grey[800]
+                    : theme.palette.grey[50],
+                  borderRadius: 1,
+                  border: (theme) => `1px solid ${theme.palette.divider}`
+                }}>
                   <Typography variant="body2" color="text.secondary">
                     <strong>Student:</strong> {deleteDialog.student.student.name}
                   </Typography>

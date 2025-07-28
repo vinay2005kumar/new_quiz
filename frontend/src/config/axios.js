@@ -42,7 +42,10 @@ api.interceptors.response.use(
                             error.config?.url?.includes('/event-quiz');
 
       if (!isLoginAttempt) {
+        // Clear all authentication and cached data
         localStorage.removeItem('token');
+        localStorage.removeItem('quizSession');
+        sessionStorage.clear();
         window.location.href = '/login';
       }
     }

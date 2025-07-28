@@ -114,14 +114,14 @@ const eventQuizSchema = new mongoose.Schema({
     trim: true,
     default: 'Please login with the provided credentials 10-15 minutes before the quiz starts. Ensure you have a stable internet connection.'
   },
+  sendEmailNotification: {
+    type: Boolean,
+    default: false
+  },
   questionDisplayMode: {
     type: String,
     enum: ['one-by-one', 'all-at-once'],
     default: 'one-by-one'
-  },
-  passingMarks: {
-    type: Number,
-    default: 0
   },
   totalMarks: {
     type: Number,

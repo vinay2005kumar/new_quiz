@@ -117,9 +117,9 @@ print(factorial(4))`, '24', '120', '4', '1', 'A', '3', '1'],
         }
       });
 
-      console.log('Full response from backend:', response);
-      console.log('Response data:', response.data);
-      console.log('Response status:', response.status);
+      //console.log('Full response from backend:', response);
+      //console.log('Response data:', response.data);
+      //console.log('Response status:', response.status);
 
       // Handle the actual response structure from axios interceptor
       let questions;
@@ -134,11 +134,11 @@ print(factorial(4))`, '24', '120', '4', '1', 'A', '3', '1'],
         throw new Error('Questions not found in server response');
       }
 
-      console.log('Parsed questions from Excel:', questions);
+      //console.log('Parsed questions from Excel:', questions);
 
       // Validate questions
       questions.forEach((q, index) => {
-        console.log(`Question ${index + 1}:`, q);
+        //console.log(`Question ${index + 1}:`, q);
         if (!q.question) throw new Error(`Question ${index + 1} is empty`);
         if (q.options.some(opt => !opt)) throw new Error(`Question ${index + 1} has empty options`);
         if (q.correctAnswer === -1) throw new Error(`Question ${index + 1} has invalid correct answer`);
@@ -147,7 +147,7 @@ print(factorial(4))`, '24', '120', '4', '1', 'A', '3', '1'],
 
       // Store questions in parent component state for review
       if (onQuestionsUpdate) {
-        console.log('Updating questions in parent component:', questions);
+        //console.log('Updating questions in parent component:', questions);
         onQuestionsUpdate(questions);
       }
 

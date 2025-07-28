@@ -12,9 +12,16 @@ import {
   Paper,
   useTheme,
   useMediaQuery,
-  Stack
+  Stack,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Chip,
+  Tabs,
+  Tab
 } from '@mui/material';
-import { Add as AddIcon, Refresh as RefreshIcon } from '@mui/icons-material';
+import { Add as AddIcon, Refresh as RefreshIcon, FilterList as FilterListIcon } from '@mui/icons-material';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../config/axios';
 import EventQuizCard from './EventQuizCard';
@@ -30,13 +37,15 @@ const EventQuizList = () => {
   const [error, setError] = useState('');
   const [infoMessage, setInfoMessage] = useState('');
   const [searchTitle, setSearchTitle] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [tabValue, setTabValue] = useState(0);
 
   const fetchQuizzes = async () => {
     try {
       setLoading(true);
-      console.log('Fetching quizzes...');
+      //console.log('Fetching quizzes...');
       const response = await api.get('/api/event-quiz');
-      console.log('Response:', response);
+      //console.log('Response:', response);
       setQuizzes(response);
       setError(''); // Clear any previous errors
       setInfoMessage(''); // Clear any previous info messages
@@ -52,43 +61,128 @@ const EventQuizList = () => {
     fetchQuizzes();
   }, []);
 
-  // Filter quizzes by search title
-  const getFilteredQuizzes = () => {
-    if (!searchTitle.trim()) return quizzes;
+  // Get quiz status
+  const getQuizStatus = (quiz) => {
+    const now = new Date();
+    const startTime = new Date(quiz.startTime);
+    const endTime = new Date(quiz.endTime);
 
-    return quizzes.filter(quiz =>
-      quiz.title?.toLowerCase().includes(searchTitle.toLowerCase().trim())
-    );
+    if (now < startTime) return 'upcoming';
+    if (now >= startTime && now <= endTime) return 'active';
+    return 'completed';
+  };
+
+  // Get status display info
+  const getStatusInfo = (status) => {
+    switch (status) {
+      case 'upcoming':
+        return { label: 'Upcoming', color: 'info' };
+      case 'active':
+        return { label: 'Active', color: 'success' };
+      case 'completed':
+        return { label: 'Completed', color: 'default' };
+      default:
+        return { label: 'Unknown', color: 'default' };
+    }
+  };
+
+  // Categorize quizzes by status
+  const categorizeQuizzes = () => {
+    const upcoming = [];
+    const active = [];
+    const completed = [];
+
+    quizzes.forEach(quiz => {
+      const status = getQuizStatus(quiz);
+      switch (status) {
+        case 'upcoming':
+          upcoming.push(quiz);
+          break;
+        case 'active':
+          active.push(quiz);
+          break;
+        case 'completed':
+          completed.push(quiz);
+          break;
+      }
+    });
+
+    return { upcoming, active, completed };
+  };
+
+  // Filter quizzes by search title and status
+  const getFilteredQuizzes = () => {
+    let filteredQuizzes = quizzes;
+
+    // Apply search filter
+    if (searchTitle.trim()) {
+      filteredQuizzes = filteredQuizzes.filter(quiz =>
+        quiz.title?.toLowerCase().includes(searchTitle.toLowerCase().trim())
+      );
+    }
+
+    // Apply status filter
+    if (statusFilter !== 'all') {
+      filteredQuizzes = filteredQuizzes.filter(quiz =>
+        getQuizStatus(quiz) === statusFilter
+      );
+    }
+
+    return filteredQuizzes;
+  };
+
+  // Get quizzes for current tab
+  const getQuizzesForTab = () => {
+    const { upcoming, active, completed } = categorizeQuizzes();
+
+    switch (tabValue) {
+      case 0: // All
+        return getFilteredQuizzes();
+      case 1: // Upcoming
+        return upcoming.filter(quiz =>
+          !searchTitle.trim() || quiz.title?.toLowerCase().includes(searchTitle.toLowerCase().trim())
+        );
+      case 2: // Active
+        return active.filter(quiz =>
+          !searchTitle.trim() || quiz.title?.toLowerCase().includes(searchTitle.toLowerCase().trim())
+        );
+      case 3: // Completed
+        return completed.filter(quiz =>
+          !searchTitle.trim() || quiz.title?.toLowerCase().includes(searchTitle.toLowerCase().trim())
+        );
+      default:
+        return getFilteredQuizzes();
+    }
   };
 
   const handleDelete = async (quizId) => {
     try {
-      console.log('🗑️ Deleting quiz:', quizId);
+      //console.log('🗑️ Deleting quiz:', quizId);
       await api.delete(`/api/event-quiz/${quizId}`);
-      console.log('✅ Quiz deleted successfully, updating UI...');
+      //console.log('✅ Quiz deleted successfully, updating UI...');
 
       // Use functional update to ensure we have the latest state
       setQuizzes(prevQuizzes => {
         const updatedQuizzes = prevQuizzes.filter(quiz => quiz._id !== quizId);
-        console.log('📊 Updated quiz list:', updatedQuizzes.length, 'quizzes remaining');
+        //console.log('📊 Updated quiz list:', updatedQuizzes.length, 'quizzes remaining');
         return updatedQuizzes;
       });
 
       // Clear any previous errors
       setError('');
 
-      console.log('🎉 Quiz deletion completed successfully');
+      //console.log('🎉 Quiz deletion completed successfully');
     } catch (error) {
       console.error('❌ Error deleting quiz:', error);
 
       // Handle specific error cases
       if (error.response?.status === 404) {
-        console.log('📝 Quiz not found (404) - removing from UI and refreshing list');
+        //console.log('📝 Quiz not found (404) - removing from UI and refreshing list');
 
         // Remove from UI since it doesn't exist in database
         setQuizzes(prevQuizzes => {
           const updatedQuizzes = prevQuizzes.filter(quiz => quiz._id !== quizId);
-          console.log('📊 Removed non-existent quiz, updated list:', updatedQuizzes.length, 'quizzes remaining');
+          //console.log('📊 Removed non-existent quiz, updated list:', updatedQuizzes.length, 'quizzes remaining');
           return updatedQuizzes;
         });
 
@@ -101,7 +195,7 @@ const EventQuizList = () => {
 
         // Refresh the entire list to ensure consistency
         setTimeout(() => {
-          console.log('🔄 Refreshing quiz list to ensure consistency...');
+          //console.log('🔄 Refreshing quiz list to ensure consistency...');
           fetchQuizzes();
         }, 1000);
       } else {
@@ -192,7 +286,38 @@ const EventQuizList = () => {
           </Alert>
         )}
 
-        {/* Search Filter - Fixed Width */}
+        {/* Status Tabs */}
+        <Paper sx={{ mb: 3 }}>
+          <Tabs
+            value={tabValue}
+            onChange={(e, newValue) => setTabValue(newValue)}
+            variant="fullWidth"
+            indicatorColor="primary"
+          >
+            <Tab
+              label={`All (${quizzes.length})`}
+              icon={<FilterListIcon />}
+              iconPosition="start"
+            />
+            <Tab
+              label={`Upcoming (${categorizeQuizzes().upcoming.length})`}
+              icon={<Chip label="📅" size="small" />}
+              iconPosition="start"
+            />
+            <Tab
+              label={`Active (${categorizeQuizzes().active.length})`}
+              icon={<Chip label="🟢" size="small" />}
+              iconPosition="start"
+            />
+            <Tab
+              label={`Completed (${categorizeQuizzes().completed.length})`}
+              icon={<Chip label="✅" size="small" />}
+              iconPosition="start"
+            />
+          </Tabs>
+        </Paper>
+
+        {/* Search and Status Filters */}
         <Paper sx={{
           p: { xs: 1.5, sm: 2 },
           mb: { xs: 2, sm: 3 },
@@ -201,27 +326,47 @@ const EventQuizList = () => {
           maxWidth: '1200px',
           mx: 'auto'
         }}>
-          <TextField
-            fullWidth
-            label="Search quizzes by title..."
-            variant="outlined"
-            value={searchTitle}
-            onChange={(e) => setSearchTitle(e.target.value)}
-            placeholder="Enter quiz title to search"
-            size={isMobile ? "small" : "medium"}
-            InputProps={{
-              startAdornment: (
-                <Box sx={{ mr: 1, display: 'flex', alignItems: 'center' }}>
-                  🔍
-                </Box>
-              ),
-            }}
-          />
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <TextField
+              fullWidth
+              label="Search quizzes by title..."
+              variant="outlined"
+              value={searchTitle}
+              onChange={(e) => setSearchTitle(e.target.value)}
+              placeholder="Enter quiz title to search"
+              size={isMobile ? "small" : "medium"}
+              InputProps={{
+                startAdornment: (
+                  <Box sx={{ mr: 1, display: 'flex', alignItems: 'center' }}>
+                    🔍
+                  </Box>
+                ),
+              }}
+            />
+            {tabValue === 0 && (
+              <FormControl sx={{ minWidth: 150 }} size={isMobile ? "small" : "medium"}>
+                <InputLabel>Status Filter</InputLabel>
+                <Select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  label="Status Filter"
+                >
+                  <MenuItem value="all">All Status</MenuItem>
+                  <MenuItem value="upcoming">Upcoming</MenuItem>
+                  <MenuItem value="active">Active</MenuItem>
+                  <MenuItem value="completed">Completed</MenuItem>
+                </Select>
+              </FormControl>
+            )}
+          </Stack>
         </Paper>
 
-        {getFilteredQuizzes().length === 0 ? (
+        {getQuizzesForTab().length === 0 ? (
           <Alert severity="info">
-            {searchTitle.trim() ? 'No event quizzes match your search.' : 'No event quizzes found.'}
+            {searchTitle.trim()
+              ? `No ${tabValue === 0 ? '' : ['', 'upcoming', 'active', 'completed'][tabValue] + ' '}event quizzes match your search.`
+              : `No ${tabValue === 0 ? '' : ['', 'upcoming', 'active', 'completed'][tabValue] + ' '}event quizzes found.`
+            }
           </Alert>
         ) : (
           <Box
@@ -238,18 +383,37 @@ const EventQuizList = () => {
               margin: '0 auto'
             }}
           >
-            {getFilteredQuizzes().map((quiz) => (
-              <Box
-                key={quiz._id}
-                sx={{
-                  width: '100%',
-                  maxWidth: { xs: '400px', sm: '100%', md: '100%' },
-                  mx: { xs: 'auto', sm: 0 }
-                }}
-              >
-                <EventQuizCard quiz={quiz} onDelete={handleDelete} />
-              </Box>
-            ))}
+            {getQuizzesForTab().map((quiz) => {
+              const status = getQuizStatus(quiz);
+              const statusInfo = getStatusInfo(status);
+
+              return (
+                <Box
+                  key={quiz._id}
+                  sx={{
+                    width: '100%',
+                    maxWidth: { xs: '400px', sm: '100%', md: '100%' },
+                    mx: { xs: 'auto', sm: 0 },
+                    position: 'relative'
+                  }}
+                >
+                  <EventQuizCard quiz={quiz} onDelete={handleDelete} />
+                  {/* Status Badge */}
+                  <Chip
+                    label={statusInfo.label}
+                    color={statusInfo.color}
+                    size="small"
+                    sx={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 8,
+                      zIndex: 1,
+                      fontWeight: 'bold'
+                    }}
+                  />
+                </Box>
+              );
+            })}
           </Box>
         )}
       </Box>

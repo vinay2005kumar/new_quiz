@@ -133,11 +133,11 @@ const StudentAccounts = () => {
     try {
       setLoading(true);
       setError('');
-      console.log('Fetching students...');
+      //console.log('Fetching students...');
       
       // Get student accounts specifically
       const response = await api.get('/api/admin/accounts?role=student');
-      console.log('Students response:', response);
+      //console.log('Students response:', response);
 
       // Check if response exists and has the expected structure
       if (!response || !response.accounts || !Array.isArray(response.accounts)) {
@@ -177,25 +177,56 @@ const StudentAccounts = () => {
 
   const fetchAcademicDetails = async () => {
     try {
+
+
+      // Fetch departments using the same method as EventQuizAccounts
+      try {
+        const deptResponse = await api.get('/api/admin/settings/departments');
+        //console.log('🏢 DEBUG: Departments API response:', deptResponse);
+
+        let departments = [];
+        if (deptResponse && deptResponse.departments && Array.isArray(deptResponse.departments)) {
+          departments = deptResponse.departments.map(dept => dept.name);
+        }
+
+        //console.log('🏢 DEBUG: Processed departments:', departments);
+        setDepartments(departments);
+      } catch (deptError) {
+        console.error('🏢 DEBUG: Error fetching departments from settings:', deptError);
+        setError('Failed to fetch departments');
+
+        // Fallback to academic details if settings API fails
+        try {
+          //console.log('🏢 DEBUG: Trying fallback to academic details');
+          const response = await api.get('/api/academic-details');
+          if (response && Array.isArray(response)) {
+            const uniqueDepartments = [...new Set(
+              response
+                .filter(detail => detail && detail.department)
+                .map(detail => detail.department)
+            )].sort();
+            //console.log('🏢 DEBUG: Fallback departments:', uniqueDepartments);
+            setDepartments(uniqueDepartments);
+          }
+        } catch (fallbackError) {
+          console.error('🏢 DEBUG: Fallback also failed:', fallbackError);
+        }
+      }
+
+      // Then fetch academic details
       const response = await api.get('/api/academic-details');
-      console.log('Academic details response:', response);
-      
+      //console.log('📚 DEBUG: Academic details response:', response);
+
       if (response && Array.isArray(response)) {
         setAcademicDetails(response);
-        
-        // Extract unique departments
-        const uniqueDepartments = [...new Set(response.map(detail => detail.department))];
-        setDepartments(uniqueDepartments);
       } else {
         console.error('Invalid academic details data:', response);
         setAcademicDetails([]);
-        setDepartments([]);
       }
     } catch (error) {
-      console.error('Error fetching academic details:', error);
+      console.error('🏢 DEBUG: Error fetching academic details:', error);
       setError('Failed to fetch academic details');
       setAcademicDetails([]);
-      setDepartments([]);
     }
   };
 
@@ -208,7 +239,7 @@ const StudentAccounts = () => {
           .map(detail => detail.year)
       )].sort((a, b) => a - b);
 
-      console.log('Available years for department:', departmentYears);
+      //console.log('Available years for department:', departmentYears);
       setYears(departmentYears);
     } else {
       setYears([]);
@@ -227,7 +258,7 @@ const StudentAccounts = () => {
           .map(detail => detail.semester)
       )].sort((a, b) => a - b);
 
-      console.log('Available semesters:', availableSems);
+      //console.log('Available semesters:', availableSems);
       setAvailableSemesters(availableSems);
     } else {
       setAvailableSemesters([]);
@@ -244,7 +275,7 @@ const StudentAccounts = () => {
       );
 
       const sections = detail?.sections ? detail.sections.split(',').map(s => s.trim()) : [];
-      console.log('Available sections:', sections);
+      //console.log('Available sections:', sections);
       setAvailableSections(sections);
     } else {
       setAvailableSections([]);
@@ -365,12 +396,12 @@ const StudentAccounts = () => {
         dataToSend.password = formData.password;
       }
 
-      console.log('Sending data to server:', dataToSend);
+      //console.log('Sending data to server:', dataToSend);
 
       if (selectedStudent) {
         try {
           const response = await api.put(`/api/admin/accounts/${selectedStudent._id}`, dataToSend);
-          console.log('Update response:', response);
+          //console.log('Update response:', response);
           handleCloseDialog();
           fetchStudents();
           setToast({
@@ -391,7 +422,7 @@ const StudentAccounts = () => {
       } else {
         try {
           const response = await api.post('/api/admin/accounts', dataToSend);
-          console.log('Create response:', response);
+          //console.log('Create response:', response);
           handleCloseDialog();
           fetchStudents();
           setToast({
@@ -580,12 +611,12 @@ const StudentAccounts = () => {
       // Handle different response formats (same as other components)
       const responseData = response.data || response || {};
 
-      console.log('📥 PROMOTION RESPONSE:', {
-        fullResponse: response,
-        responseData: responseData,
-        success: responseData.success,
-        updatedCount: responseData.updatedCount
-      });
+      //console.log('📥 PROMOTION RESPONSE:', {
+      //   fullResponse: response,
+      //   responseData: responseData,
+      //   success: responseData.success,
+      //   updatedCount: responseData.updatedCount
+      // });
 
       if (responseData.success) {
         setError('');

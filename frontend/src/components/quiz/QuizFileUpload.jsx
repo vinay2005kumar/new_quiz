@@ -96,7 +96,7 @@ const QuizFileUpload = () => {
   const fetchSubjects = async (department = '', year = '', semester = '') => {
     try {
       setLoading(true);
-      console.log('Fetching subjects for:', { department, year, semester });
+      //console.log('Fetching subjects for:', { department, year, semester });
 
       // Fetch academic details to get subjects based on filters
       const response = await api.get('/api/academic-details');
@@ -119,7 +119,7 @@ const QuizFileUpload = () => {
       const allSubjects = filteredDetails.flatMap(detail => detail.subjects || []);
       const uniqueSubjects = [...new Set(allSubjects.map(subject => subject.name))];
 
-      console.log('Filtered subjects:', uniqueSubjects);
+      //console.log('Filtered subjects:', uniqueSubjects);
       setSubjects(uniqueSubjects.sort());
       setLoading(false);
     } catch (error) {
@@ -140,7 +140,7 @@ const QuizFileUpload = () => {
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
-    console.log('Selected file:', selectedFile);
+    //console.log('Selected file:', selectedFile);
     
     if (selectedFile) {
       if (uploadType === 'excel') {
@@ -173,7 +173,7 @@ const QuizFileUpload = () => {
         return;
       }
 
-      console.log('File validation passed, setting file:', selectedFile);
+      //console.log('File validation passed, setting file:', selectedFile);
       setFile(selectedFile);
       setError('');
     } else {
@@ -255,10 +255,10 @@ const QuizFileUpload = () => {
       formData.append('allowedGroups', JSON.stringify(allowedGroups));
 
       // Log FormData contents for debugging
-      console.log('File being uploaded:', file);
-      console.log('FormData contents:');
+      //console.log('File being uploaded:', file);
+      //console.log('FormData contents:');
       for (let [key, value] of formData.entries()) {
-        console.log(key, ':', value);
+        //console.log(key, ':', value);
       }
 
       const endpoint = uploadType === 'excel' ? '/quiz/upload/excel' : '/quiz/upload/image';
@@ -270,7 +270,7 @@ const QuizFileUpload = () => {
         }
       });
 
-      console.log('Server response:', response);
+      //console.log('Server response:', response);
       navigate('/quizzes');
     } catch (error) {
       console.error('Error creating quiz:', error);

@@ -119,11 +119,11 @@ const quizSchema = new mongoose.Schema({
       return this.questions ? this.questions.reduce((sum, q) => sum + q.marks, 0) : 0;
     }
   },
-  passingMarks: {
-    type: Number,
-    default: 0
-  },
   negativeMarkingEnabled: {
+    type: Boolean,
+    default: false
+  },
+  sendEmailNotification: {
     type: Boolean,
     default: false
   },

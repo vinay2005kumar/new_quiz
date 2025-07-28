@@ -160,6 +160,23 @@ const UserSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  // Event account specific fields
+  eventType: {
+    type: String,
+    enum: ['department', 'organization'],
+    required: function() {
+      return this.role === 'event';
+    }
+  },
+  originalPassword: {
+    type: String,
+    required: false,
+    select: false // Exclude from queries by default
+  },
+  isActive: {
+    type: Boolean,
+    default: true
+  },
   // Password reset fields
   resetPasswordCode: {
     type: String
@@ -190,11 +207,43 @@ UserSchema.pre('save', async function(next) {
   next();
 });
 
+// Pre-update middleware to handle password changes and updatedAt timestamp
+UserSchema.pre(['findOneAndUpdate', 'findByIdAndUpdate'], async function(next) {
+  const update = this.getUpdate();
+
+  if (update.password) {
+    try {
+      // Store original password in encrypted form
+      const { encrypt } = require('../utils/encryption');
+      update.originalPassword = encrypt(update.password);
+
+      // Hash password for authentication
+      const salt = await bcrypt.genSalt(10);
+      update.password = await bcrypt.hash(update.password, salt);
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  update.updatedAt = new Date();
+  next();
+});
+
 // Compare password method
 UserSchema.methods.comparePassword = async function(candidatePassword) {
   try {
+    // Validate inputs before comparison
+    if (!candidatePassword) {
+      throw new Error('Candidate password is required');
+    }
+
+    if (!this.password) {
+      throw new Error('Stored password hash is missing');
+    }
+
     return await bcrypt.compare(candidatePassword, this.password);
   } catch (error) {
+    console.error('Password comparison error:', error.message);
     throw error;
   }
 };

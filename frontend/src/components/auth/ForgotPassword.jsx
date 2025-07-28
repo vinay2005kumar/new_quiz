@@ -39,17 +39,17 @@ const ForgotPassword = () => {
     setIsLoading(true);
 
     try {
-      console.log('🔄 Sending forgot password request for:', email);
+      //console.log('🔄 Sending forgot password request for:', email);
       const response = await axios.post('/api/auth/forgot-password', { email });
 
-      console.log('📥 Forgot password response:', response);
-      console.log('📥 Response structure:', {
-        hasData: !!response.data,
-        hasSuccess: !!response.success,
-        dataSuccess: response.data?.success,
-        directSuccess: response.success,
-        message: response.message || response.data?.message
-      });
+      //console.log('📥 Forgot password response:', response);
+      //console.log('📥 Response structure:', {
+      //   hasData: !!response.data,
+      //   hasSuccess: !!response.success,
+      //   dataSuccess: response.data?.success,
+      //   directSuccess: response.success,
+      //   message: response.message || response.data?.message
+      // });
 
       // Handle both response structures
       const success = response.success || response.data?.success;
@@ -77,20 +77,20 @@ const ForgotPassword = () => {
     setIsLoading(true);
 
     try {
-      console.log('🔄 Sending verify code request for:', email, 'code:', resetCode);
+      //console.log('🔄 Sending verify code request for:', email, 'code:', resetCode);
       const response = await axios.post('/api/auth/verify-reset-code', {
         email,
         code: resetCode
       });
 
-      console.log('📥 Verify code response:', response);
-      console.log('📥 Response structure:', {
-        hasData: !!response.data,
-        hasSuccess: !!response.success,
-        dataSuccess: response.data?.success,
-        directSuccess: response.success,
-        message: response.message || response.data?.message
-      });
+      //console.log('📥 Verify code response:', response);
+      //console.log('📥 Response structure:', {
+      //   hasData: !!response.data,
+      //   hasSuccess: !!response.success,
+      //   dataSuccess: response.data?.success,
+      //   directSuccess: response.success,
+      //   message: response.message || response.data?.message
+      // });
 
       // Handle both response structures
       const success = response.success || response.data?.success;
@@ -140,21 +140,21 @@ const ForgotPassword = () => {
     setIsLoading(true);
 
     try {
-      console.log('🔄 Sending reset password request for:', email);
+      //console.log('🔄 Sending reset password request for:', email);
       const response = await axios.post('/api/auth/reset-password', {
         email,
         code: resetCode,
         newPassword
       });
 
-      console.log('📥 Reset password response:', response);
-      console.log('📥 Response structure:', {
-        hasData: !!response.data,
-        hasSuccess: !!response.success,
-        dataSuccess: response.data?.success,
-        directSuccess: response.success,
-        message: response.message || response.data?.message
-      });
+      //console.log('📥 Reset password response:', response);
+      //console.log('📥 Response structure:', {
+      //   hasData: !!response.data,
+      //   hasSuccess: !!response.success,
+      //   dataSuccess: response.data?.success,
+      //   directSuccess: response.success,
+      //   message: response.message || response.data?.message
+      // });
 
       // Handle both response structures
       const success = response.success || response.data?.success;

@@ -14,8 +14,8 @@ export const getAvailableSemesters = (academicDetails, department, year) => {
     return [];
   }
   
-  console.log('getAvailableSemesters called with:', { department, year });
-  console.log('Academic details:', academicDetails);
+  //console.log('getAvailableSemesters called with:', { department, year });
+  //console.log('Academic details:', academicDetails);
   
   // Get all semesters configured for this department and year
   const semesters = academicDetails
@@ -23,7 +23,7 @@ export const getAvailableSemesters = (academicDetails, department, year) => {
     .map(detail => detail.semester)
     .sort((a, b) => a - b);
   
-  console.log('Found semesters for', department, 'year', year, ':', semesters);
+  //console.log('Found semesters for', department, 'year', year, ':', semesters);
   
   return semesters;
 };

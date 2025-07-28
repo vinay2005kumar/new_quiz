@@ -46,6 +46,8 @@ const AdminQuizzes = () => {
   const [quizzes, setQuizzes] = useState([]);
   const [tabValue, setTabValue] = useState(0);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, quiz: null });
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const {
     filters,
     handleFilterChange: handleAcademicFilterChange,
@@ -63,6 +65,33 @@ const AdminQuizzes = () => {
     fetchQuizzes();
   }, []);
 
+  // Helper function to format "For Who" information
+  const formatTargetAudience = (quiz) => {
+    if (quiz.type === 'academic') {
+      // For academic quizzes, show allowed groups
+      if (quiz.allowedGroups && quiz.allowedGroups.length > 0) {
+        const groups = quiz.allowedGroups.map(group => {
+          const parts = [];
+          if (group.department) parts.push(group.department);
+          if (group.year) parts.push(`Year ${group.year}`);
+          if (group.semester) parts.push(`Sem ${group.semester}`);
+          if (group.section) parts.push(`Sec ${group.section}`);
+          return parts.join(' - ');
+        });
+        return groups.join(', ');
+      }
+      return 'All Students';
+    } else {
+      // For event quizzes, show participant types
+      if (quiz.participantTypes && quiz.participantTypes.length > 0) {
+        return quiz.participantTypes.map(type =>
+          type === 'college' ? 'College Students' : 'External Students'
+        ).join(', ');
+      }
+      return 'All Participants';
+    }
+  };
+
   // Clear search text when switching tabs since search logic is different
   useEffect(() => {
     if (filters.searchText) {
@@ -73,15 +102,12 @@ const AdminQuizzes = () => {
   const fetchQuizzes = async () => {
     try {
       setLoading(true);
-      
-      // Fetch both academic and event quizzes
-      const [academicResponse, eventResponse] = await Promise.all([
-        api.get('/api/quiz'),  // Changed from /api/admin/quiz
-        api.get('/api/event-quiz')  // Changed from /api/admin/event-quiz
-      ]);
 
-      console.log('Raw Academic Response:', academicResponse);
-      console.log('Raw Event Response:', eventResponse);
+      // Fetch both academic and event quizzes from their respective endpoints
+      const [academicResponse, eventResponse] = await Promise.all([
+        api.get('/api/quiz/all'),  // Academic quizzes from Quiz model
+        api.get('/api/event-quiz')  // Event quizzes from EventQuiz model
+      ]);
 
       // Handle response data properly
       const academicQuizzes = Array.isArray(academicResponse) ? academicResponse :
@@ -89,19 +115,15 @@ const AdminQuizzes = () => {
       const eventQuizzes = Array.isArray(eventResponse) ? eventResponse :
                           Array.isArray(eventResponse.data) ? eventResponse.data : [];
 
-      // Combine and mark the type if not already marked
+      // Combine all quizzes
       const allQuizzes = [
         ...academicQuizzes.map(q => ({ ...q, type: q.type || 'academic' })),
         ...eventQuizzes.map(q => ({ ...q, type: 'event' }))
       ];
 
-      // Update state only if we have valid data
-      if (allQuizzes.length > 0) {
-        setQuizzes(allQuizzes);
-      }
+      setQuizzes(allQuizzes);
     } catch (error) {
       console.error('Error fetching quizzes:', error);
-      // Removed error alert - just log the error
     } finally {
       setLoading(false);
     }
@@ -115,13 +137,19 @@ const AdminQuizzes = () => {
     handleAcademicFilterChange(name, value);
   };
 
+  const handleClearAllFilters = () => {
+    clearFilters();
+    setFromDate('');
+    setToDate('');
+  };
+
   const resetFilters = () => {
     clearFilters();
   };
 
   const getFilteredQuizzes = () => {
-    console.log('Current tab value:', tabValue);
-    console.log('Total quizzes before filtering:', quizzes.length);
+    //console.log('Current tab value:', tabValue);
+    //console.log('Total quizzes before filtering:', quizzes.length);
 
     const filtered = quizzes.filter(quiz => {
       // Tab filter (Academic vs Event)
@@ -174,11 +202,28 @@ const AdminQuizzes = () => {
         }
       }
 
-      console.log('Quiz:', quiz.title, 'Type:', quiz.type, 'Matches Tab:', matchesTab);
+      // Date range filter
+      if (fromDate || toDate) {
+        const quizStartDate = new Date(quiz.startTime);
+
+        if (fromDate) {
+          const fromDateTime = new Date(fromDate);
+          fromDateTime.setHours(0, 0, 0, 0); // Start of day
+          if (quizStartDate < fromDateTime) return false;
+        }
+
+        if (toDate) {
+          const toDateTime = new Date(toDate);
+          toDateTime.setHours(23, 59, 59, 999); // End of day
+          if (quizStartDate > toDateTime) return false;
+        }
+      }
+
+      //console.log('Quiz:', quiz.title, 'Type:', quiz.type, 'Matches Tab:', matchesTab);
       return true;
     });
 
-    console.log('Filtered quizzes:', filtered.length);
+    //console.log('Filtered quizzes:', filtered.length);
     return filtered;
   };
 
@@ -227,10 +272,10 @@ const AdminQuizzes = () => {
     try {
       // Use the correct endpoints for quiz deletion
       const endpoint = quiz.type === 'event' ? '/api/event-quiz' : '/api/quiz';
-      console.log(`🗑️ Deleting ${quiz.type} quiz with ID: ${quiz._id} using endpoint: ${endpoint}/${quiz._id}`);
+      //console.log(`🗑️ Deleting ${quiz.type} quiz with ID: ${quiz._id} using endpoint: ${endpoint}/${quiz._id}`);
 
       await api.delete(`${endpoint}/${quiz._id}`);
-      console.log('✅ Quiz deleted successfully');
+      //console.log('✅ Quiz deleted successfully');
 
       setDeleteDialog({ open: false, quiz: null });
       fetchQuizzes(); // Refresh the list
@@ -286,7 +331,7 @@ const AdminQuizzes = () => {
       <AcademicFilter
         filters={filters}
         onFilterChange={handleAcademicFilterChange}
-        onClearFilters={clearFilters}
+        onClearFilters={handleClearAllFilters}
         showFilters={tabValue === 0 ? ['search', 'department', 'year', 'semester'] : ['search']}
         title={`${tabValue === 0 ? 'Academic' : 'Event'} Quiz Filters`}
         showRefreshButton={true}
@@ -300,6 +345,26 @@ const AdminQuizzes = () => {
             value={filters.searchText || ''}
             onChange={(e) => handleFilterChange('searchText', e.target.value)}
             placeholder={tabValue === 0 ? "Enter subject name or code" : "Enter quiz title"}
+          />,
+          <TextField
+            key="fromDate"
+            size="small"
+            type="date"
+            label="From Date"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={{ minWidth: 150 }}
+          />,
+          <TextField
+            key="toDate"
+            size="small"
+            type="date"
+            label="To Date"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            sx={{ minWidth: 150 }}
           />
         ]}
       />
@@ -314,7 +379,7 @@ const AdminQuizzes = () => {
         </Typography>
 
         {/* Show active filters */}
-        {(filters.searchText || filters.year || filters.department || filters.semester) && (
+        {(filters.searchText || filters.year || filters.department || filters.semester || fromDate || toDate) && (
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             {filters.searchText && (
               <Chip
@@ -344,6 +409,20 @@ const AdminQuizzes = () => {
                 onDelete={() => handleFilterChange('semester', '')}
               />
             )}
+            {fromDate && (
+              <Chip
+                label={`From: ${new Date(fromDate).toLocaleDateString()}`}
+                size="small"
+                onDelete={() => setFromDate('')}
+              />
+            )}
+            {toDate && (
+              <Chip
+                label={`To: ${new Date(toDate).toLocaleDateString()}`}
+                size="small"
+                onDelete={() => setToDate('')}
+              />
+            )}
           </Box>
         )}
       </Box>
@@ -354,6 +433,8 @@ const AdminQuizzes = () => {
             <TableRow>
               <TableCell>Title</TableCell>
               {tabValue === 0 && <TableCell>Subject</TableCell>}
+              <TableCell>Created By</TableCell>
+              <TableCell>QUALIFIED STUDENTS</TableCell>
               <TableCell>Duration</TableCell>
               <TableCell>Start Time</TableCell>
               <TableCell>End Time</TableCell>
@@ -373,6 +454,28 @@ const AdminQuizzes = () => {
                         {quiz.subject?.name || quiz.subject?.code || 'N/A'}
                       </TableCell>
                     )}
+                    <TableCell>
+                      <Tooltip title={quiz.createdBy?.email || 'Unknown'}>
+                        <Chip
+                          label={quiz.createdBy?.name || 'Unknown'}
+                          size="small"
+                          variant="outlined"
+                          color="primary"
+                        />
+                      </Tooltip>
+                    </TableCell>
+                    <TableCell>
+                      <Tooltip title={formatTargetAudience(quiz)}>
+                        <Typography variant="body2" sx={{
+                          maxWidth: 200,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {formatTargetAudience(quiz)}
+                        </Typography>
+                      </Tooltip>
+                    </TableCell>
                     <TableCell>{quiz.duration} minutes</TableCell>
                     <TableCell>{formatDateTime(quiz.startTime)}</TableCell>
                     <TableCell>{formatDateTime(quiz.endTime)}</TableCell>

@@ -155,9 +155,9 @@ const QuizLogin = () => {
   const fetchQuizInfo = async () => {
     try {
       const response = await api.get(`/api/event-quiz/public`);
-      console.log('Full response:', response);
-      console.log('Response data:', response.data);
-      console.log('Response data type:', typeof response.data);
+      //console.log('Full response:', response);
+      //console.log('Response data:', response.data);
+      //console.log('Response data type:', typeof response.data);
 
       // Handle different response formats
       let quizzes = null;
@@ -171,13 +171,13 @@ const QuizLogin = () => {
       if (quizzes && Array.isArray(quizzes)) {
         const quiz = quizzes.find(q => q._id === quizId);
         setQuizInfo(quiz);
-        console.log('Found quiz:', quiz);
+        //console.log('Found quiz:', quiz);
       } else {
         console.error('Invalid response format. Expected array, got:', typeof quizzes, quizzes);
         // Try to fetch individual quiz as fallback
         try {
           const individualResponse = await api.get(`/api/event-quiz/${quizId}/public-access`);
-          console.log('Individual quiz response:', individualResponse);
+          //console.log('Individual quiz response:', individualResponse);
           if (individualResponse.data && individualResponse.data.quiz) {
             setQuizInfo(individualResponse.data.quiz);
           }

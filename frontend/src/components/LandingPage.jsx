@@ -57,7 +57,7 @@ const setCachedData = (adminButtonState) => {
 const clearCache = () => {
   try {
     sessionStorage.removeItem(CACHE_KEY);
-    console.log('🗑️ Landing page cache cleared');
+    //console.log('🗑️ Landing page cache cleared');
   } catch (error) {
     console.error('Error clearing cache:', error);
   }
@@ -69,27 +69,27 @@ const isPageReload = () => {
     const navEntries = performance.getEntriesByType('navigation');
     if (navEntries.length > 0) {
       const navType = navEntries[0].type;
-      console.log('🔍 Navigation type:', navType);
+      //console.log('🔍 Navigation type:', navType);
       return navType === 'reload';
     }
   }
 
   // Fallback: Legacy performance.navigation
   if (performance.navigation && performance.navigation.type === 1) {
-    console.log('🔍 Legacy navigation type: reload');
+    //console.log('🔍 Legacy navigation type: reload');
     return true;
   }
 
   // Check if this is navigation return
   const isNavigation = sessionStorage.getItem(NAVIGATION_KEY);
   if (isNavigation === 'true') {
-    console.log('🔍 Navigation return detected');
+    //console.log('🔍 Navigation return detected');
     sessionStorage.removeItem(NAVIGATION_KEY);
     return false;
   }
 
   // Default: treat as reload/fresh load
-  console.log('🔍 Default: treating as reload/fresh load');
+  //console.log('🔍 Default: treating as reload/fresh load');
   return true;
 };
 
@@ -122,7 +122,7 @@ const LandingPage = () => {
     isSetup: false
   });
 
-  console.log('🚀 LandingPage render - loading:', loading, 'showContent:', showContent);
+  //console.log('🚀 LandingPage render - loading:', loading, 'showContent:', showContent);
 
   // Set navigation flag when component mounts (for future navigation)
   useEffect(() => {
@@ -175,15 +175,15 @@ const LandingPage = () => {
       const isReload = isPageReload();
       const cachedData = getCachedData();
 
-      console.log('🔍 Landing Page Debug:', {
-        isReload,
-        hasCachedData: !!cachedData,
-        navigationType: performance.navigation?.type,
-        navigationFlag: sessionStorage.getItem(NAVIGATION_KEY)
-      });
+      //console.log('🔍 Landing Page Debug:', {
+      //   isReload,
+      //   hasCachedData: !!cachedData,
+      //   navigationType: performance.navigation?.type,
+      //   navigationFlag: sessionStorage.getItem(NAVIGATION_KEY)
+      // });
 
       if (cachedData && !isReload) {
-        console.log('📋 Using cached landing page data (navigation)');
+        //console.log('📋 Using cached landing page data (navigation)');
         setShowAdminButton(cachedData.adminButtonState);
         setLoading(false);
         setShowContent(true);
@@ -191,11 +191,11 @@ const LandingPage = () => {
       }
 
       if (isReload) {
-        console.log('🔄 Page reload detected - showing loading animation');
+        //console.log('🔄 Page reload detected - showing loading animation');
         // Clear cache on reload to ensure fresh data
         clearCache();
       } else {
-        console.log('🔄 Loading fresh landing page data');
+        //console.log('🔄 Loading fresh landing page data');
       }
 
       // Show loading sequence for college info data only
@@ -209,11 +209,11 @@ const LandingPage = () => {
           setLoadingMessage('Loading college information...');
           setLoadingProgress(30);
 
-          console.log('🏫 Fetching college info from /api/setup/college-info...');
+          //console.log('🏫 Fetching college info from /api/setup/college-info...');
 
           // Make the actual API call to fetch college info
           const response = await api.get('/api/setup/college-info');
-          console.log('✅ College info fetched successfully:', response);
+          //console.log('✅ College info fetched successfully:', response);
 
           // Update college info state with fetched data
           setCollegeInfo({

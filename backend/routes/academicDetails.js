@@ -59,6 +59,7 @@ router.get('/', async (req, res) => {
 
     const academicDetails = await AcademicDetail.find(query)
       .sort({ department: 1, year: 1, semester: 1 });
+
     res.json(academicDetails);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching academic details', error: error.message });

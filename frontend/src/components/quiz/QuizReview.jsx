@@ -40,7 +40,7 @@ const QuizReview = () => {
         
         // First fetch quiz details
         const quizResponse = await api.get(`/api/quiz/${id}`);
-        console.log('Quiz response:', quizResponse);
+        //console.log('Quiz response:', quizResponse);
         
         if (!quizResponse || !quizResponse.title) {
           throw new Error('Failed to load quiz data');
@@ -56,7 +56,7 @@ const QuizReview = () => {
           } else {
             submissionResponse = await api.get(`/api/quiz/${id}/submission`);
           }
-          console.log('Submission response:', submissionResponse);
+          //console.log('Submission response:', submissionResponse);
 
           if (!submissionResponse) {
             throw new Error('No submission found');
@@ -97,29 +97,29 @@ const QuizReview = () => {
 
   // Add debug logging
   useEffect(() => {
-    console.log('QuizReview rendered with:', {
-      quizData,
-      submission,
-      loading,
-      error
-    });
+    //console.log('QuizReview rendered with:', {
+    //   quizData,
+    //   submission,
+    //   loading,
+    //   error
+    // });
   }, [quizData, submission, loading, error]);
 
   const getAnswerStatus = (question, selectedOption) => {
     if (!submission?.answers) {
-      console.log('No answers in submission');
+      //console.log('No answers in submission');
       return 'not-answered';
     }
     const answer = submission.answers.find(a => a.questionId === question._id);
     if (!answer) {
-      console.log(`No answer found for question ${question._id}`);
+      //console.log(`No answer found for question ${question._id}`);
       return 'not-answered';
     }
     return answer.isCorrect ? 'correct' : 'incorrect';
   };
 
   if (loading) {
-    console.log('Rendering loading state');
+    //console.log('Rendering loading state');
     return (
       <Container sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
         <CircularProgress />
@@ -128,7 +128,7 @@ const QuizReview = () => {
   }
 
   if (error) {
-    console.log('Rendering error state:', error);
+    //console.log('Rendering error state:', error);
     return (
       <Container sx={{ mt: 4 }}>
         <Alert severity="error">{error}</Alert>
@@ -137,7 +137,7 @@ const QuizReview = () => {
   }
 
   if (!quizData || !submission) {
-    console.log('Missing data:', { quizData, submission });
+    //console.log('Missing data:', { quizData, submission });
     return (
       <Container sx={{ mt: 4 }}>
         <Alert severity="warning">No quiz data or submission found.</Alert>
@@ -145,10 +145,10 @@ const QuizReview = () => {
     );
   }
 
-  console.log('Rendering quiz review with:', {
-    questions: quizData?.questions?.length,
-    answers: submission?.answers?.length
-  });
+  //console.log('Rendering quiz review with:', {
+  //   questions: quizData?.questions?.length,
+  //   answers: submission?.answers?.length
+  // });
 
   return (
     <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>

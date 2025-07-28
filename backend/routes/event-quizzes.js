@@ -9,16 +9,15 @@ const User = require('../models/User');
 router.get('/', auth, authorize(['event', 'admin']), async (req, res) => {
   try {
     const query = { type: 'event' };
-    
+
     // If not admin, only show own quizzes
     if (req.userRole !== 'admin') {
       query.createdBy = req.user._id;
     }
 
     const quizzes = await Quiz.find(query)
+      .populate('createdBy', 'name email department')
       .sort({ createdAt: -1 });
-    
-    console.log('Fetched event quizzes:', quizzes.length);
     res.json(quizzes);
   } catch (error) {
     console.error('Error fetching event quizzes:', error);

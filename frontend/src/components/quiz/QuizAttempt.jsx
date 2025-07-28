@@ -132,14 +132,14 @@ const QuizAttempt = () => {
         setLoading(true);
         setError(null);
         
-        console.log('Fetching quiz details for ID:', id);
+        //console.log('Fetching quiz details for ID:', id);
         
         // First fetch quiz details
         const quizResponse = await api.get(`/api/quiz/${id}`);
         if (!isMounted) return;
         
-        console.log('Quiz response:', quizResponse);
-        console.log('🔒 Quiz security settings from backend:', quizResponse.securitySettings);
+        //console.log('Quiz response:', quizResponse);
+        //console.log('🔒 Quiz security settings from backend:', quizResponse.securitySettings);
 
         if (!quizResponse || !quizResponse.title) {
           throw new Error('Invalid quiz data received');
@@ -150,15 +150,15 @@ const QuizAttempt = () => {
 
         // Check for existing submission first
         try {
-          console.log('Checking for existing submission');
+          //console.log('Checking for existing submission');
           const existingSubmission = await api.get(`/api/quiz/${id}/submission`);
           if (!isMounted) return;
 
-          console.log('Existing submission:', existingSubmission);
+          //console.log('Existing submission:', existingSubmission);
 
           if (existingSubmission.status === 'started') {
             // Resume the ongoing attempt
-            console.log('Resuming ongoing attempt');
+            //console.log('Resuming ongoing attempt');
             setSubmission(existingSubmission);
             const endTime = new Date(existingSubmission.startTime).getTime() + quizResponse.duration * 60000;
             const now = new Date().getTime();
@@ -166,24 +166,24 @@ const QuizAttempt = () => {
             setTimeLeft(remainingTime);
           } else {
             // If submission is completed or evaluated, redirect to review
-            console.log('Submission already completed, redirecting to review');
+            //console.log('Submission already completed, redirecting to review');
             navigate(`/student/quizzes/${id}/review`);
             return;
           }
         } catch (submissionError) {
-          console.log('No existing submission found, starting new attempt');
+          //console.log('No existing submission found, starting new attempt');
           // No existing submission found, try to start new attempt
           try {
             const newSubmission = await api.post(`/api/quiz/${id}/start`);
             if (!isMounted) return;
             
-            console.log('New submission created:', newSubmission);
+            //console.log('New submission created:', newSubmission);
             setSubmission(newSubmission);
             setTimeLeft(quizResponse.duration * 60);
           } catch (startError) {
             console.error('Error starting quiz:', startError);
             if (startError.response?.status === 400 && startError.response?.data?.message === 'Quiz already attempted') {
-              console.log('Quiz already attempted, redirecting to review');
+              //console.log('Quiz already attempted, redirecting to review');
               navigate(`/student/quizzes/${id}/review`);
               return;
             }
@@ -219,9 +219,9 @@ const QuizAttempt = () => {
   useEffect(() => {
     const fetchCollegeSettings = async () => {
       try {
-        console.log('🔧 Fetching college settings for QuizAttempt...');
+        //console.log('🔧 Fetching college settings for QuizAttempt...');
         const response = await api.get('/api/admin/quiz-settings');
-        console.log('🔧 College settings response:', response);
+        //console.log('🔧 College settings response:', response);
         setCollegeSettings(response);
       } catch (error) {
         console.error('Error fetching college settings:', error);
@@ -1208,9 +1208,11 @@ const QuizAttempt = () => {
       {/* Score Summary Dialog */}
       <Dialog
         open={showScoreSummary}
-        onClose={() => setShowScoreSummary(false)}
+        onClose={() => {}} // Prevent closing without action
         maxWidth="sm"
         fullWidth
+        disableEscapeKeyDown
+        disableBackdropClick // Prevent closing when clicking outside
       >
         <DialogTitle>
           Quiz Completed!
@@ -1230,7 +1232,16 @@ const QuizAttempt = () => {
             </Box>
           )}
         </DialogContent>
-        <DialogActions sx={{ p: 2, justifyContent: 'center' }}>
+        <DialogActions sx={{ p: 2, justifyContent: 'center', gap: 2 }}>
+          <Button
+            variant="outlined"
+            color="primary"
+            onClick={() => navigate('/student')}
+            size="large"
+            startIcon={<ArrowBackIcon />}
+          >
+            Go Home
+          </Button>
           <Button
             variant="contained"
             color="primary"

@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const User = require('../models/User');
-const EventQuizAccount = require('../models/EventQuizAccount');
+// EventQuizAccount model removed - now using User model with role: 'event'
 const { auth } = require('../middleware/auth');
 const { authorize } = require('../middleware/authorize');
 const { sendForgotPasswordEmail } = require('../services/emailService');
@@ -101,16 +101,9 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // First try to find user in EventQuizAccount model
-    let user = await EventQuizAccount.findOne({ email: email.toLowerCase() });
-    let isEventAccount = false;
-
-    // If not found in EventQuizAccount model, check User model
-    if (!user) {
-      user = await User.findOne({ email: email.toLowerCase() });
-    } else {
-      isEventAccount = true;
-    }
+    // All users are now in the User model (including event users with role: 'event')
+    const user = await User.findOne({ email: email.toLowerCase() });
+    const isEventAccount = user?.role === 'event';
 
     if (!user) {
       return res.status(404).json({
@@ -120,11 +113,19 @@ router.post('/login', async (req, res) => {
     }
 
     // Check password
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      return res.status(401).json({
+    try {
+      const isMatch = await user.comparePassword(password);
+      if (!isMatch) {
+        return res.status(401).json({
+          success: false,
+          message: 'Incorrect password. Please try again.'
+        });
+      }
+    } catch (passwordError) {
+      console.error('Password comparison failed:', passwordError.message);
+      return res.status(500).json({
         success: false,
-        message: 'Incorrect password. Please try again.'
+        message: 'Authentication error. Please contact support if this persists.'
       });
     }
 
@@ -193,25 +194,19 @@ router.post('/login', async (req, res) => {
 // Get current user
 router.get('/me', auth, async (req, res) => {
   try {
-    console.log('GET /me - Fetching user details:', {
-      userId: req.user._id,
-      isEventAccount: req.isEventAccount,
-      timestamp: new Date().toISOString()
-    });
+    //console.log('GET /me - Fetching user details:', {
+    //   userId: req.user._id,
+    //   isEventAccount: req.isEventAccount,
+    //   timestamp: new Date().toISOString()
+    // });
 
-    let user;
-    if (req.isEventAccount) {
-      user = await EventQuizAccount.findById(req.user._id)
-        .select('-password -originalPassword')
-        .lean();
-    } else {
-      user = await User.findById(req.user._id)
-        .select('-password')
-        .lean();
-    }
+    // All users are now in the User model (including event users with role: 'event')
+    const user = await User.findById(req.user._id)
+      .select('-password')
+      .lean();
     
     if (!user) {
-      console.log('GET /me - User not found in database');
+      //console.log('GET /me - User not found in database');
       return res.status(404).json({ message: 'User not found' });
     }
 
@@ -220,23 +215,23 @@ router.get('/me', auth, async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
     const currentTimestamp = Math.floor(Date.now() / 1000);
 
-    console.log('GET /me - Token verification:', {
-      userId: decoded.userId,
-      expiration: new Date(decoded.exp * 1000).toISOString(),
-      currentTime: new Date().toISOString(),
-      isExpired: decoded.exp < currentTimestamp
-    });
+    //console.log('GET /me - Token verification:', {
+    //   userId: decoded.userId,
+    //   expiration: new Date(decoded.exp * 1000).toISOString(),
+    //   currentTime: new Date().toISOString(),
+    //   isExpired: decoded.exp < currentTimestamp
+    // });
 
     if (decoded.exp < currentTimestamp) {
-      console.log('GET /me - Token has expired');
+      //console.log('GET /me - Token has expired');
       return res.status(401).json({ message: 'Token has expired' });
     }
 
-    console.log('GET /me - Sending user data:', {
-      userId: user._id,
-      role: req.isEventAccount ? 'event' : user.role,
-      timestamp: new Date().toISOString()
-    });
+    //console.log('GET /me - Sending user data:', {
+    //   userId: user._id,
+    //   role: req.isEventAccount ? 'event' : user.role,
+    //   timestamp: new Date().toISOString()
+    // });
 
     // Prepare response based on account type
     const userResponse = req.isEventAccount ? {
@@ -496,13 +491,13 @@ router.put('/change-password', auth, async (req, res) => {
 //       });
       
 //       await adminUser.save();
-//       console.log('Admin user created successfully');
+//       //console.log('Admin user created successfully');
 //     } else {
 //       // Update admin's password to the correct hash
 //       adminUser.password = hashedPassword;
 //       adminUser.originalPassword = password;
 //       await adminUser.save();
-//       console.log('Admin user password updated successfully');
+//       //console.log('Admin user password updated successfully');
 //     }
 //   } catch (error) {
 //     console.error('Error managing admin account:', error);
@@ -550,37 +545,31 @@ router.post('/forgot-password', async (req, res) => {
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
     const resetCodeExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    console.log(`🔐 Generated reset code for ${user.email}:`, {
-      code: resetCode,
-      expiryTime: resetCodeExpiry.toISOString(),
-      currentTime: new Date().toISOString(),
-      expiresInMinutes: Math.round((resetCodeExpiry - new Date()) / (1000 * 60))
-    });
+    //console.log(`🔐 Generated reset code for ${user.email}:`, {
+    //   code: resetCode,
+    //   expiryTime: resetCodeExpiry.toISOString(),
+    //   currentTime: new Date().toISOString(),
+    //   expiresInMinutes: Math.round((resetCodeExpiry - new Date()) / (1000 * 60))
+    // });
 
     // Save reset code to user
     user.resetPasswordCode = resetCode;
     user.resetPasswordExpiry = resetCodeExpiry;
     await user.save();
 
-    console.log(`💾 Reset code saved to database for ${user.email}`);
+    //console.log(`💾 Reset code saved to database for ${user.email}`);
 
     // Verify the save worked
     const savedUser = await User.findOne({ email: user.email });
-    console.log(`🔍 Verification - saved data:`, {
-      email: savedUser.email,
-      hasResetCode: !!savedUser.resetPasswordCode,
-      resetCode: savedUser.resetPasswordCode,
-      resetCodeExpiry: savedUser.resetPasswordExpiry?.toISOString(),
-      isExpired: savedUser.resetPasswordExpiry ? savedUser.resetPasswordExpiry < new Date() : 'NO_EXPIRY_SET'
-    });
+
 
     // Send email with reset code
     try {
-      console.log(`📧 Attempting to send reset email to: ${user.email}`);
+      //console.log(`📧 Attempting to send reset email to: ${user.email}`);
       await sendForgotPasswordEmail(user.email, user.name, resetCode);
-      console.log(`✅ Reset email sent successfully to: ${user.email}`);
+      //console.log(`✅ Reset email sent successfully to: ${user.email}`);
 
-      console.log(`📤 Sending success response to frontend...`);
+      //console.log(`📤 Sending success response to frontend...`);
       return res.json({
         success: true,
         message: 'Password reset code sent to your email'
@@ -596,9 +585,9 @@ router.post('/forgot-password', async (req, res) => {
 
       // Since you mentioned the email is actually being sent, let's return success
       // The reset code is saved in the database, so the user can still proceed
-      console.log(`⚠️ Email error occurred but reset code is saved. Code: ${resetCode}`);
+      //console.log(`⚠️ Email error occurred but reset code is saved. Code: ${resetCode}`);
 
-      console.log(`📤 Sending success response to frontend (despite email error)...`);
+      //console.log(`📤 Sending success response to frontend (despite email error)...`);
       return res.json({
         success: true,
         message: 'Password reset code sent to your email'
@@ -615,7 +604,7 @@ router.post('/forgot-password', async (req, res) => {
 
     // Check if response was already sent
     if (res.headersSent) {
-      console.log('⚠️ Response already sent, cannot send error response');
+      //console.log('⚠️ Response already sent, cannot send error response');
       return;
     }
 
@@ -631,7 +620,7 @@ router.post('/verify-reset-code', async (req, res) => {
   try {
     const { email, code } = req.body;
 
-    console.log(`🔍 Verifying reset code for email: ${email}, code: ${code}`);
+
 
     if (!email || !code) {
       return res.status(400).json({
@@ -644,23 +633,14 @@ router.post('/verify-reset-code', async (req, res) => {
     const userWithResetData = await User.findOne({ email: email.toLowerCase() });
 
     if (!userWithResetData) {
-      console.log(`❌ No user found with email: ${email}`);
+      //console.log(`❌ No user found with email: ${email}`);
       return res.status(400).json({
         success: false,
         message: 'Invalid or expired reset code'
       });
     }
 
-    console.log(`🔍 User found. Reset data:`, {
-      email: userWithResetData.email,
-      storedCode: userWithResetData.resetPasswordCode,
-      providedCode: code,
-      codeMatch: userWithResetData.resetPasswordCode === code,
-      storedExpiry: userWithResetData.resetPasswordExpiry?.toISOString(),
-      currentTime: new Date().toISOString(),
-      isExpired: userWithResetData.resetPasswordExpiry ? userWithResetData.resetPasswordExpiry < new Date() : 'NO_EXPIRY_SET',
-      timeRemaining: userWithResetData.resetPasswordExpiry ? Math.round((userWithResetData.resetPasswordExpiry - new Date()) / (1000 * 60)) : 'NO_EXPIRY_SET'
-    });
+
 
     // Now check with the original query
     const user = await User.findOne({
@@ -670,10 +650,10 @@ router.post('/verify-reset-code', async (req, res) => {
     });
 
     if (!user) {
-      console.log(`❌ Verification failed. Possible reasons:`);
-      console.log(`   - Code mismatch: ${userWithResetData.resetPasswordCode !== code}`);
-      console.log(`   - Code expired: ${userWithResetData.resetPasswordExpiry ? userWithResetData.resetPasswordExpiry < new Date() : 'NO_EXPIRY_SET'}`);
-      console.log(`   - No reset code set: ${!userWithResetData.resetPasswordCode}`);
+      //console.log(`❌ Verification failed. Possible reasons:`);
+      //console.log(`   - Code mismatch: ${userWithResetData.resetPasswordCode !== code}`);
+      //console.log(`   - Code expired: ${userWithResetData.resetPasswordExpiry ? userWithResetData.resetPasswordExpiry < new Date() : 'NO_EXPIRY_SET'}`);
+      //console.log(`   - No reset code set: ${!userWithResetData.resetPasswordCode}`);
 
       return res.status(400).json({
         success: false,
@@ -681,7 +661,7 @@ router.post('/verify-reset-code', async (req, res) => {
       });
     }
 
-    console.log(`✅ Reset code verified successfully for: ${email}`);
+    //console.log(`✅ Reset code verified successfully for: ${email}`);
     res.json({
       success: true,
       message: 'Reset code verified successfully'
@@ -715,7 +695,7 @@ router.post('/reset-password', async (req, res) => {
       });
     }
 
-    console.log(`🔐 Attempting password reset for email: ${email}, code: ${code}`);
+    //console.log(`🔐 Attempting password reset for email: ${email}, code: ${code}`);
 
     const user = await User.findOne({
       email: email.toLowerCase(),
@@ -724,18 +704,12 @@ router.post('/reset-password', async (req, res) => {
     });
 
     if (!user) {
-      console.log(`❌ Password reset failed - invalid or expired code for: ${email}`);
+      //console.log(`❌ Password reset failed - invalid or expired code for: ${email}`);
 
       // Let's check what's in the database
       const userCheck = await User.findOne({ email: email.toLowerCase() });
       if (userCheck) {
-        console.log(`🔍 User exists but reset failed. Reset data:`, {
-          storedCode: userCheck.resetPasswordCode,
-          providedCode: code,
-          storedExpiry: userCheck.resetPasswordExpiry?.toISOString(),
-          currentTime: new Date().toISOString(),
-          isExpired: userCheck.resetPasswordExpiry ? userCheck.resetPasswordExpiry < new Date() : 'NO_EXPIRY_SET'
-        });
+
       }
 
       return res.status(400).json({
@@ -744,7 +718,7 @@ router.post('/reset-password', async (req, res) => {
       });
     }
 
-    console.log(`✅ Password reset validation successful for: ${email}`);
+    //console.log(`✅ Password reset validation successful for: ${email}`);
 
     // Hash new password
     const salt = await bcrypt.genSalt(10);

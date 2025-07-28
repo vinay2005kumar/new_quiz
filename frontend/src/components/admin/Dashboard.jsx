@@ -57,7 +57,7 @@ const Dashboard = () => {
           api.get('/api/admin/submissions')
         ]);
 
-        console.log('Admin stats response:', statsResponse);
+        //console.log('Admin stats response:', statsResponse);
 
         // Process user counts by role
         const users = usersResponse || [];
@@ -404,16 +404,6 @@ const Dashboard = () => {
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 Participation Rate
-              </Typography>
-            </Box>
-          </Grid>
-          <Grid item xs={12} sm={4}>
-            <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="h4" color="success.main" sx={{ fontWeight: 700 }}>
-                {stats.recentActivity.length}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Recent Activities
               </Typography>
             </Box>
           </Grid>

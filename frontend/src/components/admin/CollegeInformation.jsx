@@ -404,7 +404,7 @@ const CollegeInformation = () => {
                       right: 0,
                       bottom: 0,
                       background: 'linear-gradient(180deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
-                      backdropFilter: 'blur(5px)',
+                      backdropFilter: 'blur(2px)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center'

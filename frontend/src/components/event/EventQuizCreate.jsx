@@ -31,7 +31,11 @@ import {
   RadioGroup,
   FormHelperText,
   useTheme,
-  useMediaQuery
+  useMediaQuery,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import { ArrowBack as ArrowBackIcon } from '@mui/icons-material'
 import api from '../../config/axios';
@@ -89,7 +93,6 @@ const EventQuizCreate = () => {
     duration: 30,
     participantTypes: ['college'],
     maxParticipants: 0,
-    passingMarks: 0,
     registrationEnabled: true,
     spotRegistrationEnabled: false,
     negativeMarkingEnabled: false,
@@ -104,6 +107,7 @@ const EventQuizCreate = () => {
     teamSize: 2,
     questionDisplayMode: 'one-by-one', // 'one-by-one' or 'all-at-once'
     emailInstructions: 'Please login with the provided credentials 10-15 minutes before the quiz starts. Ensure you have a stable internet connection.',
+    sendEmailNotification: false, // Default to false (OFF)
     questions: [],
     departments: ['all'],
     years: ['all'],
@@ -114,7 +118,8 @@ const EventQuizCreate = () => {
     randomizeQuestionsPerStudent: false
   });
 
-
+  // Email confirmation dialog state
+  const [emailConfirmDialog, setEmailConfirmDialog] = useState(false);
 
   const steps = ['Basic Details', 'Questions', 'Review'];
 
@@ -160,38 +165,38 @@ const EventQuizCreate = () => {
 
   // Handle query parameters for pre-filled students
   useEffect(() => {
-    console.log('🔍 Checking query parameters...');
-    console.log('Current location search:', location.search);
+    //console.log('🔍 Checking query parameters...');
+    //console.log('Current location search:', location.search);
 
     const searchParams = new URLSearchParams(location.search);
     const prefilledStudentsParam = searchParams.get('prefilledStudents');
     const disableRegistrationParam = searchParams.get('disableRegistration');
     const sourceQuizParam = searchParams.get('sourceQuiz');
 
-    console.log('Query params:', {
-      prefilledStudentsParam,
-      disableRegistrationParam,
-      sourceQuizParam
-    });
+    //console.log('Query params:', {
+    //   prefilledStudentsParam,
+    //   disableRegistrationParam,
+    //   sourceQuizParam
+    // });
 
     if (prefilledStudentsParam) {
       try {
         const studentData = JSON.parse(prefilledStudentsParam);
         setPrefilledStudents(studentData);
-        console.log('✅ DEBUG: Pre-filled students loaded successfully!');
-        console.log('📊 Student count:', studentData.length);
-        console.log('📋 First student sample:', studentData[0]);
-        console.log('📋 All student data:', studentData);
+        //console.log('✅ DEBUG: Pre-filled students loaded successfully!');
+        //console.log('📊 Student count:', studentData.length);
+        //console.log('📋 First student sample:', studentData[0]);
+        //console.log('📋 All student data:', studentData);
       } catch (error) {
         console.error('❌ DEBUG: Error parsing pre-filled students:', error);
         console.error('❌ Raw data that failed to parse:', prefilledStudentsParam);
       }
     } else {
-      console.log('⚠️ DEBUG: No prefilledStudents parameter found');
+      //console.log('⚠️ DEBUG: No prefilledStudents parameter found');
     }
 
     if (disableRegistrationParam === 'true') {
-      console.log('🔒 Registration disabled for pre-selected students');
+      //console.log('🔒 Registration disabled for pre-selected students');
       setIsRegistrationDisabled(true);
       setFormData(prev => ({
         ...prev,
@@ -201,7 +206,7 @@ const EventQuizCreate = () => {
     }
 
     if (sourceQuizParam) {
-      console.log('📚 Source quiz:', sourceQuizParam);
+      //console.log('📚 Source quiz:', sourceQuizParam);
       setSourceQuizTitle(sourceQuizParam);
       setFormData(prev => ({
         ...prev,
@@ -216,7 +221,7 @@ const EventQuizCreate = () => {
     const fetchAcademicStructure = async () => {
       try {
         setLoading(true);
-        console.log('Fetching academic structure...');
+        //console.log('Fetching academic structure...');
 
         // Fetch departments from college settings (now public)
         const deptResponse = await api.get('/api/admin/settings/departments');
@@ -227,7 +232,7 @@ const EventQuizCreate = () => {
 
         // Fetch academic details for years and semesters
         const response = await api.get('/api/academic-details');
-        console.log('Academic structure response:', response);
+        //console.log('Academic structure response:', response);
 
         if (response && Array.isArray(response)) {
           // Extract unique departments from academic details as fallback
@@ -244,7 +249,7 @@ const EventQuizCreate = () => {
             semesters: ['all', ...semesters.map(String)]
           });
           setAcademicDetails(response);
-          console.log('Updated academic structure:', { departments: finalDepartments, years, semesters });
+          //console.log('Updated academic structure:', { departments: finalDepartments, years, semesters });
         } else {
           console.warn('Using default academic structure');
           setAcademicStructure({
@@ -269,7 +274,7 @@ const EventQuizCreate = () => {
   }, []);
 
   const handleEligibilityChange = (field, value) => {
-    console.log('Handling eligibility change:', field, value);
+    //console.log('Handling eligibility change:', field, value);
 
     let newValue;
 
@@ -433,6 +438,42 @@ const EventQuizCreate = () => {
                   rows={3}
                   helperText="Special instructions to be included in the registration confirmation email"
                 />
+              </Grid>
+
+              {/* Email Notification Toggle */}
+              <Grid item xs={12}>
+                <FormGroup>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={formData.sendEmailNotification === true} // Default to false (OFF)
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            // Show confirmation dialog immediately when enabling
+                            setEmailConfirmDialog(true);
+                          } else {
+                            // Disable without confirmation
+                            setFormData(prev => ({
+                              ...prev,
+                              sendEmailNotification: false
+                            }));
+                          }
+                        }}
+                        name="sendEmailNotification"
+                        color="primary"
+                      />
+                    }
+                    label="📧 Send Email Notifications to Registered Participants"
+                  />
+                  <Typography variant="caption" color="text.secondary" sx={{ ml: 4, mt: 0.5 }}>
+                    When enabled, participants will receive email notifications with login credentials when they register.
+                    {formData.sendEmailNotification === true && (
+                      <span style={{ color: '#4caf50', fontWeight: 'bold' }}>
+                        {' '}✅ Email notifications will be sent to participants.
+                      </span>
+                    )}
+                  </Typography>
+                </FormGroup>
               </Grid>
             </Grid>
           </Card>
@@ -1198,6 +1239,7 @@ const EventQuizCreate = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     try {
       setLoading(true);
       setError('');
@@ -1232,8 +1274,8 @@ const EventQuizCreate = () => {
 
       console.log('🚀 DEBUG: Submitting quiz data to backend:');
       console.log('📊 Quiz title:', quizData.title);
-      console.log('📊 Prefilled students count:', prefilledStudents.length);
-      console.log('📊 Source quiz:', sourceQuizTitle);
+      console.log('📧 Email notification setting:', quizData.sendEmailNotification);
+      console.log('📊 Form data sendEmailNotification:', formData.sendEmailNotification);
       console.log('📊 Full quiz data:', quizData);
 
       // Create the quiz
@@ -1343,8 +1385,77 @@ const EventQuizCreate = () => {
           </Box>
         </form>
       </Paper>
+
+
+      {/* Email Confirmation Dialog */}
+      <Dialog
+        open={emailConfirmDialog || false}
+        onClose={() => setEmailConfirmDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          📧 Send Email Notifications?
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" gutterBottom>
+            Do you want to send email notifications for this quiz creation?
+          </Typography>
+
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            This will send emails to college students matching your selected criteria:
+          </Typography>
+
+          <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+            <Typography variant="body2" sx={{ fontWeight: 'bold', mb: 1 }}>
+              📊 Email will be sent to:
+            </Typography>
+            <Typography variant="body2">
+              • <strong>Departments:</strong> {formData.departments.includes('all') ? 'All Departments' : formData.departments.join(', ')}
+            </Typography>
+            <Typography variant="body2">
+              • <strong>Years:</strong> {formData.years.includes('all') ? 'All Years' : formData.years.map(y => `Year ${y}`).join(', ')}
+            </Typography>
+            <Typography variant="body2">
+              • <strong>Semesters:</strong> {formData.semesters.includes('all') ? 'All Semesters' : formData.semesters.map(s => `Semester ${s}`).join(', ')}
+            </Typography>
+          </Box>
+
+          <Alert severity="info" sx={{ mt: 2 }}>
+            <Typography variant="body2">
+              <strong>Note:</strong> Only college students will receive emails. External students will be notified when they register.
+            </Typography>
+          </Alert>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setEmailConfirmDialog(false);
+              // Keep toggle OFF
+            }}
+            color="secondary"
+            variant="outlined"
+          >
+            No, Don't Send
+          </Button>
+          <Button
+            onClick={() => {
+              setEmailConfirmDialog(false);
+              // Enable email notifications
+              setFormData(prev => ({
+                ...prev,
+                sendEmailNotification: true
+              }));
+            }}
+            color="primary"
+            variant="contained"
+          >
+            Yes, Send Emails
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };
 
-export default EventQuizCreate; 
+export default EventQuizCreate;

@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const EventQuizAccount = require('../models/EventQuizAccount');
+// EventQuizAccount model removed - now using User model with role: 'event'
 
 const auth = async (req, res, next) => {
   try {
@@ -13,21 +13,9 @@ const auth = async (req, res, next) => {
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
 
-      let user;
-      let isEventAccount = false;
-
-      // If role is 'event', check EventQuizAccount first
-      if (decoded.role === 'event') {
-        user = await EventQuizAccount.findById(decoded.userId);
-        if (user) {
-          isEventAccount = true;
-        }
-      }
-
-      // If not found or not event role, check User model
-      if (!user) {
-        user = await User.findById(decoded.userId);
-      }
+      // All users are now in the User model (including event users with role: 'event')
+      const user = await User.findById(decoded.userId);
+      const isEventAccount = user?.role === 'event';
 
       if (!user) {
         return res.status(401).json({ message: 'Invalid credentials' });
