@@ -1552,6 +1552,105 @@ const FacultyAccounts = () => {
     }
   };
 
+  const handleDownloadExcel = async () => {
+    try {
+      // First fetch all passwords
+      const response = await api.get('/api/admin/accounts/passwords?role=faculty');
+      const passwords = response.passwords || {};
+
+      const filteredFaculty = getFilteredFaculty();
+
+      // Prepare data for Excel
+      const excelData = filteredFaculty.map((faculty, index) => {
+        // Format assignments properly
+        const assignmentDetails = faculty.assignments?.map(assignment => {
+          const subjectsText = assignment.subjects?.length > 0
+            ? assignment.subjects.join(', ')
+            : 'No subjects assigned';
+          return `${assignment.department} - Y${assignment.year}S${assignment.semester} - Sections: ${assignment.sections?.join(', ')} - Subjects: ${subjectsText}`;
+        }).join(' | ') || 'No assignments';
+
+        return {
+          'S.No': index + 1,
+          'Name': faculty.name,
+          'Email': faculty.email,
+          'Password': passwords[faculty._id] || 'N/A',
+          'Departments': faculty.departments?.join(', ') || 'N/A',
+          'Years': faculty.years?.join(', ') || 'N/A',
+          'Semesters': faculty.semesters?.join(', ') || 'N/A',
+          'Sections': faculty.sections?.join(', ') || 'N/A',
+          'Assignments': assignmentDetails,
+          'Total Assignments': faculty.assignments?.length || 0,
+          'Total Subjects': faculty.assignments?.reduce((total, assignment) =>
+            total + (assignment.subjects?.length || 0), 0) || 0,
+          'Created Date': new Date(faculty.createdAt).toLocaleDateString(),
+          'Last Login': faculty.lastLogin ? new Date(faculty.lastLogin).toLocaleDateString() : 'Never'
+        };
+      });
+
+      // Create workbook and worksheet
+      const ws = XLSX.utils.json_to_sheet(excelData);
+      const wb = XLSX.utils.book_new();
+
+      // Create detailed assignments sheet
+      const assignmentDetails = [];
+      assignmentDetails.push(['Faculty Name', 'Email', 'Department', 'Year', 'Semester', 'Sections', 'Subjects', 'Subject Count']);
+
+      filteredFaculty.forEach(faculty => {
+        if (faculty.assignments && faculty.assignments.length > 0) {
+          faculty.assignments.forEach(assignment => {
+            assignmentDetails.push([
+              faculty.name,
+              faculty.email,
+              assignment.department,
+              assignment.year,
+              assignment.semester,
+              assignment.sections?.join(', ') || 'None',
+              assignment.subjects?.join(', ') || 'No subjects assigned',
+              assignment.subjects?.length || 0
+            ]);
+          });
+        } else {
+          assignmentDetails.push([
+            faculty.name,
+            faculty.email,
+            'No assignments',
+            '-',
+            '-',
+            '-',
+            '-',
+            0
+          ]);
+        }
+      });
+
+      const assignmentWs = XLSX.utils.aoa_to_sheet(assignmentDetails);
+
+      // Add filter information as a separate sheet
+      const filterInfo = [];
+      filterInfo.push(['Report Generated On', new Date().toLocaleString()]);
+      filterInfo.push(['Total Faculty', filteredFaculty.length]);
+      filterInfo.push(['Total Assignments', filteredFaculty.reduce((total, f) => total + (f.assignments?.length || 0), 0)]);
+      filterInfo.push(['']);
+      filterInfo.push(['Applied Filters:']);
+      if (filters.department) filterInfo.push(['Department', filters.department]);
+      if (searchQuery) filterInfo.push(['Search Text', searchQuery]);
+
+      const filterWs = XLSX.utils.aoa_to_sheet(filterInfo);
+
+      // Add sheets to workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Faculty Summary');
+      XLSX.utils.book_append_sheet(wb, assignmentWs, 'Detailed Assignments');
+      XLSX.utils.book_append_sheet(wb, filterWs, 'Report Info');
+
+      // Save the file
+      XLSX.writeFile(wb, `faculty_accounts_${new Date().toISOString().split('T')[0]}.xlsx`);
+    } catch (error) {
+      console.error('Error generating Excel:', error);
+      setError('Failed to generate Excel file. Please try again.');
+    }
+  };
+
   const handleDownloadPDF = async () => {
     try {
       // First fetch all passwords
@@ -1559,11 +1658,11 @@ const FacultyAccounts = () => {
       const passwords = response.passwords || {};
 
       const doc = new jsPDF();
-      
+
       // Add title
       doc.setFontSize(16);
       doc.text('Faculty Accounts', 14, 15);
-      
+
       // Add timestamp and counts
       doc.setFontSize(10);
       doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 22);
@@ -1579,29 +1678,41 @@ const FacultyAccounts = () => {
         doc.text(`Filters Applied: ${filterText}`, 14, 40);
       }
       
-      // Prepare table data with original passwords
-      const tableData = getFilteredFaculty().map(facultyMember => [
-        facultyMember.name || '',
-        facultyMember.email || '',
-        facultyMember.departments?.join(', ') || '',
-        facultyMember.years?.join(', ') || '',
-        passwords[facultyMember._id] || '********'  // Use fetched password
-      ]);
-      
+      // Prepare table data with assignments
+      const tableData = getFilteredFaculty().map(facultyMember => {
+        // Format assignments for PDF display
+        const assignmentSummary = facultyMember.assignments?.map(assignment => {
+          return `${assignment.department}-Y${assignment.year}S${assignment.semester}-${assignment.sections?.join(',')}`;
+        }).join(' | ') || 'None';
+
+        const totalSubjects = facultyMember.assignments?.reduce((total, assignment) =>
+          total + (assignment.subjects?.length || 0), 0) || 0;
+
+        return [
+          facultyMember.name || '',
+          facultyMember.email || '',
+          facultyMember.departments?.join(', ') || '',
+          assignmentSummary,
+          `${totalSubjects} subjects`,
+          passwords[facultyMember._id] || '********'
+        ];
+      });
+
       // Add table using autoTable
       autoTable(doc, {
-        startY: 25,
-        head: [['Name', 'Email', 'Departments', 'Years', 'Password']],
+        startY: filterText ? 45 : 40,
+        head: [['Name', 'Email', 'Departments', 'Assignments', 'Subjects', 'Password']],
         body: tableData,
         theme: 'grid',
-        styles: { fontSize: 8 },
+        styles: { fontSize: 7 },
         headStyles: { fillColor: [71, 71, 71] },
         columnStyles: {
-          0: { cellWidth: 40 }, // Name
-          1: { cellWidth: 50 }, // Email
-          2: { cellWidth: 40 }, // Departments
-          3: { cellWidth: 30 }, // Years
-          4: { cellWidth: 30 }  // Password
+          0: { cellWidth: 30 }, // Name
+          1: { cellWidth: 40 }, // Email
+          2: { cellWidth: 25 }, // Departments
+          3: { cellWidth: 50 }, // Assignments
+          4: { cellWidth: 20 }, // Subjects
+          5: { cellWidth: 25 }  // Password
         }
       });
       
@@ -1665,20 +1776,41 @@ const FacultyAccounts = () => {
               onClick={handleDownloadPDF}
               size="small"
               sx={{
-                color: 'purple.main',
-                borderColor: 'purple.main',
+                color: 'error.main',
+                borderColor: 'error.main',
                 fontSize: '0.75rem',
                 minWidth: 'auto',
                 px: { xs: 1, sm: 1.5 },
                 py: 0.5,
                 height: '32px',
                 '&:hover': {
-                  borderColor: 'purple.dark',
-                  backgroundColor: 'purple.50'
+                  borderColor: 'error.dark',
+                  backgroundColor: 'error.light'
                 }
               }}
             >
               PDF
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<DownloadIcon className="download-icon" />}
+              onClick={handleDownloadExcel}
+              size="small"
+              sx={{
+                color: 'success.main',
+                borderColor: 'success.main',
+                fontSize: '0.75rem',
+                minWidth: 'auto',
+                px: { xs: 1, sm: 1.5 },
+                py: 0.5,
+                height: '32px',
+                '&:hover': {
+                  borderColor: 'success.dark',
+                  backgroundColor: 'success.light'
+                }
+              }}
+            >
+              Excel
             </Button>
             <Button
               variant="outlined"
@@ -1805,7 +1937,19 @@ const FacultyAccounts = () => {
                       <strong>Email</strong>
                     </TableCell>
                     <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>
-                      <strong>Password</strong>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <strong>Password</strong>
+                        <Tooltip title={showAllPasswords ? "Hide All Passwords" : "Show All Passwords"}>
+                          <IconButton
+                            size="small"
+                            onClick={toggleAllPasswords}
+                            className="view-icon"
+                            sx={{ p: 0.5 }}
+                          >
+                            {showAllPasswords ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
                     </TableCell>
                     <TableCell sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, py: 1 }}>
                       <strong>Dept</strong>

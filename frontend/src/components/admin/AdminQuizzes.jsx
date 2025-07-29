@@ -37,6 +37,12 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import GroupIcon from '@mui/icons-material/Group';
 import ClassIcon from '@mui/icons-material/Class';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import DownloadIcon from '@mui/icons-material/Download';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import TableChartIcon from '@mui/icons-material/TableChart';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 import api from '../../config/axios';
 import AcademicFilter from '../common/AcademicFilter';
 import useAcademicFilters from '../../hooks/useAcademicFilters';
@@ -289,6 +295,126 @@ const AdminQuizzes = () => {
     setDeleteDialog({ open: false, quiz: null });
   };
 
+  const handleDownloadPDF = () => {
+    const filteredQuizzes = getFilteredQuizzes();
+    const doc = new jsPDF();
+
+    // Add title
+    doc.setFontSize(16);
+    doc.text(`${tabValue === 0 ? 'Academic' : 'Event'} Quizzes Report`, 14, 15);
+
+    // Add timestamp and counts
+    doc.setFontSize(10);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 22);
+    doc.text(`Total Quizzes: ${filteredQuizzes.length}`, 14, 28);
+
+    // Add filter information if any filters are applied
+    const activeFilters = [];
+    if (filters.searchText) activeFilters.push(`Search: ${filters.searchText}`);
+    if (filters.department) activeFilters.push(`Department: ${filters.department}`);
+    if (filters.year) activeFilters.push(`Year: ${filters.year}`);
+    if (filters.semester) activeFilters.push(`Semester: ${filters.semester}`);
+    if (fromDate) activeFilters.push(`From: ${fromDate}`);
+    if (toDate) activeFilters.push(`To: ${toDate}`);
+
+    if (activeFilters.length > 0) {
+      doc.text(`Filters Applied: ${activeFilters.join(', ')}`, 14, 34);
+    }
+
+    // Prepare table data
+    const tableData = filteredQuizzes.map((quiz, index) => {
+      const status = getQuizStatus(quiz);
+      return [
+        index + 1,
+        quiz.title,
+        tabValue === 0 ? (quiz.subject?.name || quiz.subject?.code || 'N/A') : 'Event Quiz',
+        quiz.createdBy?.name || 'N/A',
+        `${quiz.duration} min`,
+        formatDateTime(quiz.startTime),
+        formatDateTime(quiz.endTime),
+        status.label
+      ];
+    });
+
+    // Add table
+    const startY = activeFilters.length > 0 ? 40 : 35;
+    doc.autoTable({
+      startY: startY,
+      head: [['#', 'Title', tabValue === 0 ? 'Subject' : 'Type', 'Created By', 'Duration', 'Start Time', 'End Time', 'Status']],
+      body: tableData,
+      theme: 'grid',
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [71, 71, 71] },
+      columnStyles: {
+        0: { cellWidth: 10 },
+        1: { cellWidth: 35 },
+        2: { cellWidth: 25 },
+        3: { cellWidth: 25 },
+        4: { cellWidth: 15 },
+        5: { cellWidth: 30 },
+        6: { cellWidth: 30 },
+        7: { cellWidth: 15 }
+      }
+    });
+
+    // Save the PDF
+    doc.save(`${tabValue === 0 ? 'academic' : 'event'}_quizzes_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
+  const handleDownloadExcel = () => {
+    const filteredQuizzes = getFilteredQuizzes();
+
+    // Prepare data for Excel
+    const excelData = filteredQuizzes.map((quiz, index) => {
+      const status = getQuizStatus(quiz);
+      return {
+        'S.No': index + 1,
+        'Title': quiz.title,
+        [tabValue === 0 ? 'Subject' : 'Type']: tabValue === 0 ? (quiz.subject?.name || quiz.subject?.code || 'N/A') : 'Event Quiz',
+        'Subject Code': tabValue === 0 ? (quiz.subject?.code || 'N/A') : 'N/A',
+        'Created By': quiz.createdBy?.name || 'N/A',
+        'Creator Email': quiz.createdBy?.email || 'N/A',
+        'Duration (minutes)': quiz.duration,
+        'Total Questions': quiz.questions?.length || 0,
+        'Total Marks': quiz.totalMarks || 0,
+        'Start Date': new Date(quiz.startTime).toLocaleDateString(),
+        'Start Time': new Date(quiz.startTime).toLocaleTimeString(),
+        'End Date': new Date(quiz.endTime).toLocaleDateString(),
+        'End Time': new Date(quiz.endTime).toLocaleTimeString(),
+        'Status': status.label,
+        'Description': quiz.description || 'N/A',
+        'Negative Marking': quiz.negativeMarkingEnabled ? 'Yes' : 'No'
+      };
+    });
+
+    // Create workbook and worksheet
+    const ws = XLSX.utils.json_to_sheet(excelData);
+    const wb = XLSX.utils.book_new();
+
+    // Add filter information as a separate sheet
+    const filterInfo = [];
+    filterInfo.push(['Report Generated On', new Date().toLocaleString()]);
+    filterInfo.push(['Quiz Type', tabValue === 0 ? 'Academic' : 'Event']);
+    filterInfo.push(['Total Quizzes', filteredQuizzes.length]);
+    filterInfo.push(['']);
+    filterInfo.push(['Applied Filters:']);
+    if (filters.searchText) filterInfo.push(['Search Text', filters.searchText]);
+    if (filters.department) filterInfo.push(['Department', filters.department]);
+    if (filters.year) filterInfo.push(['Year', filters.year]);
+    if (filters.semester) filterInfo.push(['Semester', filters.semester]);
+    if (fromDate) filterInfo.push(['From Date', fromDate]);
+    if (toDate) filterInfo.push(['To Date', toDate]);
+
+    const filterWs = XLSX.utils.aoa_to_sheet(filterInfo);
+
+    // Add sheets to workbook
+    XLSX.utils.book_append_sheet(wb, ws, 'Quizzes');
+    XLSX.utils.book_append_sheet(wb, filterWs, 'Report Info');
+
+    // Save the file
+    XLSX.writeFile(wb, `${tabValue === 0 ? 'academic' : 'event'}_quizzes_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
   if (loading) {
     return (
       <Container sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
@@ -303,14 +429,49 @@ const AdminQuizzes = () => {
         <Typography variant="h4" gutterBottom>
           Quiz Management
         </Typography>
-        <Button
-          variant="outlined"
-          startIcon={<RefreshIcon />}
-          onClick={fetchQuizzes}
-          disabled={loading}
-        >
-          Refresh
-        </Button>
+        <Stack direction="row" spacing={1}>
+          <Tooltip title="Download filtered quiz data as PDF">
+            <span>
+              <Button
+                variant="outlined"
+                startIcon={<PictureAsPdfIcon />}
+                onClick={handleDownloadPDF}
+                disabled={loading || getFilteredQuizzes().length === 0}
+                size="small"
+                sx={{ color: 'error.main', borderColor: 'error.main' }}
+              >
+                PDF
+              </Button>
+            </span>
+          </Tooltip>
+          <Tooltip title="Download filtered quiz data as Excel">
+            <span>
+              <Button
+                variant="outlined"
+                startIcon={<TableChartIcon />}
+                onClick={handleDownloadExcel}
+                disabled={loading || getFilteredQuizzes().length === 0}
+                size="small"
+                sx={{ color: 'success.main', borderColor: 'success.main' }}
+              >
+                Excel
+              </Button>
+            </span>
+          </Tooltip>
+          <Tooltip title="Refresh quiz data">
+            <span>
+              <Button
+                variant="outlined"
+                startIcon={<RefreshIcon />}
+                onClick={fetchQuizzes}
+                disabled={loading}
+                size="small"
+              >
+                Refresh
+              </Button>
+            </span>
+          </Tooltip>
+        </Stack>
       </Box>
 
 

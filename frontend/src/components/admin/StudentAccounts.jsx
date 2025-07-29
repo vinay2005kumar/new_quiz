@@ -786,6 +786,60 @@ const StudentAccounts = () => {
     XLSX.writeFile(wb, 'student_upload_template.xlsx');
   };
 
+  const handleDownloadExcel = async () => {
+    try {
+      // First fetch all passwords
+      const response = await api.get('/api/admin/accounts/passwords?role=student');
+      const passwords = response.passwords || {};
+
+      const filteredStudents = getFilteredStudents();
+
+      // Prepare data for Excel
+      const excelData = filteredStudents.map((student, index) => ({
+        'S.No': index + 1,
+        'Name': student.name,
+        'Email': student.email,
+        'Password': passwords[student._id] || 'N/A',
+        'Department': student.department,
+        'Year': student.year,
+        'Semester': student.semester,
+        'Section': student.section || 'N/A',
+        'Admission Number': student.admissionNumber || 'N/A',
+        'Entry Type': student.entryType || 'Regular',
+        'Created Date': new Date(student.createdAt).toLocaleDateString(),
+        'Last Login': student.lastLogin ? new Date(student.lastLogin).toLocaleDateString() : 'Never'
+      }));
+
+      // Create workbook and worksheet
+      const ws = XLSX.utils.json_to_sheet(excelData);
+      const wb = XLSX.utils.book_new();
+
+      // Add filter information as a separate sheet
+      const filterInfo = [];
+      filterInfo.push(['Report Generated On', new Date().toLocaleString()]);
+      filterInfo.push(['Total Students', filteredStudents.length]);
+      filterInfo.push(['']);
+      filterInfo.push(['Applied Filters:']);
+      if (filters.department) filterInfo.push(['Department', filters.department]);
+      if (filters.year) filterInfo.push(['Year', filters.year]);
+      if (filters.semester) filterInfo.push(['Semester', filters.semester]);
+      if (filters.section) filterInfo.push(['Section', filters.section]);
+      if (filters.searchText) filterInfo.push(['Search Text', filters.searchText]);
+
+      const filterWs = XLSX.utils.aoa_to_sheet(filterInfo);
+
+      // Add sheets to workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Students');
+      XLSX.utils.book_append_sheet(wb, filterWs, 'Report Info');
+
+      // Save the file
+      XLSX.writeFile(wb, `student_accounts_${new Date().toISOString().split('T')[0]}.xlsx`);
+    } catch (error) {
+      console.error('Error generating Excel:', error);
+      setError('Failed to generate Excel file. Please try again.');
+    }
+  };
+
   const handleDownloadPDF = async () => {
     try {
       // First fetch all passwords
@@ -793,15 +847,15 @@ const StudentAccounts = () => {
       const passwords = response.passwords || {};
 
       const doc = new jsPDF();
-      
+
       // Add title and subtitle
       doc.setFontSize(18);
       doc.text('Student Accounts', 14, 15);
-      
+
       // Add timestamp
       doc.setFontSize(10);
       doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 25);
-      
+
       // Add summary box
       doc.setDrawColor(200, 200, 200);
       doc.setFillColor(245, 245, 245);
@@ -934,20 +988,41 @@ const StudentAccounts = () => {
               onClick={handleDownloadPDF}
               size="small"
               sx={{
-                color: 'purple.main',
-                borderColor: 'purple.main',
+                color: 'error.main',
+                borderColor: 'error.main',
                 fontSize: '0.75rem',
                 minWidth: 'auto',
                 px: { xs: 1, sm: 1.5 },
                 py: 0.5,
                 height: '32px',
                 '&:hover': {
-                  borderColor: 'purple.dark',
-                  backgroundColor: 'purple.50'
+                  borderColor: 'error.dark',
+                  backgroundColor: 'error.light'
                 }
               }}
             >
               PDF
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<DownloadIcon className="download-icon" />}
+              onClick={handleDownloadExcel}
+              size="small"
+              sx={{
+                color: 'success.main',
+                borderColor: 'success.main',
+                fontSize: '0.75rem',
+                minWidth: 'auto',
+                px: { xs: 1, sm: 1.5 },
+                py: 0.5,
+                height: '32px',
+                '&:hover': {
+                  borderColor: 'success.dark',
+                  backgroundColor: 'success.light'
+                }
+              }}
+            >
+              Excel
             </Button>
             <Button
               variant="outlined"

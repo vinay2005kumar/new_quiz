@@ -45,7 +45,7 @@ import {
   Add as AddIcon
 } from '@mui/icons-material';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import api from '../../config/axios';
 import AcademicFilter from '../common/AcademicFilter';
@@ -319,6 +319,28 @@ const EventQuizAccounts = () => {
     return editingId ? 'Edit Event Quiz Account' : 'Create New Event Quiz Account';
   };
 
+  // Add toggle all passwords function
+  const toggleAllPasswords = async () => {
+    try {
+      if (!showAllPasswords) {
+        // Fetch all passwords at once
+        const response = await api.get('/api/admin/accounts/passwords?role=event');
+        if (response && response.passwords) {
+          setVisiblePasswords(response.passwords);
+        } else {
+          setError('Failed to fetch passwords');
+        }
+      } else {
+        // Clear all visible passwords
+        setVisiblePasswords({});
+      }
+      setShowAllPasswords(!showAllPasswords);
+    } catch (error) {
+      console.error('Error fetching passwords:', error);
+      setError('Failed to fetch passwords');
+    }
+  };
+
   // Add toggle password visibility function
   const togglePasswordVisibility = async (accountId) => {
     try {
@@ -356,39 +378,117 @@ const EventQuizAccounts = () => {
 
 
 
+  const handleDownloadExcel = () => {
+    // Use the existing filteredAccounts computed variable
+    const currentFilteredAccounts = accounts.filter(account => {
+      const matchesSearch = filters.search === '' ||
+        account.name.toLowerCase().includes(filters.search.toLowerCase()) ||
+        account.email.toLowerCase().includes(filters.search.toLowerCase());
+
+      const matchesEventType = filters.eventType === 'all' ||
+        account.eventType === filters.eventType;
+
+      const matchesDepartment = filters.department === 'all' ||
+        account.department === filters.department;
+
+      return matchesSearch && matchesEventType && matchesDepartment;
+    });
+
+    // Prepare data for Excel
+    const excelData = currentFilteredAccounts.map((account, index) => ({
+      'S.No': index + 1,
+      'Name': account.name,
+      'Email': account.email,
+      'Password': visiblePasswords[account._id] || '********',
+      'Event Type': account.eventType,
+      'Department': account.department || 'N/A',
+      'Created Date': new Date(account.createdAt).toLocaleDateString(),
+      'Last Login': account.lastLogin ? new Date(account.lastLogin).toLocaleDateString() : 'Never'
+    }));
+
+    // Create workbook and worksheet
+    const ws = XLSX.utils.json_to_sheet(excelData);
+    const wb = XLSX.utils.book_new();
+
+    // Add filter information as a separate sheet
+    const filterInfo = [];
+    filterInfo.push(['Report Generated On', new Date().toLocaleString()]);
+    filterInfo.push(['Total Event Quiz Accounts', currentFilteredAccounts.length]);
+    filterInfo.push(['']);
+    filterInfo.push(['Applied Filters:']);
+    if (filters.department && filters.department !== 'all') filterInfo.push(['Department', filters.department]);
+    if (filters.eventType && filters.eventType !== 'all') filterInfo.push(['Event Type', filters.eventType]);
+    if (filters.search) filterInfo.push(['Search Text', filters.search]);
+
+    const filterWs = XLSX.utils.aoa_to_sheet(filterInfo);
+
+    // Add sheets to workbook
+    XLSX.utils.book_append_sheet(wb, ws, 'Event Quiz Accounts');
+    XLSX.utils.book_append_sheet(wb, filterWs, 'Report Info');
+
+    // Save the file
+    XLSX.writeFile(wb, `event_quiz_accounts_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
   const handleDownloadPDF = () => {
+    // Use the same filtering logic as the component
+    const currentFilteredAccounts = accounts.filter(account => {
+      const matchesSearch = filters.search === '' ||
+        account.name.toLowerCase().includes(filters.search.toLowerCase()) ||
+        account.email.toLowerCase().includes(filters.search.toLowerCase());
+
+      const matchesEventType = filters.eventType === 'all' ||
+        account.eventType === filters.eventType;
+
+      const matchesDepartment = filters.department === 'all' ||
+        account.department === filters.department;
+
+      return matchesSearch && matchesEventType && matchesDepartment;
+    });
+
     const doc = new jsPDF();
-    
+
     // Add title
     doc.setFontSize(16);
     doc.text('Event Quiz Accounts', 14, 15);
-    
+
     // Add timestamp and counts
     doc.setFontSize(10);
     doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 22);
     doc.text(`Total Event Quiz Accounts: ${accounts.length}`, 14, 28);
-    
-    // Prepare table data
-    const tableData = accounts.map(account => [
+    doc.text(`Filtered Accounts: ${currentFilteredAccounts.length}`, 14, 34);
+
+    // Add filter information if any filters are applied
+    let filterText = '';
+    if (filters.department && filters.department !== 'all') filterText += `Department: ${filters.department} `;
+    if (filters.eventType && filters.eventType !== 'all') filterText += `Event Type: ${filters.eventType} `;
+    if (filters.search) filterText += `Search: "${filters.search}"`;
+
+    if (filterText) {
+      doc.text(`Filters Applied: ${filterText}`, 14, 40);
+    }
+
+    // Prepare table data using filtered accounts
+    const tableData = currentFilteredAccounts.map(account => [
       account.name,
       account.email,
       account.eventType,
       account.department || 'N/A',
       visiblePasswords[account._id] || '********'
     ]);
-    
+
     // Add table
-    doc.autoTable({
-      startY: 35,
+    autoTable(doc, {
+      startY: filterText ? 45 : 40,
       head: [['Name', 'Email', 'Event Type', 'Department', 'Password']],
       body: tableData,
       theme: 'grid',
       styles: { fontSize: 8 },
       headStyles: { fillColor: [71, 71, 71] }
     });
-    
+
     // Save PDF
-    doc.save('event-quiz-accounts.pdf');
+    doc.save(`event_quiz_accounts_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   // Add file upload handler
@@ -549,20 +649,41 @@ const EventQuizAccounts = () => {
             onClick={handleDownloadPDF}
             size="small"
             sx={{
-              color: 'purple.main',
-              borderColor: 'purple.main',
+              color: 'error.main',
+              borderColor: 'error.main',
               fontSize: '0.75rem',
               minWidth: 'auto',
               px: { xs: 1, sm: 1.5 },
               py: 0.5,
               height: '32px',
               '&:hover': {
-                borderColor: 'purple.dark',
-                backgroundColor: 'purple.50'
+                borderColor: 'error.dark',
+                backgroundColor: 'error.light'
               }
             }}
           >
             PDF
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<DownloadIcon className="download-icon" />}
+            onClick={handleDownloadExcel}
+            size="small"
+            sx={{
+              color: 'success.main',
+              borderColor: 'success.main',
+              fontSize: '0.75rem',
+              minWidth: 'auto',
+              px: { xs: 1, sm: 1.5 },
+              py: 0.5,
+              height: '32px',
+              '&:hover': {
+                borderColor: 'success.dark',
+                backgroundColor: 'success.light'
+              }
+            }}
+          >
+            Excel
           </Button>
           <Button
             variant="outlined"
@@ -670,7 +791,21 @@ const EventQuizAccounts = () => {
               <TableCell>Email</TableCell>
               <TableCell>Event Type</TableCell>
               <TableCell>Department</TableCell>
-              <TableCell>Password</TableCell>
+              <TableCell>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  Password
+                  <Tooltip title={showAllPasswords ? "Hide All Passwords" : "Show All Passwords"}>
+                    <IconButton
+                      size="small"
+                      onClick={toggleAllPasswords}
+                      className="view-icon"
+                      sx={{ p: 0.5 }}
+                    >
+                      {showAllPasswords ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              </TableCell>
               <TableCell>Actions</TableCell>
             </TableRow>
           </TableHead>

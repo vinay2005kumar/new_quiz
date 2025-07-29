@@ -188,10 +188,10 @@ const EventQuizzes = () => {
       setLoading(true);
       setError(''); // Clear any previous errors
 
-      // Fetch event quizzes using the same pattern as existing components
-      //console.log('Fetching event quizzes...');
+      // Fetch public event quizzes (no authentication required)
+      //console.log('Fetching public event quizzes...');
 
-      const response = await api.get('/api/event-quiz');
+      const response = await api.get('/api/event-quiz/public');
       //console.log('Response:', response);
 
       // Use the same pattern as EventQuizList.jsx

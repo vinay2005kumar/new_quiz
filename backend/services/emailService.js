@@ -211,7 +211,6 @@ const sendTeamMemberEmail = async (transporter, member, registrationData, quiz, 
             <li>All team members have the same login credentials (shared username and password)</li>
             <li>Coordinate with your team to decide who will be the designated quiz taker</li>
             <li>The designated member should login using the provided credentials</li>
-            <li>Login 10-15 minutes before the quiz starts</li>
             <li>Ensure stable internet connection for the quiz taker</li>
             <li>Have a backup device ready</li>
             <li>All team members should be available to help during the quiz</li>
@@ -343,11 +342,8 @@ const sendIndividualRegistrationEmail = async (transporter, registrationData, qu
         <div style="background-color: #e8f5e8; padding: 15px; border-radius: 5px; margin: 20px 0;">
           <h3 style="color: #2e7d32; margin-top: 0;">📌 Important Notes</h3>
           <ul>
-            <li>Login 10-15 minutes before the quiz starts</li>
             <li>Your username is your email address</li>
-            <li>Your password is based on your phone number, admission number, or system generated</li>
             <li>Ensure stable internet connection</li>
-            <li>Have a backup device ready</li>
             <li>Contact support if you face any technical issues</li>
             ${isFollowUpQuiz ? '<li><strong>This is a follow-up quiz - you have been specially selected!</strong></li>' : ''}
           </ul>
@@ -478,6 +474,12 @@ const sendAcademicQuizNotification = async (quiz, eligibleStudents) => {
       hour: '2-digit',
       minute: '2-digit'
     });
+    const endDate = new Date(quiz.endTime).toLocaleDateString('en-IN', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
     const endTime = new Date(quiz.endTime).toLocaleTimeString('en-IN', {
       hour: '2-digit',
       minute: '2-digit'
@@ -523,12 +525,12 @@ const sendAcademicQuizNotification = async (quiz, eligibleStudents) => {
                   <td style="padding: 8px 0; color: #666;">${quiz.totalMarks}</td>
                 </tr>
                 <tr>
-                  <td style="padding: 8px 0; font-weight: bold; color: #333;">Date:</td>
-                  <td style="padding: 8px 0; color: #666;">${startDate}</td>
+                  <td style="padding: 8px 0; font-weight: bold; color: #333;">Start Date & Time:</td>
+                  <td style="padding: 8px 0; color: #666;">${startDate} at ${startTime}</td>
                 </tr>
                 <tr>
-                  <td style="padding: 8px 0; font-weight: bold; color: #333;">Time:</td>
-                  <td style="padding: 8px 0; color: #666;">${startTime} - ${endTime}</td>
+                  <td style="padding: 8px 0; font-weight: bold; color: #333;">End Date & Time:</td>
+                  <td style="padding: 8px 0; color: #666;">${endDate} at ${endTime}</td>
                 </tr>
               </table>
             </div>
@@ -545,8 +547,8 @@ const sendAcademicQuizNotification = async (quiz, eligibleStudents) => {
               <ul style="color: #666; margin: 0; padding-left: 20px; line-height: 1.8;">
                 <li>Login to your student account to access the quiz</li>
                 <li>Ensure you have a stable internet connection</li>
-                <li>The quiz will be available from ${startTime} on ${startDate}</li>
-                <li>You must complete the quiz before ${endTime}</li>
+                <li><strong>Quiz starts:</strong> ${startTime} on ${startDate}</li>
+                <li><strong>Quiz ends:</strong> ${endTime} on ${endDate}</li>
                 <li>Once started, you have ${quiz.duration} minutes to complete</li>
                 <li>Make sure to submit your answers before time runs out</li>
                 <li>Contact your faculty if you face any technical issues</li>
@@ -899,10 +901,8 @@ const sendQuizNotificationEmail = async (email, quiz, credentials, registrationD
         <div style="background-color: #e3f2fd; padding: 15px; border-radius: 5px; margin: 20px 0;">
           <h3 style="color: #1976d2; margin-top: 0;">📌 Important Guidelines</h3>
           <ul>
-            <li>🕐 Login 10-15 minutes before the quiz starts</li>
             <li>🔐 Use the credentials provided above</li>
             <li>🌐 Ensure stable internet connection</li>
-            <li>💻 Have a backup device ready</li>
             <li>📞 Contact support if you face any technical issues</li>
             <li>🎯 <strong>This is an exclusive follow-up quiz invitation!</strong></li>
           </ul>
