@@ -231,20 +231,45 @@ const LandingPage = () => {
 
           setLoadingProgress(80);
 
-          // Step 3: Complete
-          setLoadingMessage('Ready!');
-          setLoadingProgress(100);
+          // Step 3: Check admin status and complete
+          setLoadingMessage('Checking system status...');
+          setLoadingProgress(90);
 
-          // Set a default admin button state (no API call needed)
-          setShowAdminButton(false);
-          setCachedData(false);
+          // Check if admin exists
+          try {
+            const setupResponse = await api.get('/api/setup/status');
+            const shouldShowAdminButton = setupResponse.requiresSetup;
+
+            setLoadingMessage('Ready!');
+            setLoadingProgress(100);
+            setShowAdminButton(shouldShowAdminButton);
+            setCachedData(shouldShowAdminButton);
+          } catch (setupError) {
+            console.error('Error checking setup status:', setupError);
+            // If setup check fails, assume admin might be needed
+            setLoadingMessage('Ready!');
+            setLoadingProgress(100);
+            setShowAdminButton(true);
+            setCachedData(true);
+          }
 
         } catch (error) {
           console.error('Error loading college info:', error);
           setLoadingMessage('Loading complete');
           setLoadingProgress(100);
-          setShowAdminButton(false);
-          setCachedData(false);
+
+          // On error, still check if admin setup is needed
+          try {
+            const setupResponse = await api.get('/api/setup/status');
+            const shouldShowAdminButton = setupResponse.requiresSetup;
+            setShowAdminButton(shouldShowAdminButton);
+            setCachedData(shouldShowAdminButton);
+          } catch (setupError) {
+            console.error('Error checking setup status:', setupError);
+            // If both fail, assume admin might be needed
+            setShowAdminButton(true);
+            setCachedData(true);
+          }
         } finally {
           // Hide loading screen and show content
           setTimeout(() => {

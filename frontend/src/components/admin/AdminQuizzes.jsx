@@ -41,8 +41,9 @@ import DownloadIcon from '@mui/icons-material/Download';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import TableChartIcon from '@mui/icons-material/TableChart';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { toast } from 'react-toastify';
 import api from '../../config/axios';
 import AcademicFilter from '../common/AcademicFilter';
 import useAcademicFilters from '../../hooks/useAcademicFilters';
@@ -296,8 +297,9 @@ const AdminQuizzes = () => {
   };
 
   const handleDownloadPDF = () => {
-    const filteredQuizzes = getFilteredQuizzes();
-    const doc = new jsPDF();
+    try {
+      const filteredQuizzes = getFilteredQuizzes();
+      const doc = new jsPDF();
 
     // Add title
     doc.setFontSize(16);
@@ -338,7 +340,7 @@ const AdminQuizzes = () => {
 
     // Add table
     const startY = activeFilters.length > 0 ? 40 : 35;
-    doc.autoTable({
+    autoTable(doc, {
       startY: startY,
       head: [['#', 'Title', tabValue === 0 ? 'Subject' : 'Type', 'Created By', 'Duration', 'Start Time', 'End Time', 'Status']],
       body: tableData,
@@ -357,8 +359,12 @@ const AdminQuizzes = () => {
       }
     });
 
-    // Save the PDF
-    doc.save(`${tabValue === 0 ? 'academic' : 'event'}_quizzes_${new Date().toISOString().split('T')[0]}.pdf`);
+      // Save the PDF
+      doc.save(`${tabValue === 0 ? 'academic' : 'event'}_quizzes_${new Date().toISOString().split('T')[0]}.pdf`);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error('Failed to generate PDF. Please try again.');
+    }
   };
 
   const handleDownloadExcel = () => {

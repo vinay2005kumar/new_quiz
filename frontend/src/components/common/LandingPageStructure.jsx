@@ -400,13 +400,19 @@ const LandingPageStructure = ({
                 display: 'block'
               }}
             >
-              Access your academic assessments and participate in exciting quiz events
+              {showAdminButton
+                ? 'Welcome! Set up your institution\'s quiz management system to get started'
+                : 'Access your academic assessments and participate in exciting quiz events'
+              }
             </Typography>
           </Box>
 
-          {/* Action Cards - Side by Side */}
+          {/* Action Cards - Conditional Display */}
           <Box sx={{ display: 'flex', gap: isPreview ? 1 : 3, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Paper
+            {/* Show Login and Event Cards only if admin exists (no admin setup needed) */}
+            {!showAdminButton && (
+              <>
+                <Paper
               sx={{
                 p: isPreview ? 1.5 : 3,
                 background: 'rgba(255, 255, 255, 0.9)',
@@ -497,7 +503,10 @@ const LandingPageStructure = ({
                 </Button>
               )}
             </Paper>
+              </>
+            )}
 
+            {/* Show Admin Setup Card only if admin doesn't exist */}
             {showAdminButton && !loading && (
               <Paper
                 sx={{
@@ -535,7 +544,7 @@ const LandingPageStructure = ({
                     variant="contained"
                     color="warning"
                     fullWidth
-                    onClick={() => onNavigate('/register?role=admin')}
+                    onClick={() => onNavigate('/setup')}
                     sx={{
                       py: 1.2,
                       borderRadius: 2,
@@ -543,7 +552,7 @@ const LandingPageStructure = ({
                       fontWeight: 600
                     }}
                   >
-                    Register as Admin
+                    Setup System
                   </Button>
                 )}
               </Paper>

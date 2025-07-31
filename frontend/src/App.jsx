@@ -2,7 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import CssBaseline from '@mui/material/CssBaseline';
-import { Box, CircularProgress } from '@mui/material';
+import { Box, CircularProgress, Typography } from '@mui/material';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { NavigationProvider } from './context/NavigationContext';
@@ -11,6 +11,8 @@ import { ThemeProvider } from './context/ThemeContext';
 import { LoadingProvider } from './context/LoadingContext';
 import Navigation from './components/common/Navigation';
 import PrivateRoute from './components/common/PrivateRoute';
+import InitialSetup from './components/setup/InitialSetup';
+import { useSetupCheck } from './hooks/useSetupCheck';
 
 // Components
 import Login from './components/auth/Login';
@@ -83,6 +85,7 @@ const AppRoutes = () => {
         <Route path="/login" element={user ? <RoleBasedRedirect /> : <Login />} />
         <Route path="/register" element={user ? <RoleBasedRedirect /> : <Register />} />
         <Route path="/forgot-password" element={user ? <RoleBasedRedirect /> : <ForgotPassword />} />
+        <Route path="/setup" element={<InitialSetup onSetupComplete={() => window.location.href = '/login'} />} />
         <Route path="/events" element={<PublicEventQuizzes />} />
         <Route path="/quiz/:quizId/login" element={<QuizLogin />} />
         <Route path="/quiz/:quizId/take-authenticated" element={<AuthenticatedQuizTake />} />
@@ -184,6 +187,59 @@ const AppRoutes = () => {
 };
 
 function App() {
+  const { requiresSetup, loading, error, refetch } = useSetupCheck();
+
+  // Show loading spinner while checking setup status
+  if (loading) {
+    return (
+      <ThemeProvider>
+        <CssBaseline />
+        <Box
+          display="flex"
+          flexDirection="column"
+          justifyContent="center"
+          alignItems="center"
+          minHeight="100vh"
+        >
+          <CircularProgress size={60} />
+          <Typography variant="h6" sx={{ mt: 2 }}>
+            Checking system status...
+          </Typography>
+        </Box>
+      </ThemeProvider>
+    );
+  }
+
+  // Show error if setup check failed
+  if (error) {
+    return (
+      <ThemeProvider>
+        <CssBaseline />
+        <Box
+          display="flex"
+          flexDirection="column"
+          justifyContent="center"
+          alignItems="center"
+          minHeight="100vh"
+          p={3}
+        >
+          <Typography variant="h5" color="error" gutterBottom>
+            System Error
+          </Typography>
+          <Typography variant="body1" color="text.secondary" paragraph>
+            {error}
+          </Typography>
+          <button onClick={refetch}>Retry</button>
+        </Box>
+      </ThemeProvider>
+    );
+  }
+
+  // Note: We don't automatically redirect to setup anymore
+  // Instead, we let the landing page show the admin setup button
+  // The setup page is accessible via /setup route
+
+  // Normal app flow
   return (
     <ThemeProvider>
       <LocalizationProvider dateAdapter={AdapterDayjs}>

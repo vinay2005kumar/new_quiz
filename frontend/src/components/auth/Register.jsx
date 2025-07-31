@@ -35,20 +35,25 @@ const Register = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // If admin registration is requested, verify no admin exists
+    // If admin registration is requested, redirect to initial setup
     if (isAdminRegistration) {
-      const checkAdminExists = async () => {
+      const checkSetupStatus = async () => {
         try {
-          const response = await api.get('/api/auth/check-admin');
-          if (response.adminExists) {
+          const response = await api.get('/api/setup/status');
+          if (response.requiresSetup) {
+            // Redirect to initial setup instead of showing register form
+            navigate('/setup');
+          } else {
+            // Admin already exists, redirect to login
             navigate('/login');
           }
         } catch (error) {
-          console.error('Error checking admin existence:', error);
-          navigate('/login');
+          console.error('Error checking setup status:', error);
+          // On error, assume setup might be needed
+          navigate('/setup');
         }
       };
-      checkAdminExists();
+      checkSetupStatus();
     }
   }, [isAdminRegistration, navigate]);
 
