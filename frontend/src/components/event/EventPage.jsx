@@ -110,10 +110,11 @@ const EventPage = () => {
   }
 
   return (
-    <Container 
-      maxWidth="lg" 
-      sx={{ 
-        mt: { xs: 2, sm: 3, md: 4 }, 
+    <Container
+      maxWidth="lg"
+      className="main-content-with-navbar"
+      sx={{
+        mt: { xs: 2, sm: 3, md: 4 },
         mb: { xs: 2, sm: 3, md: 4 },
         px: { xs: 1, sm: 2, md: 3 }
       }}

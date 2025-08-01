@@ -516,7 +516,7 @@ const Dashboard = () => {
   const StudentDashboard = () => {
     if (!user) return null;
     return (
-      <Container maxWidth="xl" sx={{ mt: { xs: 2, sm: 4 }, mb: 4 }}>
+      <Container maxWidth="xl" className="main-content-with-navbar" sx={{ mt: { xs: 2, sm: 4 }, mb: 4 }}>
         {error && (
           <Alert severity="error" sx={{ mb: 3 }}>
             {error}
@@ -755,7 +755,7 @@ const Dashboard = () => {
   const FacultyDashboard = () => {
     if (!user) return null;
     return (
-      <Container maxWidth="xl" sx={{ mt: { xs: 2, sm: 4 }, mb: 4 }}>
+      <Container maxWidth="xl" className="main-content-with-navbar" sx={{ mt: { xs: 2, sm: 4 }, mb: 4 }}>
         {error && (
           <Alert severity="error" sx={{ mb: 3 }}>
             {error}
@@ -1140,7 +1140,7 @@ const Dashboard = () => {
   const EventDashboard = () => {
     if (!user) return null;
     return (
-      <Container maxWidth="xl" sx={{ mt: { xs: 2, sm: 4 }, mb: 4 }}>
+      <Container maxWidth="xl" className="main-content-with-navbar" sx={{ mt: { xs: 2, sm: 4 }, mb: 4 }}>
         {error && (
           <Alert severity="error" sx={{ mb: 3 }}>
             {error}

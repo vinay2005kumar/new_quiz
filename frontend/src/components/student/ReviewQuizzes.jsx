@@ -239,7 +239,7 @@ const ReviewQuizzes = () => {
 
   if (loading) {
     return (
-      <Container sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
+      <Container className="main-content-with-navbar" sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
         <CircularProgress />
       </Container>
     );
@@ -248,6 +248,7 @@ const ReviewQuizzes = () => {
   return (
     <Container
       maxWidth="xl"
+      className="main-content-with-navbar"
       sx={{
         mt: { xs: 2, sm: 3, md: 4 },
         mb: { xs: 2, sm: 3, md: 4 },

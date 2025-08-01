@@ -63,7 +63,7 @@ const AdminLayout = ({ children }) => {
   ];
 
   const drawer = (
-    <div>
+    <div style={{ paddingTop: '64px' }}> {/* Add top padding to clear navbar */}
       <Toolbar sx={{ bgcolor: 'background.paper' }}>
         <Typography
           variant="h6"
@@ -171,7 +171,10 @@ const AdminLayout = ({ children }) => {
           open={mobileOpen}
           onClose={handleDrawerToggle}
           ModalProps={{
-            keepMounted: true // Better open performance on mobile.
+            keepMounted: true, // Better open performance on mobile.
+            sx: {
+              zIndex: (theme) => theme.zIndex.drawer + 2 // Higher than AppBar
+            }
           }}
           sx={{
             display: { xs: 'block', sm: 'none' },
@@ -181,7 +184,8 @@ const AdminLayout = ({ children }) => {
               bgcolor: 'background.paper',
               color: 'text.primary',
               borderRight: '1px solid',
-              borderColor: 'divider'
+              borderColor: 'divider',
+              zIndex: (theme) => theme.zIndex.drawer + 2 // Higher than AppBar
             }
           }}
         >

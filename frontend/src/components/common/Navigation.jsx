@@ -340,7 +340,13 @@ const Navigation = () => {
                 bgcolor: 'background.paper',
                 color: 'text.primary',
                 borderRight: '1px solid',
-                borderColor: 'divider'
+                borderColor: 'divider',
+                zIndex: (theme) => theme.zIndex.drawer + 2 // Higher than AppBar
+              }
+            }}
+            ModalProps={{
+              sx: {
+                zIndex: (theme) => theme.zIndex.drawer + 2 // Higher than AppBar
               }
             }}
           >
@@ -348,7 +354,8 @@ const Navigation = () => {
               sx={{
                 width: 250,
                 bgcolor: 'background.paper',
-                height: '100%'
+                height: '100%',
+                paddingTop: '20px' // Add top padding to clear the navbar
               }}
               role="presentation"
             >

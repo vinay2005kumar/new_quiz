@@ -1128,7 +1128,7 @@ const FacultyAccounts = () => {
       }));
     }
 
-    //console.log('🔍 Processing Subjects:', subjectsString);
+    console.log('🔍 Processing Subjects:', subjectsString);
 
     // Create a map to store subjects for each year-semester combination
     const subjectMap = new Map();
@@ -1152,7 +1152,7 @@ const FacultyAccounts = () => {
       const subjectList = subjects.trim().split(',').map(s => s.trim()).filter(s => s);
       subjectMap.set(key, subjectList);
 
-      //console.log(`   ✅ Subjects for ${key}:`, subjectList);
+      console.log(`   ✅ Subjects for ${key}:`, subjectList);
     });
 
     // Add subjects to corresponding assignments
@@ -1166,7 +1166,7 @@ const FacultyAccounts = () => {
       };
     });
 
-    //console.log('🎯 Final assignments with subjects:', assignmentsWithSubjects);
+    console.log('🎯 Final assignments with subjects:', assignmentsWithSubjects);
     return assignmentsWithSubjects;
   };
 
@@ -1196,18 +1196,23 @@ const FacultyAccounts = () => {
           //console.log(`\n🔍 Processing Excel Row ${index + 2}:`, row);
 
           const errors = [];
-          if (!row.Name && !row.name) errors.push(`Row ${index + 2}: Name is required`);
-          if (!row.Email && !row.email) errors.push(`Row ${index + 2}: Email is required`);
-          if (!row.Department && !row.department) errors.push(`Row ${index + 2}: Department is required`);
-          if (!row.Year_Sem_Sec && !row.year_sem_sec) errors.push(`Row ${index + 2}: Year_Sem_Sec is required`);
+          const facultyName = row.Name || row.name || 'Unknown';
+          if (!row.Name && !row.name) errors.push(`🔴 ROW ${index + 2}: Name is required`);
+          if (!row.Email && !row.email) errors.push(`🔴 ROW ${index + 2} (${facultyName}): Email is required`);
+          if (!row.Department && !row.department) errors.push(`🔴 ROW ${index + 2} (${facultyName}): Department is required`);
+          if (!row.Year_Sem_Sec && !row.year_sem_sec) errors.push(`🔴 ROW ${index + 2} (${facultyName}): Year_Sem_Sec is required`);
+
+          // Handle password column if present
+          const password = row.Password || row.password || 'defaultPassword123';
 
           // Add row-specific errors to the main validation errors array
           validationErrors.push(...errors);
 
           const yearSemSec = row.Year_Sem_Sec || row.year_sem_sec;
           const subjectsString = row.Subjects || row.subjects || '';
-          //console.log(`📝 Year_Sem_Sec for row ${index + 2}:`, yearSemSec);
-          //console.log(`📝 Subjects for row ${index + 2}:`, subjectsString);
+          console.log(`📝 Year_Sem_Sec for row ${index + 2}:`, yearSemSec);
+          console.log(`📝 Subjects for row ${index + 2}:`, subjectsString);
+          console.log(`📝 All row keys for row ${index + 2}:`, Object.keys(row));
 
           let assignments = [];
 
@@ -1220,7 +1225,7 @@ const FacultyAccounts = () => {
               //console.log(`✅ Successfully parsed assignments for row ${index + 2}:`, assignments);
             }
           } catch (e) {
-            const error = `Row ${index + 2}: Invalid format - ${e.message}`;
+            const error = `🔴 ROW ${index + 2} (${facultyName}): Invalid format - ${e.message}`;
             console.error(`❌ Error parsing row ${index + 2}:`, e.message);
             errors.push(error);
             validationErrors.push(error);
@@ -1241,7 +1246,8 @@ const FacultyAccounts = () => {
               department: row.Department || row.department,
               year: a.year.toString(),
               semester: a.semester.toString(),
-              sections: a.sections
+              sections: a.sections,
+              subjects: a.subjects || []
             })),
             role: 'faculty', // Explicitly set role
             validationErrors: errors
@@ -1249,13 +1255,61 @@ const FacultyAccounts = () => {
 
           // Additional validation for faculty requirements
           if (!facultyData.department) {
-            errors.push(`Row ${index + 2}: No department specified`);
-            validationErrors.push(`Row ${index + 2}: No department specified`);
+            errors.push(`🔴 ROW ${index + 2} (${facultyData.name}): No department specified`);
+            validationErrors.push(`🔴 ROW ${index + 2} (${facultyData.name}): No department specified`);
           }
           if (facultyData.assignments.length === 0) {
-            errors.push(`Row ${index + 2}: No valid assignments found`);
-            validationErrors.push(`Row ${index + 2}: No valid assignments found`);
+            errors.push(`🔴 ROW ${index + 2} (${facultyData.name}): No valid assignments found`);
+            validationErrors.push(`🔴 ROW ${index + 2} (${facultyData.name}): No valid assignments found`);
           }
+
+          // Validate assignments against academic details
+          facultyData.assignments.forEach((assignment, assignmentIndex) => {
+            const academicDetail = academicDetails.find(detail =>
+              detail.department === assignment.department &&
+              detail.year === parseInt(assignment.year) &&
+              detail.semester === parseInt(assignment.semester)
+            );
+
+            if (!academicDetail) {
+              const error = `🔴 ROW ${index + 2} (${facultyData.name}), Assignment ${assignmentIndex + 1}: Academic details not found for ${assignment.department} Year-${assignment.year} Semester-${assignment.semester}. Please add this combination to Academic Details first.`;
+              errors.push(error);
+              validationErrors.push(error);
+            } else {
+              // Check if sections exist in academic details
+              const availableSections = academicDetail.sections.split(',').map(s => s.trim());
+              const invalidSections = assignment.sections.filter(section => !availableSections.includes(section));
+
+              if (invalidSections.length > 0) {
+                const error = `🔴 ROW ${index + 2} (${facultyData.name}), Assignment ${assignmentIndex + 1}: Sections [${invalidSections.join(', ')}] not available for ${assignment.department} Year-${assignment.year} Semester-${assignment.semester}. Available sections: [${availableSections.join(', ')}]`;
+                errors.push(error);
+                validationErrors.push(error);
+              }
+
+              // Check if subjects exist in academic details
+              if (assignment.subjects && assignment.subjects.length > 0) {
+                const availableSubjects = academicDetail.subjects
+                  ? academicDetail.subjects.split(',').map(s => s.trim()).filter(s => s)
+                  : [];
+
+                const invalidSubjects = assignment.subjects.filter(subject => {
+                  const subjectTrimmed = subject.trim();
+                  // Check if subject matches exactly or if it's contained within available subjects
+                  return !availableSubjects.some(availableSubject =>
+                    availableSubject === subjectTrimmed ||
+                    availableSubject.includes(subjectTrimmed) ||
+                    subjectTrimmed.includes(availableSubject)
+                  );
+                });
+
+                if (invalidSubjects.length > 0) {
+                  const error = `🔴 ROW ${index + 2} (${facultyData.name}), Assignment ${assignmentIndex + 1}: Subjects [${invalidSubjects.join(', ')}] not available for ${assignment.department} Year-${assignment.year} Semester-${assignment.semester}. Available subjects: [${availableSubjects.join(', ')}]`;
+                  errors.push(error);
+                  validationErrors.push(error);
+                }
+              }
+            }
+          });
 
           return facultyData;
         });
@@ -1263,11 +1317,34 @@ const FacultyAccounts = () => {
         setUploadProgress(50);
 
         if (validationErrors.length > 0) {
-          setUploadError(`Validation errors found:\n${validationErrors.slice(0, 10).join('\n')}${validationErrors.length > 10 ? '\n...and more errors' : ''}`);
+          // Group errors by row for better readability
+          const errorsByRow = {};
+          validationErrors.forEach(error => {
+            const rowMatch = error.match(/Row (\d+)/);
+            if (rowMatch) {
+              const rowNum = rowMatch[1];
+              if (!errorsByRow[rowNum]) {
+                errorsByRow[rowNum] = [];
+              }
+              errorsByRow[rowNum].push(error);
+            }
+          });
+
+          // Create formatted error message
+          const rowNumbers = Object.keys(errorsByRow).sort((a, b) => parseInt(a) - parseInt(b));
+          const errorSummary = `❌ VALIDATION FAILED - ${validationErrors.length} error(s) found in ${rowNumbers.length} row(s):\n\n` +
+            `📋 AFFECTED ROWS: ${rowNumbers.join(', ')}\n\n` +
+            `📝 DETAILED ERRORS:\n` +
+            validationErrors.slice(0, 15).map((error, index) => `${index + 1}. ${error}`).join('\n') +
+            (validationErrors.length > 15 ? `\n\n... and ${validationErrors.length - 15} more errors` : '') +
+            `\n\n💡 TIP: Fix the Academic Details table first, then re-upload the Excel file.`;
+
+          setUploadError(errorSummary);
           setUploadStatus('error');
           return;
         }
 
+        console.log('🎯 Setting upload preview with processedData:', processedData);
         setUploadPreview(processedData);
         setUploadProgress(70);
         setUploadStatus('ready');
@@ -1747,7 +1824,7 @@ const FacultyAccounts = () => {
   }
 
   return (
-    <Container maxWidth="lg" sx={{ mt: { xs: 2, md: 4 }, mb: 4, px: { xs: 1, sm: 2 } }}>
+    <Container maxWidth="xl" sx={{ mt: { xs: 2, md: 4 }, mb: 4, px: { xs: 1, sm: 2 } }}>
       <Paper sx={{ p: { xs: 2, md: 3 } }}>
         <Box sx={{
           mb: 3,
@@ -2039,7 +2116,7 @@ const FacultyAccounts = () => {
 
                       {/* Assignments Cell */}
                       <TableCell>
-                        <Box sx={{ maxWidth: 400 }}>
+                        <Box sx={{ maxWidth: 600 }}>
                           {member.assignments && member.assignments.length > 0 ? (
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                               {member.assignments.map((assignment, index) => (
@@ -2680,6 +2757,7 @@ const FacultyAccounts = () => {
                       <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
                         <TableCell>Name</TableCell>
                         <TableCell>Email</TableCell>
+                        <TableCell>Password</TableCell>
                         <TableCell>Department</TableCell>
                         <TableCell>Year_Sem_Sec</TableCell>
                         <TableCell>Subjects</TableCell>
@@ -2689,6 +2767,7 @@ const FacultyAccounts = () => {
                       <TableRow>
                         <TableCell>John Doe</TableCell>
                         <TableCell>john.doe@example.com</TableCell>
+                        <TableCell>password123</TableCell>
                         <TableCell>Computer Science</TableCell>
                         <TableCell>2-1:A,B;2-2:B,C</TableCell>
                         <TableCell>2-1:Programming Fundamentals(CS101),Data Structures(CS201);2-2:Database Systems(CS301)</TableCell>
@@ -2696,6 +2775,7 @@ const FacultyAccounts = () => {
                       <TableRow>
                         <TableCell>Jane Smith</TableCell>
                         <TableCell>jane.smith@example.com</TableCell>
+                        <TableCell>jane123</TableCell>
                         <TableCell>Electronics</TableCell>
                         <TableCell>1-1:A;1-2:A;2-1:A</TableCell>
                         <TableCell>1-1:Circuit Analysis(EE101);1-2:Digital Electronics(EE102);2-1:Microprocessors(EE201)</TableCell>
@@ -2703,6 +2783,7 @@ const FacultyAccounts = () => {
                       <TableRow>
                         <TableCell>Bob Wilson</TableCell>
                         <TableCell>bob.wilson@example.com</TableCell>
+                        <TableCell>bob456</TableCell>
                         <TableCell>Mechanical</TableCell>
                         <TableCell>3-1:B,C;3-2:A,B,C</TableCell>
                         <TableCell>3-1:Thermodynamics(ME301),Fluid Mechanics(ME302);3-2:Heat Transfer(ME401)</TableCell>
@@ -2848,12 +2929,41 @@ const FacultyAccounts = () => {
                             </Box>
                           </TableCell>
                           <TableCell>
-                            <Chip
-                              label={`${totalSubjects} subjects`}
-                              size="small"
-                              color={totalSubjects > 0 ? "success" : "default"}
-                              variant="outlined"
-                            />
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                              {faculty.assignments?.map((assignment, idx) => (
+                                <Box key={idx}>
+                                  <Typography variant="caption" color="primary" sx={{ fontWeight: 'bold' }}>
+                                    Y{assignment.year}S{assignment.semester}:
+                                  </Typography>
+                                  {assignment.subjects && assignment.subjects.length > 0 ? (
+                                    <Box sx={{ ml: 1 }}>
+                                      {assignment.subjects.map((subject, subIdx) => (
+                                        <Chip
+                                          key={subIdx}
+                                          label={subject}
+                                          size="small"
+                                          color="success"
+                                          variant="outlined"
+                                          sx={{ mr: 0.5, mb: 0.5, fontSize: '0.7rem' }}
+                                        />
+                                      ))}
+                                    </Box>
+                                  ) : (
+                                    <Typography variant="caption" color="textSecondary" sx={{ ml: 1 }}>
+                                      No subjects
+                                    </Typography>
+                                  )}
+                                </Box>
+                              ))}
+                              {totalSubjects === 0 && (
+                                <Chip
+                                  label="0 subjects"
+                                  size="small"
+                                  color="default"
+                                  variant="outlined"
+                                />
+                              )}
+                            </Box>
                           </TableCell>
                         </TableRow>
                       );

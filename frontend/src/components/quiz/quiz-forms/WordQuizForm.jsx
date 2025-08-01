@@ -248,14 +248,21 @@ D) 6\\par
         {/* Example Section */}
         <Box sx={{
           my: 2,
-          p: 2,
-          bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.800' : 'grey.100',
-          borderRadius: 1,
-          border: (theme) => `1px solid ${theme.palette.divider}`
+          p: 3,
+          bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.800' : 'grey.50',
+          borderRadius: 2,
+          border: (theme) => `2px solid ${theme.palette.primary.light}`
         }}>
-          <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>
-            📄 Word Document Format Example:
+          <Typography variant="subtitle1" gutterBottom sx={{
+            fontWeight: 'bold',
+            color: 'primary.main',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1
+          }}>
+            📄 Word Document Format Example
           </Typography>
+
           <Box sx={{
             p: 2,
             bgcolor: (theme) => theme.palette.mode === 'dark' ? 'grey.900' : 'white',
@@ -263,8 +270,9 @@ D) 6\\par
             fontFamily: 'monospace',
             fontSize: '0.875rem',
             lineHeight: 1.6,
-            whiteSpace: 'pre-line',
-            border: '1px solid #ddd'
+            whiteSpace: 'pre',
+            border: '1px solid #ddd',
+            overflow: 'auto'
           }}>
 {`Q1. What is the capital of France? (1 marks) [Negative: 1]
 A) Paris*
@@ -305,12 +313,30 @@ B) 4*
 C) 5
 D) 6`}
           </Box>
-          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-            💡 <strong>Tips:</strong> Use Q1., Q2., etc. for questions. Add (marks) after each question. Add [Negative: X] for negative marking (optional). Mark correct answers with asterisk (*). Leave blank lines between questions.
-          </Typography>
-          <Typography variant="caption" color="primary.main" sx={{ mt: 1, display: 'block', fontWeight: 'bold' }}>
-            🔥 <strong>For Programming Questions:</strong> Just type your code with proper indentation! The system will automatically preserve formatting for Python, Java, C, HTML, CSS, SQL, and any other language. No special formatting needed - just maintain your indentation as you normally would.
-          </Typography>
+
+          <Box sx={{ mt: 2, p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
+            <Typography variant="body2" color="info.dark" sx={{ fontWeight: 'bold', mb: 1 }}>
+              💡 Formatting Tips:
+            </Typography>
+            <Typography variant="body2" color="info.dark" component="div">
+              • Use <strong>Q1., Q2., Q3.</strong> to start each question<br/>
+              • Add <strong>(X marks)</strong> after each question<br/>
+              • Add <strong>[Negative: X]</strong> for negative marking (optional)<br/>
+              • Mark correct answers with <strong>asterisk (*)</strong><br/>
+              • Leave <strong>blank lines</strong> between questions<br/>
+              • For code: Just type with proper indentation - formatting is preserved automatically!
+            </Typography>
+          </Box>
+
+          <Box sx={{ mt: 2, p: 2, bgcolor: 'success.light', borderRadius: 1 }}>
+            <Typography variant="body2" color="success.dark" sx={{ fontWeight: 'bold', mb: 1 }}>
+              🔥 Programming Questions:
+            </Typography>
+            <Typography variant="body2" color="success.dark">
+              The system automatically preserves formatting for <strong>Python, Java, C++, HTML, CSS, SQL, JavaScript</strong> and other languages.
+              Just maintain proper indentation in your Word document - no special formatting needed!
+            </Typography>
+          </Box>
         </Box>
 
         <input

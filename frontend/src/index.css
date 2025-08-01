@@ -78,6 +78,18 @@ a, button, input, select, textarea {
   }
 }
 
+/* Add top spacing for pages with fixed navbar */
+.main-content-with-navbar {
+  padding-top: 80px !important; /* Space for fixed navbar */
+}
+
+/* Mobile specific spacing */
+@media (max-width: 600px) {
+  .main-content-with-navbar {
+    padding-top: 70px !important; /* Slightly less for mobile */
+  }
+}
+
 /* Better table styles - will be overridden by Material-UI theme */
 table {
   border-collapse: separate;
